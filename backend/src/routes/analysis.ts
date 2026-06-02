@@ -273,97 +273,74 @@ function renderVonnegutSvg(data: any): string {
     )
   })
 
-  // ── Annotation zone (directly below chart) ─────────────────────────────────
-  const ANNO_ROW_H = 20
-  const ANNO_Y = CH + 14
-
-  // Dashed connecting lines first (behind labels)
-  straenge.forEach((s: any, si: number) => {
-    const rowCenter = ANNO_Y + si * ANNO_ROW_H + ANNO_ROW_H / 2
-    xKeys.forEach((k, i) => {
-      const val = pMaps[si][k]
-      if (val == null) return
-      const cx = xPos(i)
-      const fromY = yPos(val) + 5.5
-      const toY = rowCenter - 5
-      if (toY > fromY + 2)
-        svgParts.push(`<line x1="${cx.toFixed(1)}" y1="${fromY.toFixed(1)}" x2="${cx.toFixed(1)}" y2="${toY.toFixed(1)}" stroke="${esc(s.farbe)}" stroke-width="0.8" stroke-dasharray="2,3" opacity="0.4"/>`)
-    })
-  })
-
-  // Annotation rows (alternating background + labels)
-  straenge.forEach((s: any, si: number) => {
-    const rowY = ANNO_Y + si * ANNO_ROW_H
-    const rowCenter = rowY + ANNO_ROW_H / 2
-    if (si % 2 === 0)
-      svgParts.push(`<rect x="0" y="${rowY}" width="${W}" height="${ANNO_ROW_H}" fill="#fafafa"/>`)
-    // Color dot + short strand name on left
-    svgParts.push(`<circle cx="8" cy="${rowCenter.toFixed(1)}" r="3" fill="${esc(s.farbe)}"/>`)
-    const nameShort = s.name.length > 20 ? s.name.substring(0, 19) + '\u2026' : s.name
-    svgParts.push(`<text x="14" y="${(rowCenter + 4).toFixed(1)}" font-size="7.5" fill="${esc(s.farbe)}" font-weight="600">${esc(nameShort)}</text>`)
-    // Value label at each x-position
-    xKeys.forEach((k, i) => {
-      const val = pMaps[si][k]
-      if (val == null) return
-      svgParts.push(`<text x="${xPos(i).toFixed(1)}" y="${(rowCenter + 4).toFixed(1)}" text-anchor="middle" font-size="8" fill="${esc(s.farbe)}" font-weight="600">${val > 0 ? '+' : ''}${val}</text>`)
-    })
-  })
-
-  // ── Legend ─────────────────────────────────────────────────────────────────
-  const LEGEND_Y = ANNO_Y + straenge.length * ANNO_ROW_H + 18
-  const LEG_ITEM_W = 160
+  // ── Legend (im SVG, direkt unter Chart) ────────────────────────────────────
+  const LEGEND_Y = CH + 12
+  const LEG_ITEM_W = 150
   const LEG_COLS = Math.max(1, Math.floor(W / LEG_ITEM_W))
   const LEG_ROWS = Math.ceil(straenge.length / LEG_COLS)
-  const LEG_ROW_H = 18
+  const LEG_ROW_H = 16
 
-  svgParts.push(`<text x="${PAD.left}" y="${LEGEND_Y}" font-size="8" fill="#aaa">Legende:</text>`)
   straenge.forEach((s: any, i: number) => {
     const col = i % LEG_COLS
     const row = Math.floor(i / LEG_COLS)
     const lx = PAD.left + col * LEG_ITEM_W
-    const ly = LEGEND_Y + 14 + row * LEG_ROW_H + LEG_ROW_H / 2
-    svgParts.push(`<line x1="${lx}" y1="${ly.toFixed(1)}" x2="${(lx + 14).toFixed(1)}" y2="${ly.toFixed(1)}" stroke="${esc(s.farbe)}" stroke-width="2"/>`)
-    svgParts.push(`<circle cx="${(lx + 7).toFixed(1)}" cy="${ly.toFixed(1)}" r="3.5" fill="${esc(s.farbe)}" stroke="#fff" stroke-width="1"/>`)
-    svgParts.push(`<text x="${lx + 20}" y="${(ly + 4).toFixed(1)}" font-size="9" fill="#333">${esc(s.name)}</text>`)
+    const ly = LEGEND_Y + row * LEG_ROW_H + LEG_ROW_H / 2
+    svgParts.push(`<line x1="${lx}" y1="${ly.toFixed(1)}" x2="${(lx + 12).toFixed(1)}" y2="${ly.toFixed(1)}" stroke="${esc(s.farbe)}" stroke-width="2"/>`)
+    svgParts.push(`<circle cx="${(lx + 6).toFixed(1)}" cy="${ly.toFixed(1)}" r="3" fill="${esc(s.farbe)}" stroke="#fff" stroke-width="1"/>`)
+    svgParts.push(`<text x="${lx + 17}" y="${(ly + 3.5).toFixed(1)}" font-size="8" fill="#333">${esc(s.name)}</text>`)
   })
 
-  const totalH = LEGEND_Y + 14 + LEG_ROWS * LEG_ROW_H + 12
+  const totalH = LEGEND_Y + LEG_ROWS * LEG_ROW_H + 8
 
-  // ── Wendepunkte-Details HTML (unterhalb des SVG) ──────────────────────────────
-  const detailRows: string[] = []
-  straenge.forEach((s: any) => {
-    const punkte = (s.punkte ?? []).filter((p: any) => p.notiz || p.figuren || p.zusammenfassung)
-    if (!punkte.length) return
-    const items = punkte.map((p: any) => {
-      const wertLabel = `${p.wert > 0 ? '+' : ''}${p.wert}`
+  // ── Punkt-Detail-Maps (für Annotation) ─────────────────────────────────────
+  const detailMaps: Array<Record<string, any>> = straenge.map((s: any) => {
+    const m: Record<string, any> = {}
+    for (const p of s.punkte) m[`${p.folge_nr}.${p.scene_nr}`] = p
+    return m
+  })
+
+  // ── Annotation-Sektion (HTML, flowing inline) ───────────────────────────────
+  const annoRows: string[] = []
+  straenge.forEach((s: any, si: number) => {
+    const entries: string[] = []
+    xKeys.forEach(k => {
+      const p = detailMaps[si][k]
+      if (!p) return
+      const val = p.wert
+      const valStr = `${val > 0 ? '+' : ''}${val}`
       const parts: string[] = []
+      if (p.figuren)         parts.push(`<span style="color:#333">${esc(p.figuren)}</span>`)
       if (p.zusammenfassung) parts.push(esc(p.zusammenfassung))
-      if (p.figuren) parts.push(`<span style="color:#555">Figuren: ${esc(p.figuren)}</span>`)
-      if (p.notiz) parts.push(`<em>${esc(p.notiz)}</em>`)
-      return `<tr>
-        <td style="padding:2pt 8pt 2pt 0;white-space:nowrap;font-size:8pt;color:#555">F${p.folge_nr}, Sz.${p.scene_nr}</td>
-        <td style="padding:2pt 8pt 2pt 0;white-space:nowrap;font-size:9pt;font-weight:700;color:${esc(s.farbe)}">${wertLabel}</td>
-        <td style="padding:2pt 0;font-size:8pt;line-height:1.4">${parts.join(' &nbsp;·&nbsp; ')}</td>
-      </tr>`
-    }).join('')
-    detailRows.push(`<tr>
-      <td colspan="3" style="padding:6pt 0 2pt;font-size:9pt;font-weight:700;color:${esc(s.farbe)}">● ${esc(s.name)}</td>
-    </tr>${items}`)
+      if (p.notiz)           parts.push(`<em style="color:#666">${esc(p.notiz)}</em>`)
+      if (!parts.length) return
+      entries.push(
+        `<span style="display:inline;margin-right:6pt">` +
+        `<span style="font-weight:700;color:${esc(s.farbe)};white-space:nowrap">F${p.folge_nr}&thinsp;Sz.${p.scene_nr}<sup style="font-size:5pt">&thinsp;${valStr}</sup></span>` +
+        ` ${parts.join(' &thinsp;·&thinsp; ')}</span>`
+      )
+    })
+    if (!entries.length) return
+    const nameShort = s.name.length > 22 ? s.name.substring(0, 21) + '\u2026' : s.name
+    annoRows.push(
+      `<div style="display:flex;align-items:baseline;gap:4pt;margin-bottom:2pt">` +
+      `<span style="min-width:62pt;max-width:62pt;font-size:6pt;font-weight:700;color:${esc(s.farbe)};` +
+      `flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">● ${esc(nameShort)}</span>` +
+      `<span style="font-size:6pt;line-height:1.35;flex:1">${entries.join('')}</span>` +
+      `</div>`
+    )
   })
 
-  const detailsHtml = detailRows.length
-    ? `<div style="margin-top:14pt;font-family:sans-serif">
-        <div style="font-size:8pt;font-weight:600;color:#aaa;letter-spacing:0.05em;margin-bottom:4pt;text-transform:uppercase">Wendepunkte-Details</div>
-        <table style="border-collapse:collapse;width:100%">${detailRows.join('')}</table>
-      </div>`
+  const annoHtml = annoRows.length
+    ? `<div style="font-family:sans-serif;border-top:1px solid #e0e0e0;margin-top:5pt;padding-top:4pt">` +
+      annoRows.join('') + `</div>`
     : ''
 
-  return `<figure style="overflow-x:auto;margin:8pt 0">
+  return `<figure style="margin:6pt 0">
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${totalH}" width="${W}" height="${totalH}" style="max-width:100%;display:block;font-family:sans-serif">
       ${svgParts.join('\n      ')}
     </svg>
-    <figcaption style="font-size:8pt;color:#666;margin-top:4pt">Emotionale Kurven pro Strang · Werte −5 (Tiefpunkt) bis +5 (Höhepunkt)</figcaption>
-  </figure>${detailsHtml}`
+    <figcaption style="font-size:7pt;color:#888;margin-top:2pt">Emotionale Kurven pro Strang · Werte −5 (Tiefpunkt) bis +5 (Höhepunkt)</figcaption>
+  </figure>${annoHtml}`
 }
 
 function renderStructuredHtml(method: string, data: any): string {
