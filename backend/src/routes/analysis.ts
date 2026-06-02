@@ -329,12 +329,41 @@ function renderVonnegutSvg(data: any): string {
 
   const totalH = LEGEND_Y + 14 + LEG_ROWS * LEG_ROW_H + 12
 
+  // ── Wendepunkte-Details HTML (unterhalb des SVG) ──────────────────────────────
+  const detailRows: string[] = []
+  straenge.forEach((s: any) => {
+    const punkte = (s.punkte ?? []).filter((p: any) => p.notiz || p.figuren || p.zusammenfassung)
+    if (!punkte.length) return
+    const items = punkte.map((p: any) => {
+      const wertLabel = `${p.wert > 0 ? '+' : ''}${p.wert}`
+      const parts: string[] = []
+      if (p.zusammenfassung) parts.push(esc(p.zusammenfassung))
+      if (p.figuren) parts.push(`<span style="color:#555">Figuren: ${esc(p.figuren)}</span>`)
+      if (p.notiz) parts.push(`<em>${esc(p.notiz)}</em>`)
+      return `<tr>
+        <td style="padding:2pt 8pt 2pt 0;white-space:nowrap;font-size:8pt;color:#555">F${p.folge_nr}, Sz.${p.scene_nr}</td>
+        <td style="padding:2pt 8pt 2pt 0;white-space:nowrap;font-size:9pt;font-weight:700;color:${esc(s.farbe)}">${wertLabel}</td>
+        <td style="padding:2pt 0;font-size:8pt;line-height:1.4">${parts.join(' &nbsp;·&nbsp; ')}</td>
+      </tr>`
+    }).join('')
+    detailRows.push(`<tr>
+      <td colspan="3" style="padding:6pt 0 2pt;font-size:9pt;font-weight:700;color:${esc(s.farbe)}">● ${esc(s.name)}</td>
+    </tr>${items}`)
+  })
+
+  const detailsHtml = detailRows.length
+    ? `<div style="margin-top:14pt;font-family:sans-serif">
+        <div style="font-size:8pt;font-weight:600;color:#aaa;letter-spacing:0.05em;margin-bottom:4pt;text-transform:uppercase">Wendepunkte-Details</div>
+        <table style="border-collapse:collapse;width:100%">${detailRows.join('')}</table>
+      </div>`
+    : ''
+
   return `<figure style="overflow-x:auto;margin:8pt 0">
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${totalH}" width="${W}" height="${totalH}" style="max-width:100%;display:block;font-family:sans-serif">
       ${svgParts.join('\n      ')}
     </svg>
     <figcaption style="font-size:8pt;color:#666;margin-top:4pt">Emotionale Kurven pro Strang · Werte −5 (Tiefpunkt) bis +5 (Höhepunkt)</figcaption>
-  </figure>`
+  </figure>${detailsHtml}`
 }
 
 function renderStructuredHtml(method: string, data: any): string {
@@ -748,7 +777,7 @@ router.get('/run/:id/pdf', async (req, res) => {
       await page.setContent(html, { waitUntil: 'networkidle0' })
       const pdfBuf = await page.pdf({
         format: 'A4',
-        landscape: true,
+        landscape: methodFilter === 'vonnegut_arcs',
         margin: { top: '2.5cm', bottom: '2.2cm', left: '2.5cm', right: '2.5cm' },
         printBackground: true,
         displayHeaderFooter: true,

@@ -987,7 +987,13 @@ function VonnegutArcsChart({ data }: { data: any }) {
                     key={i} cx={p.x} cy={p.y} r={4}
                     fill={s.farbe} stroke="var(--bg-surface,#fff)" strokeWidth={1.5}
                     style={{ cursor: 'help' }}
-                    onMouseEnter={e => setTooltip({ text: `${s.name} · Folge ${p.folge}, Sz. ${p.scene}\nWert: ${p.wert > 0 ? '+' : ''}${p.wert}\n\n${p.notiz}`, x: e.clientX, y: e.clientY })}
+                    onMouseEnter={e => {
+                      const lines = [`${s.name} · Folge ${p.folge}, Sz. ${p.scene}  ${p.wert > 0 ? '+' : ''}${p.wert}`]
+                      if (p.figuren) lines.push(`Figuren: ${p.figuren}`)
+                      if (p.zusammenfassung) lines.push(p.zusammenfassung)
+                      if (p.notiz) lines.push(p.notiz)
+                      setTooltip({ text: lines.join('\n'), x: e.clientX, y: e.clientY })
+                    }}
                     onMouseLeave={() => setTooltip(null)}
                     onMouseMove={e => setTooltip(t => t ? { ...t, x: e.clientX, y: e.clientY } : null)}
                   />

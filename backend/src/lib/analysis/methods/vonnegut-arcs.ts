@@ -10,6 +10,8 @@ export interface ArcPunkt {
   scene_nr: number
   wert: number    // -5 bis +5
   notiz?: string
+  figuren?: string        // Komma-getrennte Figurenliste in dieser Szene
+  zusammenfassung?: string  // Einzeiler: Was passiert in dieser Szene?
 }
 
 export interface ArcStrang {
@@ -42,10 +44,12 @@ const TOOL: Anthropic.Tool = {
               items: {
                 type: 'object',
                 properties: {
-                  folge_nr: { type: 'number' },
-                  scene_nr: { type: 'number' },
-                  wert:     { type: 'number', description: '-5 (Tiefpunkt) bis +5 (Höhepunkt)' },
-                  notiz:    { type: 'string', description: 'Kurze Notiz zum Wendepunkt (optional)' },
+                  folge_nr:        { type: 'number' },
+                  scene_nr:        { type: 'number' },
+                  wert:            { type: 'number', description: '-5 (Tiefpunkt) bis +5 (Höhepunkt)' },
+                  notiz:           { type: 'string', description: 'Kurze Notiz zum Wendepunkt (optional)' },
+                  figuren:         { type: 'string', description: 'Komma-getrennte Figurennamen in dieser Szene (optional)' },
+                  zusammenfassung: { type: 'string', description: 'Einzeiler: Was passiert in dieser Szene für diesen Strang? (optional)' },
                 },
                 required: ['folge_nr', 'scene_nr', 'wert'],
               },
