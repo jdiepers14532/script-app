@@ -403,7 +403,7 @@ async function runChecks(szeneId: string, onlyAuto: boolean, checksOverride?: st
   }
 
   // ── 9. Eindeutige Szenennummer ───────────────────────────────────────────
-  if (run('scene.unique_szenennummer') && s.scene_nummer?.trim()) {
+  if (run('scene.unique_szenennummer') && s.scene_nummer != null) {
     const dupRes = await pool.query<any>(`
       SELECT id FROM dokument_szenen
       WHERE werkstufe_id = $1 AND scene_nummer = $2 AND id != $3 AND geloescht IS NOT TRUE
