@@ -71,6 +71,8 @@ import { ntEintraegeRouter } from './routes/nt-eintraege'
 import { checksRouter } from './routes/checks'
 import { planungRouter } from './routes/planung'
 import { bibleRouter } from './routes/bible'
+import { planungVersionenRouter } from './routes/planung-versionen'
+import { konzeptImportRouter } from './routes/konzept-import'
 
 // Load .env from project root or backend dir
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') })
@@ -216,6 +218,8 @@ app.use('/api/autorenplan', autorenplanRouter)
 app.use('/api/straenge', straengeRouter)
 app.use('/api/planung', planungRouter)
 app.use('/api/bible', bibleRouter)
+app.use('/api/planung-versionen', planungVersionenRouter)
+app.use('/api/konzept-import', konzeptImportRouter)
 
 // Team-Work: Colab-Gruppen, Sessions, Sichtbarkeit
 app.use('/api/colab-gruppen', colabGruppenRouter)
@@ -432,6 +436,8 @@ async function runMigrations() {
     'v166_rollen_einsatz_befunde.sql',
     // Bible-Modus: Beziehungen erweitern + bible_chronologie + bible_felder_config
     'v167_bible.sql',
+    // Versionierung: future_versionen + konzept_versionen + versions_aenderungen
+    'v168_versionen_import.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

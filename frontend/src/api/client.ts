@@ -523,6 +523,30 @@ export const api = {
   deleteBibleChronologie: (id: string) =>
     request<{ ok: boolean }>('DELETE', `/bible/chronologie/${id}`),
 
+  // ── Planung-Versionen ─────────────────────────────────────────────────────
+  getPlanungVersionen: (produktionId: string, typ?: 'future' | 'konzept' | 'alle') =>
+    request<any[]>('GET', `/planung-versionen?produktion_id=${encodeURIComponent(produktionId)}${typ ? `&typ=${typ}` : ''}`),
+  createPlanungVersion: (data: { produktion_id: string; typ: 'future' | 'konzept'; label?: string; notiz?: string; zeitraum?: string; staffel?: string }) =>
+    request<any>('POST', '/planung-versionen', data),
+  getPlanungVersion: (id: string, typ?: 'future' | 'konzept') =>
+    request<any>('GET', `/planung-versionen/${id}${typ ? `?typ=${typ}` : ''}`),
+  updatePlanungVersion: (id: string, data: { typ: 'future' | 'konzept'; label?: string; notiz?: string; zeitraum?: string; staffel?: string }) =>
+    request<any>('PUT', `/planung-versionen/${id}`, data),
+  freigebenPlanungVersion: (id: string, typ: 'future' | 'konzept') =>
+    request<any>('POST', `/planung-versionen/${id}/freigeben`, { typ }),
+  deletePlanungVersion: (id: string, typ: 'future' | 'konzept') =>
+    request<{ ok: boolean }>('DELETE', `/planung-versionen/${id}?typ=${typ}`),
+  addVersionAenderung: (versionId: string, data: { version_typ: 'future' | 'konzept'; art?: 'inhaltlich' | 'produktionell'; beschreibung: string; referenz?: string }) =>
+    request<any>('POST', `/planung-versionen/${versionId}/aenderungen`, data),
+  deleteVersionAenderung: (versionId: string, aId: string) =>
+    request<{ ok: boolean }>('DELETE', `/planung-versionen/${versionId}/aenderungen/${aId}`),
+
+  // ── Konzept-Import ────────────────────────────────────────────────────────
+  konzeptImportPreview: (formData: FormData) =>
+    fetch(`${BASE}/konzept-import/preview`, { method: 'POST', credentials: 'include', body: formData }).then(r => r.json()),
+  konzeptImportCommit: (data: { quelltyp: string; produktion_id: string; data: any[]; auto_version?: boolean }) =>
+    request<any>('POST', '/konzept-import/commit', data),
+
   // ── Charakter aktivieren ──────────────────────────────────────────────────
   aktiviereCharacter: (characterId: string, produktionId: string) =>
     request<any>('POST', `/characters/${characterId}/aktivieren`, { produktion_id: produktionId }),
