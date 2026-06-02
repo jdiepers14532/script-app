@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
-import { X, Check, Bold, Italic, Underline as UnderlineIcon, Shield, GripVertical } from 'lucide-react'
+import { X, Check, Bold, Italic, Underline as UnderlineIcon, Shield, GripVertical, ChevronLeft, ChevronRight } from 'lucide-react'
 import { api } from '../../api/client'
 import { useSelectedProduction } from '../../contexts'
 
@@ -127,15 +127,18 @@ interface Props {
   onClose: () => void
   folgeId: number
   folgeNummer: number
+  folgenList?: Array<{ id: number; folge_nummer: number }>
+  onNavigate?: (folgeId: number, folgeNummer: number) => void
 }
 
-export default function FolgeMetaDatenModal({ open, onClose, folgeId, folgeNummer }: Props) {
+export default function FolgeMetaDatenModal({ open, onClose, folgeId, folgeNummer, folgenList, onNavigate }: Props) {
   const { selectedProduction } = useSelectedProduction()
   const [deskriptorVorlagen, setDeskriptorVorlagen] = useState<string[]>(DESKRIPTOR_KATEGORIEN)
   const [activeTab, setActiveTab] = useState<Tab>('titel')
   const [loading, setLoading] = useState(false)
 
   const [selectedTitel, setSelectedTitel] = useState('')
+  const [titelAlternativen, setTitelAlternativen] = useState<string[]>([])
   const [strangText, setStrangText]       = useState('')
   const [deskriptoren, setDeskriptoren]   = useState<DeskriptorItem[]>([])
   const [fskRating, setFskRating]         = useState('12')
@@ -149,6 +152,9 @@ export default function FolgeMetaDatenModal({ open, onClose, folgeId, folgeNumme
   const [layout, setLayout] = useState<Layout | null>(null)
   const layoutRef = useRef<Layout | null>(null)
   const saveLayoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const prevFolgeRef = useRef<{ id: number; folge_nummer: number } | null>(null)
+  const nextFolgeRef = useRef<{ id: number; folge_nummer: number } | null>(null)
+  const navigateToRef = useRef<((f: { id: number; folge_nummer: number }) => void) | null>(null)
 
   // Sync ref so drag closures always see latest layout
   useEffect(() => { layoutRef.current = layout }, [layout])
@@ -268,6 +274,12 @@ export default function FolgeMetaDatenModal({ open, onClose, folgeId, folgeNumme
     if (!kurzEditor || !redaktionEditor || !lektorEditor || !presseEditor || !pressetextEditor) return
     const d = pendingLoadData
     if (d.folgen_titel) setSelectedTitel(d.folgen_titel)
+    if (d.folgen_titel_alternativen) {
+      try {
+        const alts = JSON.parse(d.folgen_titel_alternativen)
+        if (Array.isArray(alts) && alts.length > 0) setTitelAlternativen(alts)
+      } catch {}
+    }
     kurzEditor.commands.setContent(d.synopsis_kurzinhalt || d.synopsis_300 || '<p></p>')
     redaktionEditor.commands.setContent(d.synopsis || '<p></p>')
     lektorEditor.commands.setContent(d.synopsis_lektor || '<p></p>')
@@ -303,6 +315,7 @@ export default function FolgeMetaDatenModal({ open, onClose, folgeId, folgeNumme
     if (!open) return
     setActiveTab('titel')
     setSelectedTitel('')
+    setTitelAlternativen([])
     setStrangText('')
     setDeskriptoren([])
     setFskRating('12')
@@ -321,10 +334,19 @@ export default function FolgeMetaDatenModal({ open, onClose, folgeId, folgeNumme
       .finally(() => setLoading(false))
   }, [open, folgeId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Escape
+  // Escape + Pfeiltasten-Navigation
   useEffect(() => {
     if (!open) return
-    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') handleClose() }
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') { handleClose(); return }
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        const tag = (e.target as HTMLElement).tagName
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement).isContentEditable) return
+        e.preventDefault()
+        const dest = e.key === 'ArrowLeft' ? prevFolgeRef.current : nextFolgeRef.current
+        if (dest && navigateToRef.current) navigateToRef.current(dest)
+      }
+    }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -342,7 +364,8 @@ export default function FolgeMetaDatenModal({ open, onClose, folgeId, folgeNumme
         ? JSON.stringify({ rating: fskRating, begruendung: fskBegruendung })
         : null
       await api.saveFolgenSynopsen(folgeId, {
-        folgen_titel:          selectedTitel.trim() || null,
+        folgen_titel:                selectedTitel.trim() || null,
+        folgen_titel_alternativen:   titelAlternativen.length > 0 ? JSON.stringify(titelAlternativen) : null,
         synopsis_kurzinhalt:   isEmpty(kurzHtml)       ? null : kurzHtml!,
         synopsis:              isEmpty(redaktionHtml)  ? null : redaktionHtml!,
         synopsis_lektor:       isEmpty(lektorHtml)     ? null : lektorHtml!,
@@ -360,12 +383,25 @@ export default function FolgeMetaDatenModal({ open, onClose, folgeId, folgeNumme
     } finally {
       setSaveLoading(false)
     }
-  }, [folgeId, selectedTitel, kurzEditor, redaktionEditor, lektorEditor, presseEditor, pressetextEditor, strangText, deskriptoren, fskRating, fskBegruendung])
+  }, [folgeId, selectedTitel, titelAlternativen, kurzEditor, redaktionEditor, lektorEditor, presseEditor, pressetextEditor, strangText, deskriptoren, fskRating, fskBegruendung])
+
+  const navigateTo = useCallback((target: { id: number; folge_nummer: number }) => {
+    save().then(() => onNavigate!(target.id, target.folge_nummer))
+  }, [save, onNavigate])
 
   async function handleClose() {
     await save()
     onClose()
   }
+
+  // Episode navigation — abgeleitete Werte + Refs aktualisieren
+  const sortedFolgen = folgenList ? [...folgenList].sort((a, b) => a.folge_nummer - b.folge_nummer) : []
+  const currentIdx = sortedFolgen.findIndex(f => f.id === folgeId)
+  const prevFolge = currentIdx > 0 ? sortedFolgen[currentIdx - 1] : null
+  const nextFolge = currentIdx >= 0 && currentIdx < sortedFolgen.length - 1 ? sortedFolgen[currentIdx + 1] : null
+  prevFolgeRef.current = prevFolge
+  nextFolgeRef.current = nextFolge
+  navigateToRef.current = onNavigate ? navigateTo : null
 
   if (!open) return null
 
@@ -436,6 +472,40 @@ export default function FolgeMetaDatenModal({ open, onClose, folgeId, folgeNumme
                 Synopsen · Titel · Deskriptoren · FSK · Autosave beim Schließen
               </div>
             </div>
+            {/* Episoden-Navigation */}
+            {onNavigate && sortedFolgen.length > 1 && (
+              <div onMouseDown={e => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+                <button
+                  onClick={() => prevFolge && navigateTo(prevFolge)}
+                  disabled={!prevFolge}
+                  title={prevFolge ? `← Folge ${prevFolge.folge_nummer}` : undefined}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    width: 28, height: 28, borderRadius: 5, border: 'none',
+                    background: 'transparent', cursor: prevFolge ? 'pointer' : 'default',
+                    color: 'var(--text-secondary)', opacity: prevFolge ? 1 : 0.25,
+                  }}
+                >
+                  <ChevronLeft size={14} />
+                </button>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', minWidth: 36, textAlign: 'center' }}>
+                  {currentIdx >= 0 ? `${currentIdx + 1} / ${sortedFolgen.length}` : '—'}
+                </span>
+                <button
+                  onClick={() => nextFolge && navigateTo(nextFolge)}
+                  disabled={!nextFolge}
+                  title={nextFolge ? `Folge ${nextFolge.folge_nummer} →` : undefined}
+                  style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    width: 28, height: 28, borderRadius: 5, border: 'none',
+                    background: 'transparent', cursor: nextFolge ? 'pointer' : 'default',
+                    color: 'var(--text-secondary)', opacity: nextFolge ? 1 : 0.25,
+                  }}
+                >
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            )}
             <button
               onMouseDown={e => e.stopPropagation()}
               onClick={handleClose}
@@ -518,6 +588,34 @@ export default function FolgeMetaDatenModal({ open, onClose, folgeId, folgeNumme
                   }}>
                     {selectedTitel.trim().split(/\s+/).length} Wörter
                     {selectedTitel.trim().split(/\s+/).length > 3 && ' — ideal sind 1–3 Wörter'}
+                  </div>
+                )}
+                {titelAlternativen.length > 0 && (
+                  <div style={{ marginTop: 12 }}>
+                    <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                      Alternativen — klicken zum Auswählen (Favorit)
+                    </div>
+                    {titelAlternativen.map((t, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setSelectedTitel(prev => prev === t ? '' : t)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                          textAlign: 'left', padding: '8px 12px', marginBottom: 4, borderRadius: 7,
+                          border: `1.5px solid ${selectedTitel === t ? '#007AFF' : 'var(--border)'}`,
+                          background: selectedTitel === t ? 'rgba(0,122,255,0.07)' : 'var(--bg-subtle)',
+                          cursor: 'pointer', fontFamily: 'inherit',
+                          fontSize: 13, fontWeight: selectedTitel === t ? 700 : 500,
+                          color: 'var(--text-primary)',
+                        }}
+                      >
+                        {selectedTitel === t && <span style={{ color: '#007AFF', fontSize: 11, flexShrink: 0 }}>✓</span>}
+                        <span style={{ flex: 1 }}>{t}</span>
+                        <span style={{ fontSize: 11, color: t.trim().split(/\s+/).length > 3 ? '#FF9500' : 'var(--text-muted)', flexShrink: 0 }}>
+                          {t.trim().split(/\s+/).length}W
+                        </span>
+                      </button>
+                    ))}
                   </div>
                 )}
               </div>
@@ -605,15 +703,17 @@ export default function FolgeMetaDatenModal({ open, onClose, folgeId, folgeNumme
                     }
                     return (
                       <div key={i} style={{
-                        display: 'flex', alignItems: 'center', gap: 4,
+                        display: 'flex', alignItems: 'flex-start', gap: 4,
                         padding: '7px 10px 7px 12px',
                         borderBottom: i < arr.length - 1 ? '1px solid var(--border-subtle)' : 'none',
                       }}>
                         <input value={name} onChange={e => updateLine(e.target.value, content)} placeholder="STRANG"
-                          style={{ background: 'transparent', border: 'none', outline: 'none', fontWeight: 700, color: '#007AFF', fontSize: 13, width: '28%', minWidth: 60 }} />
-                        <span style={{ color: 'var(--text-muted)', fontWeight: 700, flexShrink: 0 }}>:</span>
-                        <input value={content} onChange={e => updateLine(name, e.target.value)} placeholder="Kurzbeschreibung…"
-                          style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--text-primary)', fontSize: 13, lineHeight: 1.7 }} />
+                          style={{ background: 'transparent', border: 'none', outline: 'none', fontWeight: 700, color: '#007AFF', fontSize: 13, width: '28%', minWidth: 60, marginTop: 2 }} />
+                        <span style={{ color: 'var(--text-muted)', fontWeight: 700, flexShrink: 0, marginTop: 2 }}>:</span>
+                        <textarea value={content} onChange={e => updateLine(name, e.target.value)} placeholder="Kurzbeschreibung…"
+                          rows={Math.max(1, content.split('\n').length)}
+                          onKeyDown={e => { if (e.key === 'Enter') e.preventDefault() }}
+                          style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: 'var(--text-primary)', fontSize: 13, lineHeight: 1.6, resize: 'none', fontFamily: 'inherit', padding: 0 }} />
                         <button onMouseDown={() => { const lines = strangText.split('\n').filter(Boolean); lines.splice(i, 1); setStrangText(lines.join('\n')) }}
                           style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px 6px', fontSize: 16, flexShrink: 0 }}>×</button>
                       </div>

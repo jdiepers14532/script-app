@@ -1446,6 +1446,11 @@ export default function ScriptPage() {
           onClose={() => setShowMetaDaten(false)}
           folgeId={selectedFolgeId}
           folgeNummer={selectedFolgeNummer}
+          folgenList={allFolgen}
+          onNavigate={(newId, newNummer) => {
+            setSelectedFolgeId(newId)
+            setSelectedFolgeNummer(newNummer)
+          }}
         />
       )}
 

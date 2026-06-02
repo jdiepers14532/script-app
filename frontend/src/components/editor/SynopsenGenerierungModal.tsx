@@ -311,6 +311,12 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
     if (!kurzEditor || !redaktionEditor || !lektorEditor || !presseEditor || !pressetextEditor) return
     const d = pendingLoadData
     if (d.folgen_titel) setSelectedTitel(d.folgen_titel)
+    if (d.folgen_titel_alternativen) {
+      try {
+        const alts = JSON.parse(d.folgen_titel_alternativen)
+        if (Array.isArray(alts) && alts.length > 0) setTitelOptions(alts)
+      } catch {}
+    }
     const kurzHtml = d.synopsis_kurzinhalt || d.synopsis_300 || '<p></p>'
     kurzEditor.commands.setContent(kurzHtml)
     redaktionEditor.commands.setContent(d.synopsis || '<p></p>')
@@ -469,7 +475,8 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
       const deskriptorenJson = deskriptoren.length > 0 ? JSON.stringify(deskriptoren) : null
       const fskJson = (fskRating || fskBegruendung.trim()) ? JSON.stringify({ rating: fskRating, begruendung: fskBegruendung }) : null
       await api.saveFolgenSynopsen(folgeId, {
-        folgen_titel:           selectedTitel.trim() || null,
+        folgen_titel:                selectedTitel.trim() || null,
+        folgen_titel_alternativen:   titelOptions.length > 0 ? JSON.stringify(titelOptions) : null,
         synopsis_kurzinhalt:    isEmpty(kurzHtml)       ? null : kurzHtml!,
         synopsis:               isEmpty(redaktionHtml)  ? null : redaktionHtml!,
         synopsis_lektor:        isEmpty(lektorHtml)     ? null : lektorHtml!,
@@ -873,7 +880,7 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
                     }
                     return (
                       <div key={i} style={{
-                        display:'flex', alignItems:'center', gap:4,
+                        display:'flex', alignItems:'flex-start', gap:4,
                         padding:'7px 10px 7px 12px',
                         borderBottom: i < arr.length - 1 ? '1px solid rgba(255,255,255,0.07)' : 'none',
                       }}>
@@ -885,17 +892,20 @@ export default function SynopsenGenerierungModal({ open, onClose, folgeId, folge
                             background:'transparent', border:'none', outline:'none',
                             fontWeight:700, color:'#D18AFF',
                             fontSize: Math.round(13 * editorZoom),
-                            width:'28%', minWidth:60,
+                            width:'28%', minWidth:60, marginTop:2,
                           }}
                         />
-                        <span style={{ color:'rgba(255,255,255,0.35)', fontWeight:700, flexShrink:0, fontSize: Math.round(13 * editorZoom) }}>:</span>
-                        <input
+                        <span style={{ color:'rgba(255,255,255,0.35)', fontWeight:700, flexShrink:0, fontSize: Math.round(13 * editorZoom), marginTop:2 }}>:</span>
+                        <textarea
                           value={content}
                           onChange={e => updateLine(name, e.target.value)}
                           placeholder="Kurzbeschreibung…"
+                          rows={Math.max(1, content.split('\n').length)}
+                          onKeyDown={e => { if (e.key === 'Enter') e.preventDefault() }}
                           style={{
                             flex:1, background:'transparent', border:'none', outline:'none',
-                            color:'#f0f0f0', fontSize: Math.round(13 * editorZoom), lineHeight:1.7,
+                            color:'#f0f0f0', fontSize: Math.round(13 * editorZoom), lineHeight:1.6,
+                            resize:'none', fontFamily:'inherit', padding:0,
                           }}
                         />
                         <button

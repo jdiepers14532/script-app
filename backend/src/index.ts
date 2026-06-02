@@ -453,6 +453,8 @@ async function runMigrations() {
     'v173_node_id_rebackfill.sql',
     // Handoff 1 Phase 2b: block_uuid in szenen_revisionen — UUID-basiertes Revision-Matching
     'v174_szenen_revisionen_block_uuid.sql',
+    // Titel-Alternativen: KI-Vorschläge persistent speichern
+    'v175_titel_alternativen.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
