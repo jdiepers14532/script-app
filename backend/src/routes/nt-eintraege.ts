@@ -40,6 +40,7 @@ interface NtCharEntry {
   nt_typ: 'stimme' | 'vo'
   replicaTexts: string[]
   replicaCharPositions: number[]  // 1-basierte Position des CHARACTER-Blocks in der Szene
+  charNodeIds: string[]           // node_ids der NT/VO/OFF CHARACTER-Blöcke (Phase 4)
 }
 
 /**
@@ -62,7 +63,7 @@ export function extractNtCharacters(
     : (content?.content ?? [])
 
   // name → { suffixes für alle Auftritte, Repliken für NT/VO-Auftritte }
-  const charMap = new Map<string, { suffixes: string[]; replicaTexts: string[]; replicaCharPositions: number[] }>()
+  const charMap = new Map<string, { suffixes: string[]; replicaTexts: string[]; replicaCharPositions: number[]; charNodeIds: Set<string> }>()
   let currentName: string | null = null
   let currentSuffix: string | null = null
   let collectReplicas = false
@@ -85,7 +86,7 @@ export function extractNtCharacters(
       const nameUpper = name.toUpperCase()
 
       if (!charMap.has(nameUpper)) {
-        charMap.set(nameUpper, { suffixes: [], replicaTexts: [], replicaCharPositions: [] })
+        charMap.set(nameUpper, { suffixes: [], replicaTexts: [], replicaCharPositions: [], charNodeIds: new Set() })
       }
       charMap.get(nameUpper)!.suffixes.push(suffix ?? '')
 
@@ -94,6 +95,11 @@ export function extractNtCharacters(
       currentCharPos = charCounter
       // Repliken sammeln für NT und VO (nicht ONE-WAY, nicht OFF normal)
       collectReplicas = suffix === '(NT)' || suffix === '(VO)' || suffix === '(OFF)'
+      // node_id des CHARACTER-Blocks sichern (Phase 4: revisionssichere UUID-Referenz)
+      const charNodeId = node.attrs?.node_id as string | undefined
+      if (charNodeId && collectReplicas) {
+        charMap.get(nameUpper)!.charNodeIds.add(charNodeId)
+      }
     } else if (isDiag) {
       if (currentName && collectReplicas) {
         const diagText = extractNodeText(node).trim()
@@ -115,13 +121,14 @@ export function extractNtCharacters(
     const hasVo = suffixes.includes('(VO)')
     const hasOff = suffixes.includes('(OFF)')
 
+    const charNodeIds = Array.from(data.charNodeIds)
     if (hasVo) {
-      result.push({ nameUpper, nt_typ: 'vo', replicaTexts, replicaCharPositions })
+      result.push({ nameUpper, nt_typ: 'vo', replicaTexts, replicaCharPositions, charNodeIds })
     } else if (hasNt) {
-      result.push({ nameUpper, nt_typ: 'stimme', replicaTexts, replicaCharPositions })
+      result.push({ nameUpper, nt_typ: 'stimme', replicaTexts, replicaCharPositions, charNodeIds })
     } else if (hasOff) {
       // OFF: Figur (auch teilweise) im Off — NT-Aufnahme erforderlich
-      result.push({ nameUpper, nt_typ: 'stimme', replicaTexts: [], replicaCharPositions: [] })
+      result.push({ nameUpper, nt_typ: 'stimme', replicaTexts: [], replicaCharPositions: [], charNodeIds })
     }
   }
 
@@ -247,16 +254,20 @@ export async function autoUpsertNtEintraege(
       // so bleiben die Nummern korrekt wenn sich Vorszenen ändern.
       const replikenPositionen = entry.replicaCharPositions.length > 0 ? entry.replicaCharPositions : null
 
+      const replikenNodeIds = entry.charNodeIds.length > 0 ? entry.charNodeIds : null
+
       await pool.query(
         `INSERT INTO nt_eintraege
-           (produktion_id, character_id, szene_id, scene_identity_id, werkstufe_id, folge_id, nt_typ, repliken_text, repliken_positionen, veraltet)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, FALSE)
+           (produktion_id, character_id, szene_id, scene_identity_id, werkstufe_id, folge_id,
+            nt_typ, repliken_text, repliken_positionen, repliken_node_ids, veraltet)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, FALSE)
          ON CONFLICT (character_id, scene_identity_id, werkstufe_id)
          DO UPDATE SET
            szene_id = EXCLUDED.szene_id,
            nt_typ = EXCLUDED.nt_typ,
            repliken_text = EXCLUDED.repliken_text,
            repliken_positionen = EXCLUDED.repliken_positionen,
+           repliken_node_ids = EXCLUDED.repliken_node_ids,
            veraltet = FALSE,
            aktualisiert_am = NOW()`,
         [
@@ -269,6 +280,7 @@ export async function autoUpsertNtEintraege(
           entry.nt_typ,
           replikenText,
           replikenPositionen,
+          replikenNodeIds,
         ]
       )
       upsertedCharIds.push(char.id)
@@ -908,6 +920,187 @@ ntEintraegeRouter.get('/statistik/overview', async (req, res) => {
     )
 
     res.json({ totals, figuren: preFiguren })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GET /api/nt-eintraege/drift-check?werkstufe_id=X
+// Phase 4: Interims-Text-Drift-Check — re-extrahiert repliken_text aus dem
+// aktuellen Szenen-Content und vergleicht mit gespeicherten Werten.
+// Gibt Divergenzen zurück (= Einträge, bei denen gespeicherter Text nicht mehr
+// mit dem tatsächlichen Content übereinstimmt).
+// Kein Frontend nötig; sofortige Wertlieferung für manuelle Audits.
+// ══════════════════════════════════════════════════════════════════════════════
+ntEintraegeRouter.get('/drift-check', async (req, res) => {
+  const { werkstufe_id } = req.query
+  if (!werkstufe_id) return res.status(400).json({ error: 'werkstufe_id required' })
+
+  try {
+    // Alle aktiven NT-Einträge dieser Werkstufe
+    const eintraege = await query(
+      `SELECT ne.id, ne.szene_id, ne.scene_identity_id, ne.character_id,
+              ne.repliken_text AS stored_text, c.name AS char_name,
+              ds.content
+       FROM nt_eintraege ne
+       JOIN characters c ON c.id = ne.character_id
+       JOIN dokument_szenen ds ON ds.id = ne.szene_id
+       WHERE ne.werkstufe_id = $1 AND ne.veraltet = FALSE`,
+      [werkstufe_id]
+    )
+
+    // Absatzformate der Produktion laden (einmalig)
+    const prodRes = await queryOne(
+      `SELECT f.produktion_id FROM werkstufen w JOIN folgen f ON f.id = w.folge_id WHERE w.id = $1`,
+      [werkstufe_id]
+    )
+    if (!prodRes) return res.status(404).json({ error: 'Werkstufe nicht gefunden' })
+
+    const charFormats = await query(`SELECT id FROM absatzformate WHERE produktion_id = $1 AND LOWER(name) = 'character'`, [prodRes.produktion_id])
+    const diagFormats = await query(`SELECT id FROM absatzformate WHERE produktion_id = $1 AND LOWER(name) = 'dialogue'`, [prodRes.produktion_id])
+    const charFormatIds = new Set(charFormats.map((r: any) => r.id))
+    const diagFormatIds = new Set(diagFormats.map((r: any) => r.id))
+
+    const drifted: any[] = []
+    const ok_count = { total: 0, drifted: 0 }
+
+    for (const eintrag of eintraege) {
+      ok_count.total++
+      const content = typeof eintrag.content === 'string'
+        ? JSON.parse(eintrag.content)
+        : eintrag.content
+      const ntChars = extractNtCharacters(content, charFormatIds, diagFormatIds)
+      const match = ntChars.find(e => e.nameUpper === eintrag.char_name?.toUpperCase())
+      const freshText = match ? (match.replicaTexts.join('\n') || null) : null
+
+      if (freshText !== eintrag.stored_text) {
+        ok_count.drifted++
+        drifted.push({
+          id: eintrag.id,
+          szene_id: eintrag.szene_id,
+          char_name: eintrag.char_name,
+          stored_text: eintrag.stored_text,
+          fresh_text: freshText,
+          drift: !freshText ? 'keine_nt_mehr' : (!eintrag.stored_text ? 'neu_erkannt' : 'text_geaendert'),
+        })
+      }
+    }
+
+    res.json({ total: ok_count.total, drifted: ok_count.drifted, entries: drifted })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GET /api/nt-eintraege/konsistenz?werkstufe_id=X&basis_werkstufe_id=Y
+// Phase 4: Konsistenz-Check gegen eingefrorene Basis-Fassung.
+// Vergleicht NT-Einträge der Arbeits-Werkstufe (X) gegen die eingefrorene
+// Referenz-Werkstufe (Y) per repliken_node_ids:
+//   block_fehlt    → CHARACTER-Block (UUID) existiert nicht mehr in X → Fehler
+//   text_geaendert → Block existiert, aber repliken_text hat sich geändert → Hinweis
+//   ok             → identisch
+// Aktualisiert konsistenz_status auf den NT-Einträgen in Werkstufe X.
+// ══════════════════════════════════════════════════════════════════════════════
+ntEintraegeRouter.get('/konsistenz', async (req, res) => {
+  const { werkstufe_id, basis_werkstufe_id } = req.query
+  if (!werkstufe_id || !basis_werkstufe_id) {
+    return res.status(400).json({ error: 'werkstufe_id und basis_werkstufe_id required' })
+  }
+
+  try {
+    // Basis-NT-Einträge (eingefroren) laden
+    const basisEintraege = await query(
+      `SELECT ne.character_id, ne.scene_identity_id, ne.repliken_text,
+              ne.repliken_node_ids, c.name AS char_name
+       FROM nt_eintraege ne
+       JOIN characters c ON c.id = ne.character_id
+       WHERE ne.werkstufe_id = $1 AND ne.veraltet = FALSE`,
+      [basis_werkstufe_id]
+    )
+    // Index: (character_id + scene_identity_id) → Basis-Eintrag
+    const basisMap = new Map<string, any>(
+      basisEintraege.map((e: any) => [`${e.character_id}::${e.scene_identity_id}`, e])
+    )
+
+    // Alle Szenen der Arbeits-Werkstufe — node_id → block JSON (für "Block fehlt"-Check)
+    const szenenX = await query(
+      `SELECT ds.scene_identity_id, ds.content
+       FROM dokument_szenen ds
+       WHERE ds.werkstufe_id = $1 AND ds.geloescht = FALSE`,
+      [werkstufe_id]
+    )
+    // Block-UUID-Index: node_id → Szene-Content
+    const nodeIdIndex = new Map<string, any>()
+    for (const szene of szenenX) {
+      const blocks: any[] = typeof szene.content === 'string'
+        ? JSON.parse(szene.content)
+        : (Array.isArray(szene.content) ? szene.content : szene.content?.content ?? [])
+      for (const block of blocks) {
+        const nid = block?.attrs?.node_id
+        if (nid) nodeIdIndex.set(nid, block)
+      }
+    }
+
+    // Aktuelle NT-Einträge der Arbeits-Werkstufe
+    const arbeitEintraege = await query(
+      `SELECT ne.id, ne.character_id, ne.scene_identity_id, ne.repliken_text,
+              ne.repliken_node_ids, c.name AS char_name
+       FROM nt_eintraege ne
+       JOIN characters c ON c.id = ne.character_id
+       WHERE ne.werkstufe_id = $1 AND ne.veraltet = FALSE`,
+      [werkstufe_id]
+    )
+
+    const results: any[] = []
+    const statusUpdates: { id: string; status: string }[] = []
+
+    for (const eintrag of arbeitEintraege) {
+      const key = `${eintrag.character_id}::${eintrag.scene_identity_id}`
+      const basis = basisMap.get(key)
+
+      let status = 'ok'
+      let detail: any = null
+
+      if (!basis) {
+        // Eintrag existiert nicht in der Basis → neu, kein Vergleich möglich
+        status = 'neu'
+      } else {
+        // "Block fehlt"-Check: sind alle node_ids aus der Basis noch in der Arbeits-Werkstufe?
+        const basisNodeIds: string[] = basis.repliken_node_ids ?? []
+        const fehlend = basisNodeIds.filter((nid: string) => !nodeIdIndex.has(nid))
+        if (fehlend.length > 0) {
+          status = 'block_fehlt'
+          detail = { fehlende_node_ids: fehlend }
+        } else if (eintrag.repliken_text !== basis.repliken_text) {
+          // Text hat sich geändert (Block existiert, aber Inhalt anders)
+          status = 'text_geaendert'
+          detail = { basis_text: basis.repliken_text, aktuell_text: eintrag.repliken_text }
+        }
+      }
+
+      results.push({ id: eintrag.id, char_name: eintrag.char_name, status, detail })
+      if (status !== 'neu') statusUpdates.push({ id: eintrag.id, status })
+    }
+
+    // konsistenz_status in DB aktualisieren (batch)
+    for (const upd of statusUpdates) {
+      await pool.query(
+        `UPDATE nt_eintraege SET konsistenz_status = $1, aktualisiert_am = NOW() WHERE id = $2`,
+        [upd.status, upd.id]
+      )
+    }
+
+    const summary = {
+      total: results.length,
+      ok: results.filter(r => r.status === 'ok').length,
+      block_fehlt: results.filter(r => r.status === 'block_fehlt').length,
+      text_geaendert: results.filter(r => r.status === 'text_geaendert').length,
+      neu: results.filter(r => r.status === 'neu').length,
+    }
+
+    res.json({ summary, results })
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }

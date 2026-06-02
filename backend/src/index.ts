@@ -459,6 +459,8 @@ async function runMigrations() {
     'v176_scene_chars_constraint_fix.sql',
     // Handoff 1 Phase 3: Werkstufen einfrieren (Revisionsstufen)
     'v177_werkstufen_einfrieren.sql',
+    // Handoff 1 Phase 4: NT revisionssicher — repliken_node_ids + konsistenz_status
+    'v178_nt_repliken_node_ids.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
