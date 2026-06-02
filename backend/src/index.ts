@@ -367,7 +367,8 @@ async function runMigrations() {
     'v105_zusatz_standalone.sql',
     'v106_wysiwyg_merged.sql',
     'v107_pre_vorlage_content.sql',
-    'v108_glossar_linear_nonlinear.sql',
+    // v108_glossar_linear_nonlinear.sql: Dead entry — file was deleted from repo and never applied to DB.
+    // Removed 2026-06-02. The migration runner matches by name; removal is safe (nothing to skip).
     'v109_analysis_runs.sql',
     'v110_backfill_replik_count.sql',
     'v111_dokument_szenen_unique.sql',
