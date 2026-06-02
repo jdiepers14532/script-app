@@ -455,6 +455,8 @@ async function runMigrations() {
     'v174_szenen_revisionen_block_uuid.sql',
     // Titel-Alternativen: KI-Vorschläge persistent speichern
     'v175_titel_alternativen.sql',
+    // scene_characters: idx_scene_chars_identity_char auf werkstufe_id IS NULL einschränken
+    'v176_scene_chars_constraint_fix.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

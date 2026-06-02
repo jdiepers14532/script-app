@@ -993,14 +993,9 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
         }
       }
 
-      // ── Bulk insert scene_characters ──
-      const scCharIdentityIds: string[] = []
-      const scCharIds: string[] = []
-      const scKatIds: string[] = []
-      const scSpielTypen: string[] = []
-      const scRepliken: number[] = []
-      const scAnzahl: (number | null)[] = []
-      const scHeaderOT: (boolean | null)[] = []
+      // ── Bulk insert scene_characters (mit Deduplication: selber Char mehrfach in einer Szene) ──
+      type ScCharEntry = { identityId: string; charId: string; katId: number; spielTyp: string; repliken: number; anzahl: number | null; headerOT: boolean | null }
+      const scCharMap = new Map<string, ScCharEntry>()
 
       for (let i = 0; i < sceneDataList.length; i++) {
         const identityId = sceneIdentityIds[i]
@@ -1012,13 +1007,13 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
           const charId = charNameToId.get(charName.toUpperCase())
           if (!charId || !rolleKatId) continue
           const analysis = analyzeInContent(textelemente, charName)
-          scCharIdentityIds.push(identityId)
-          scCharIds.push(charId)
-          scKatIds.push(rolleKatId)
-          scSpielTypen.push(analysis.spiel_typ === 'text' ? 'text' : 'spiel')
-          scRepliken.push(analysis.repliken)
-          scAnzahl.push(1)
-          scHeaderOT.push(false)
+          const key = `${identityId}:${charId}`
+          const existing = scCharMap.get(key)
+          if (existing) {
+            existing.repliken += analysis.repliken
+          } else {
+            scCharMap.set(key, { identityId, charId, katId: rolleKatId, spielTyp: analysis.spiel_typ === 'text' ? 'text' : 'spiel', repliken: analysis.repliken, anzahl: 1, headerOT: false })
+          }
         }
 
         for (const kompRaw of sd.komparsen) {
@@ -1028,17 +1023,20 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
           const analysis = analyzeInContent(textelemente, kompName)
           let spiel_typ = headerOT ? 'o.t.' : 'spiel'
           if (analysis.spiel_typ === 'text') spiel_typ = 'text'
-          scCharIdentityIds.push(identityId)
-          scCharIds.push(charId)
-          scKatIds.push(komparseKatId)
-          scSpielTypen.push(spiel_typ)
-          scRepliken.push(analysis.repliken)
-          scAnzahl.push(anzahl)
-          scHeaderOT.push(headerOT)
+          const key = `${identityId}:${charId}`
+          const existing = scCharMap.get(key)
+          if (existing) {
+            existing.repliken += analysis.repliken
+            existing.anzahl = (existing.anzahl ?? 0) + (anzahl ?? 0)
+            existing.headerOT = existing.headerOT || headerOT
+          } else {
+            scCharMap.set(key, { identityId, charId, katId: komparseKatId, spielTyp: spiel_typ, repliken: analysis.repliken, anzahl, headerOT })
+          }
         }
       }
 
-      if (scCharIdentityIds.length > 0) {
+      const scEntries = Array.from(scCharMap.values())
+      if (scEntries.length > 0) {
         await client.query(
           `INSERT INTO scene_characters
              (scene_identity_id, character_id, kategorie_id, spiel_typ, repliken_anzahl, anzahl, header_o_t, werkstufe_id)
@@ -1046,7 +1044,16 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
                   unnest($4::text[]), unnest($5::int[]), unnest($6::int[]), unnest($7::boolean[]), $8
            ON CONFLICT (werkstufe_id, scene_identity_id, character_id)
              WHERE werkstufe_id IS NOT NULL AND scene_identity_id IS NOT NULL DO NOTHING`,
-          [scCharIdentityIds, scCharIds, scKatIds, scSpielTypen, scRepliken, scAnzahl, scHeaderOT, werkstufeId]
+          [
+            scEntries.map(e => e.identityId),
+            scEntries.map(e => e.charId),
+            scEntries.map(e => e.katId),
+            scEntries.map(e => e.spielTyp),
+            scEntries.map(e => e.repliken),
+            scEntries.map(e => e.anzahl),
+            scEntries.map(e => e.headerOT),
+            werkstufeId,
+          ]
         )
       }
 
