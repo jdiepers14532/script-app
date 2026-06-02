@@ -205,6 +205,24 @@ function renderFigurenAgencyHtml(data: any): string {
   </table>`
 }
 
+function wrapSvgText(text: string, maxChars: number): string[] {
+  if (!text) return []
+  const words = text.split(' ')
+  const lines: string[] = []
+  let curr = ''
+  for (const w of words) {
+    const next = curr ? `${curr} ${w}` : w
+    if (next.length > maxChars) {
+      if (curr) lines.push(curr)
+      curr = w.length > maxChars ? `${w.substring(0, maxChars - 1)}\u2026` : w
+    } else {
+      curr = next
+    }
+  }
+  if (curr) lines.push(curr)
+  return lines
+}
+
 function renderVonnegutSvg(data: any): string {
   const straenge = data?.straenge ?? []
   if (!straenge.length) return '<p>Keine Arc-Daten</p>'
@@ -216,10 +234,21 @@ function renderVonnegutSvg(data: any): string {
     return af - bf || as_ - bs
   })
 
-  const PX_PER = 16
-  const W = Math.max(640, xKeys.length * PX_PER + 160)
-  const CH = 220
-  const PAD = { top: 24, right: 60, bottom: 40, left: 56 }
+  const pMaps: Array<Record<string, number>> = straenge.map((s: any) => {
+    const m: Record<string, number> = {}
+    for (const p of s.punkte) m[`${p.folge_nr}.${p.scene_nr}`] = p.wert
+    return m
+  })
+  const detailMaps: Array<Record<string, any>> = straenge.map((s: any) => {
+    const m: Record<string, any> = {}
+    for (const p of s.punkte) m[`${p.folge_nr}.${p.scene_nr}`] = p
+    return m
+  })
+
+  const PX_PER = 14
+  const W = Math.max(600, xKeys.length * PX_PER + 140)
+  const CH = 170
+  const PAD = { top: 26, right: 50, bottom: 36, left: 50 }
   const cW = W - PAD.left - PAD.right
   const cH = CH - PAD.top - PAD.bottom
 
@@ -228,119 +257,147 @@ function renderVonnegutSvg(data: any): string {
     : PAD.left + cW / 2
   const yPos = (v: number) => PAD.top + ((5 - v) / 10) * cH
 
-  const svgParts: string[] = []
+  const ENTRY_W = 90       // px width of each annotation box
+  const LINE_H  = 7        // px per text line (~5.5pt)
+  const ENTRY_PAD = 5      // vertical padding inside box
+  const MAX_CHARS = 40     // chars per wrapped line
 
-  // Y-axis grid + labels
-  for (const v of [-5, -4, -2, 0, 2, 4, 5]) {
-    const y = yPos(v).toFixed(1)
-    const isMid = v === 0
-    svgParts.push(
-      `<line x1="${PAD.left}" y1="${y}" x2="${W - PAD.right}" y2="${y}" stroke="${isMid ? '#888' : '#ddd'}" stroke-width="${isMid ? 1 : 0.5}"${isMid ? '' : ' stroke-dasharray="2,4"'}/>`
-    )
-    if (v === 5 || v === 0 || v === -5)
-      svgParts.push(`<text x="${PAD.left - 8}" y="${(yPos(v) + 4).toFixed(1)}" text-anchor="end" font-size="9" fill="#666">${v > 0 ? '+' : ''}${v}</text>`)
-  }
+  // ── One SVG page per strand ─────────────────────────────────────────────────
+  const pages = straenge.map((curStrang: any, si: number) => {
+    const sp: string[] = []
 
-  // Folge separators + x-axis labels
-  let lastFolge = -1
-  xKeys.forEach((k, i) => {
-    const f = Number(k.split('.')[0])
-    if (f !== lastFolge) {
-      if (i > 0)
-        svgParts.push(`<line x1="${xPos(i).toFixed(1)}" y1="${PAD.top}" x2="${xPos(i).toFixed(1)}" y2="${CH - PAD.bottom}" stroke="#e8e8e8" stroke-width="1"/>`)
-      svgParts.push(`<text x="${xPos(i).toFixed(1)}" y="${CH - PAD.bottom + 14}" text-anchor="middle" font-size="9" fill="#555" font-weight="500">F${f}</text>`)
-      lastFolge = f
+    // Strand title header
+    sp.push(`<text x="${PAD.left}" y="15" font-size="10" font-weight="700" fill="${esc(curStrang.farbe)}" font-family="sans-serif">● ${esc(curStrang.name)}</text>`)
+
+    // Y-axis grid + labels
+    for (const v of [-5, -4, -2, 0, 2, 4, 5]) {
+      const y = yPos(v).toFixed(1)
+      const isMid = v === 0
+      sp.push(`<line x1="${PAD.left}" y1="${y}" x2="${W - PAD.right}" y2="${y}" stroke="${isMid ? '#888' : '#ddd'}" stroke-width="${isMid ? 1 : 0.5}"${isMid ? '' : ' stroke-dasharray="2,4"'}/>`)
+      if (v === 5 || v === 0 || v === -5)
+        sp.push(`<text x="${PAD.left - 6}" y="${(yPos(v) + 3.5).toFixed(1)}" text-anchor="end" font-size="7" fill="#777">${v > 0 ? '+' : ''}${v}</text>`)
     }
-  })
 
-  // Point maps per strand
-  const pMaps: Array<Record<string, number>> = straenge.map((s: any) => {
-    const m: Record<string, number> = {}
-    for (const p of s.punkte) m[`${p.folge_nr}.${p.scene_nr}`] = p.wert
-    return m
-  })
-
-  // Strand curves + dots
-  straenge.forEach((s: any, si: number) => {
-    const pts = xKeys
-      .map((k, i) => pMaps[si][k] != null ? { x: xPos(i), y: yPos(pMaps[si][k]) } : null)
-      .filter(Boolean) as { x: number; y: number }[]
-    if (!pts.length) return
-    const path = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')
-    svgParts.push(`<path d="${path}" fill="none" stroke="${esc(s.farbe)}" stroke-width="2" stroke-linejoin="round"/>`)
-    pts.forEach(p =>
-      svgParts.push(`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.5" fill="${esc(s.farbe)}" stroke="#fff" stroke-width="1.5"/>`)
-    )
-  })
-
-  // ── Legend (im SVG, direkt unter Chart) ────────────────────────────────────
-  const LEGEND_Y = CH + 12
-  const LEG_ITEM_W = 150
-  const LEG_COLS = Math.max(1, Math.floor(W / LEG_ITEM_W))
-  const LEG_ROWS = Math.ceil(straenge.length / LEG_COLS)
-  const LEG_ROW_H = 16
-
-  straenge.forEach((s: any, i: number) => {
-    const col = i % LEG_COLS
-    const row = Math.floor(i / LEG_COLS)
-    const lx = PAD.left + col * LEG_ITEM_W
-    const ly = LEGEND_Y + row * LEG_ROW_H + LEG_ROW_H / 2
-    svgParts.push(`<line x1="${lx}" y1="${ly.toFixed(1)}" x2="${(lx + 12).toFixed(1)}" y2="${ly.toFixed(1)}" stroke="${esc(s.farbe)}" stroke-width="2"/>`)
-    svgParts.push(`<circle cx="${(lx + 6).toFixed(1)}" cy="${ly.toFixed(1)}" r="3" fill="${esc(s.farbe)}" stroke="#fff" stroke-width="1"/>`)
-    svgParts.push(`<text x="${lx + 17}" y="${(ly + 3.5).toFixed(1)}" font-size="8" fill="#333">${esc(s.name)}</text>`)
-  })
-
-  const totalH = LEGEND_Y + LEG_ROWS * LEG_ROW_H + 8
-
-  // ── Punkt-Detail-Maps (für Annotation) ─────────────────────────────────────
-  const detailMaps: Array<Record<string, any>> = straenge.map((s: any) => {
-    const m: Record<string, any> = {}
-    for (const p of s.punkte) m[`${p.folge_nr}.${p.scene_nr}`] = p
-    return m
-  })
-
-  // ── Annotation-Sektion (HTML, flowing inline) ───────────────────────────────
-  const annoRows: string[] = []
-  straenge.forEach((s: any, si: number) => {
-    const entries: string[] = []
-    xKeys.forEach(k => {
-      const p = detailMaps[si][k]
-      if (!p) return
-      const val = p.wert
-      const valStr = `${val > 0 ? '+' : ''}${val}`
-      const parts: string[] = []
-      if (p.figuren)         parts.push(`<span style="color:#333">${esc(p.figuren)}</span>`)
-      if (p.zusammenfassung) parts.push(esc(p.zusammenfassung))
-      if (p.notiz)           parts.push(`<em style="color:#666">${esc(p.notiz)}</em>`)
-      if (!parts.length) return
-      entries.push(
-        `<span style="display:inline;margin-right:6pt">` +
-        `<span style="font-weight:700;color:${esc(s.farbe)};white-space:nowrap">F${p.folge_nr}&thinsp;Sz.${p.scene_nr}<sup style="font-size:5pt">&thinsp;${valStr}</sup></span>` +
-        ` ${parts.join(' &thinsp;·&thinsp; ')}</span>`
-      )
+    // Folge separators + x-axis labels
+    let lastFolge = -1
+    xKeys.forEach((k, i) => {
+      const f = Number(k.split('.')[0])
+      if (f !== lastFolge) {
+        if (i > 0) sp.push(`<line x1="${xPos(i).toFixed(1)}" y1="${PAD.top}" x2="${xPos(i).toFixed(1)}" y2="${CH - PAD.bottom}" stroke="#ebebeb" stroke-width="1"/>`)
+        sp.push(`<text x="${xPos(i).toFixed(1)}" y="${CH - PAD.bottom + 11}" text-anchor="middle" font-size="7" fill="#666" font-weight="500">F${f}</text>`)
+        lastFolge = f
+      }
     })
-    if (!entries.length) return
-    const nameShort = s.name.length > 22 ? s.name.substring(0, 21) + '\u2026' : s.name
-    annoRows.push(
-      `<div style="display:flex;align-items:baseline;gap:4pt;margin-bottom:2pt">` +
-      `<span style="min-width:62pt;max-width:62pt;font-size:6pt;font-weight:700;color:${esc(s.farbe)};` +
-      `flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">● ${esc(nameShort)}</span>` +
-      `<span style="font-size:6pt;line-height:1.35;flex:1">${entries.join('')}</span>` +
-      `</div>`
-    )
+
+    // All strand curves — current full, others faded
+    straenge.forEach((strand: any, i: number) => {
+      const isCur = i === si
+      const pts = xKeys
+        .map((k, idx) => pMaps[i][k] != null ? { x: xPos(idx), y: yPos(pMaps[i][k]) } : null)
+        .filter(Boolean) as { x: number; y: number }[]
+      if (!pts.length) return
+      const path = pts.map((p, idx) => `${idx === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')
+      sp.push(`<path d="${path}" fill="none" stroke="${esc(strand.farbe)}" stroke-width="${isCur ? 2.5 : 1}" stroke-linejoin="round" opacity="${isCur ? 1 : 0.15}"/>`)
+      if (isCur)
+        pts.forEach(p => sp.push(`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.5" fill="${esc(curStrang.farbe)}" stroke="#fff" stroke-width="1.5"/>`))
+    })
+
+    // Legend (below chart)
+    const LEG_Y  = CH + 10
+    const LEG_IW = 140
+    const LEG_COLS = Math.max(1, Math.floor(W / LEG_IW))
+    const LEG_ROWS = Math.ceil(straenge.length / LEG_COLS)
+    const LEG_RH = 13
+    straenge.forEach((strand: any, i: number) => {
+      const col = i % LEG_COLS, row = Math.floor(i / LEG_COLS)
+      const lx = PAD.left + col * LEG_IW
+      const ly = LEG_Y + row * LEG_RH + LEG_RH / 2
+      const isCur = i === si
+      sp.push(`<line x1="${lx}" y1="${ly.toFixed(1)}" x2="${(lx + 11).toFixed(1)}" y2="${ly.toFixed(1)}" stroke="${esc(strand.farbe)}" stroke-width="${isCur ? 2 : 1}" opacity="${isCur ? 1 : 0.3}"/>`)
+      sp.push(`<circle cx="${(lx + 5.5).toFixed(1)}" cy="${ly.toFixed(1)}" r="${isCur ? 2.5 : 1.8}" fill="${esc(strand.farbe)}" stroke="#fff" stroke-width="0.8" opacity="${isCur ? 1 : 0.3}"/>`)
+      sp.push(`<text x="${lx + 15}" y="${(ly + 3).toFixed(1)}" font-size="7" font-family="sans-serif" fill="${isCur ? '#222' : '#bbb'}" font-weight="${isCur ? 700 : 400}">${esc(strand.name)}</text>`)
+    })
+
+    // ── Build annotation entries (stagger algorithm) ──────────────────────────
+    const ANNO_TOP = LEG_Y + LEG_ROWS * LEG_RH + 14
+
+    interface AnnoEntry {
+      cx: number; cy: number
+      loc: string; val: string
+      textLines: string[]  // figuren/zusammenfassung/notiz lines (already wrapped)
+      level: number; totalLines: number
+    }
+    const placed: Array<{ cx: number; level: number }> = []
+    const entries: AnnoEntry[] = []
+
+    xKeys.forEach((k, i) => {
+      const p = detailMaps[si][k]
+      if (!p || (!p.figuren && !p.zusammenfassung && !p.notiz)) return
+      const cx = xPos(i)
+      const cy = yPos(p.wert)
+
+      // Text lines
+      const textLines: string[] = []
+      if (p.figuren) wrapSvgText(p.figuren, MAX_CHARS).forEach(l => textLines.push(l))
+      if (p.zusammenfassung) wrapSvgText(p.zusammenfassung, MAX_CHARS).forEach(l => textLines.push(l))
+      if (p.notiz) wrapSvgText(p.notiz, MAX_CHARS).forEach(l => textLines.push(`\u2014\u202f${l}`))
+      const totalLines = 1 + textLines.length  // 1 header + content
+
+      // Stagger: find lowest level without x-collision
+      let level = 0
+      while (placed.some(e => e.level === level && Math.abs(e.cx - cx) < ENTRY_W + 6)) level++
+      placed.push({ cx, level })
+
+      entries.push({
+        cx, cy,
+        loc: `F${p.folge_nr}\u2009Sz.\u2009${p.scene_nr}`,
+        val: `${p.wert > 0 ? '+' : ''}${p.wert}`,
+        textLines, level, totalLines,
+      })
+    })
+
+    // Guide lines (drawn before boxes so boxes appear on top)
+    entries.forEach(({ cx, cy }) => {
+      sp.push(`<line x1="${cx.toFixed(1)}" y1="${(cy + 5).toFixed(1)}" x2="${cx.toFixed(1)}" y2="${ANNO_TOP - 4}" stroke="${esc(curStrang.farbe)}" stroke-width="0.75" stroke-dasharray="3,3" opacity="0.5"/>`)
+    })
+
+    // Calculate level y-offsets (each level stacks vertically)
+    const levelMaxLines: number[] = []
+    entries.forEach(e => { levelMaxLines[e.level] = Math.max(levelMaxLines[e.level] ?? 0, e.totalLines) })
+    const levelY: number[] = []
+    let cumY = ANNO_TOP
+    for (let l = 0; l < levelMaxLines.length; l++) {
+      levelY[l] = cumY
+      cumY += (levelMaxLines[l] ?? 0) * LINE_H + ENTRY_PAD * 2 + 6
+    }
+    const totalAnnoH = levelMaxLines.length > 0 ? cumY - ANNO_TOP : 0
+
+    // Draw annotation boxes
+    entries.forEach(({ cx, loc, val, textLines, level }) => {
+      const bx = Math.max(PAD.left, Math.min(W - ENTRY_W - 4, cx - ENTRY_W / 2))
+      const by = levelY[level]
+      const boxH = (1 + textLines.length) * LINE_H + ENTRY_PAD * 2
+      // subtle background
+      sp.push(`<rect x="${bx - 1}" y="${by}" width="${ENTRY_W + 2}" height="${boxH}" fill="${hexWithAlpha(curStrang.farbe, 0.06)}" rx="2"/>`)
+      // Folge/Szene label (very small) + value
+      const headerY = by + ENTRY_PAD + LINE_H - 1
+      sp.push(`<text x="${bx + 2}" y="${headerY}" font-size="4.5" font-family="sans-serif" fill="${esc(curStrang.farbe)}" opacity="0.65">${esc(loc)}</text>`)
+      sp.push(`<text x="${bx + ENTRY_W - 3}" y="${headerY}" font-size="5.5" font-family="sans-serif" font-weight="700" fill="${esc(curStrang.farbe)}" text-anchor="end">${esc(val)}</text>`)
+      // Content lines
+      textLines.forEach((line, li) => {
+        const ty = by + ENTRY_PAD + (li + 2) * LINE_H - 1
+        const isNotiz = line.startsWith('\u2014')
+        sp.push(`<text x="${bx + 2}" y="${ty}" font-size="5.5" font-family="sans-serif" fill="${isNotiz ? '#777' : '#333'}" font-style="${isNotiz ? 'italic' : 'normal'}">${esc(line)}</text>`)
+      })
+    })
+
+    const totalH = ANNO_TOP + totalAnnoH + 6
+    const pageBreak = si < straenge.length - 1 ? 'page-break-after:always;' : ''
+
+    return `<div style="${pageBreak}"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${totalH}" width="${W}" height="${totalH}" style="display:block;max-width:100%;font-family:sans-serif">${sp.join('')}</svg></div>`
   })
 
-  const annoHtml = annoRows.length
-    ? `<div style="font-family:sans-serif;border-top:1px solid #e0e0e0;margin-top:5pt;padding-top:4pt">` +
-      annoRows.join('') + `</div>`
-    : ''
-
-  return `<figure style="margin:6pt 0">
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${totalH}" width="${W}" height="${totalH}" style="max-width:100%;display:block;font-family:sans-serif">
-      ${svgParts.join('\n      ')}
-    </svg>
-    <figcaption style="font-size:7pt;color:#888;margin-top:2pt">Emotionale Kurven pro Strang · Werte −5 (Tiefpunkt) bis +5 (Höhepunkt)</figcaption>
-  </figure>${annoHtml}`
+  return pages.join('\n')
 }
 
 function renderStructuredHtml(method: string, data: any): string {
