@@ -209,7 +209,8 @@ interface CommitPreview {
   neue_straenge: string[]
   vorhandene_straenge: Array<{ name: string; id: string }>
   neue_beats: number
-  aktualisierte_beats: number
+  beats_leer: number       // vorhanden, leer — immer befüllbar
+  beats_mit_inhalt: number // vorhanden mit Inhalt — nur mit overwrite=true
   total_blocks: number
   already_committed: boolean
 }
@@ -221,12 +222,13 @@ function CommitDialog({
 }: {
   jobId: string
   onClose: () => void
-  onCommitted: (result: { committed_strands: number; neue_beats: number; aktualisierte_beats: number }) => void
+  onCommitted: (result: { committed_strands: number; neue_beats: number; aktualisierte_beats: number; uebersprungene_beats: number }) => void
 }) {
   const [preview, setPreview] = useState<CommitPreview | null>(null)
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState('')
   const [committing, setCommitting] = useState(false)
+  const [overwrite, setOverwrite] = useState(false)
 
   useEffect(() => {
     api.get(`/import-jobs/${jobId}/commit-preview`)
@@ -239,7 +241,7 @@ function CommitDialog({
     setCommitting(true)
     setErr('')
     try {
-      const result = await api.post(`/import-jobs/${jobId}/commit`)
+      const result = await api.post(`/import-jobs/${jobId}/commit`, { overwrite })
       onCommitted(result)
     } catch (e: any) {
       setErr(e.message || 'Fehler beim Importieren')
@@ -281,16 +283,6 @@ function CommitDialog({
             <div style={{ fontSize: 12, color: '#FF3B30' }}>{err}</div>
           ) : preview && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {preview.already_committed && (
-                <div style={{
-                  padding: '8px 12px', borderRadius: 6,
-                  background: 'rgba(255,204,0,0.1)', border: '1px solid rgba(255,204,0,0.3)',
-                  fontSize: 12, color: '#B8860B',
-                }}>
-                  Dieser Job wurde bereits importiert. Ein erneuter Import überschreibt vorhandene Prosa-Texte.
-                </div>
-              )}
-
               {/* Neue Stränge */}
               {preview.neue_straenge.length > 0 && (
                 <div>
@@ -315,7 +307,7 @@ function CommitDialog({
               {preview.vorhandene_straenge.length > 0 && (
                 <div>
                   <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6 }}>
-                    Vorhandene Stränge (werden aktualisiert, {preview.vorhandene_straenge.length})
+                    Vorhandene Stränge ({preview.vorhandene_straenge.length})
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                     {preview.vorhandene_straenge.map(s => (
@@ -343,13 +335,49 @@ function CommitDialog({
                 <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Neue Future-Beats</span>
                 <span style={{ fontSize: 12, color: '#00C853', fontWeight: 500 }}>+{preview.neue_beats}</span>
 
-                {preview.aktualisierte_beats > 0 && (
+                {preview.beats_leer > 0 && (
                   <>
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Aktualisierte Beats</span>
-                    <span style={{ fontSize: 12, color: '#007AFF', fontWeight: 500 }}>{preview.aktualisierte_beats}</span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Leere Beats (werden befüllt)</span>
+                    <span style={{ fontSize: 12, color: '#007AFF', fontWeight: 500 }}>{preview.beats_leer}</span>
+                  </>
+                )}
+
+                {preview.beats_mit_inhalt > 0 && (
+                  <>
+                    <span style={{ fontSize: 11, color: '#B8860B', fontWeight: 500 }}>Beats mit Inhalt</span>
+                    <span style={{ fontSize: 12, color: '#B8860B', fontWeight: 500 }}>
+                      {overwrite ? `${preview.beats_mit_inhalt} werden überschrieben` : `${preview.beats_mit_inhalt} werden übersprungen`}
+                    </span>
                   </>
                 )}
               </div>
+
+              {/* Overwrite-Warnung + Checkbox */}
+              {preview.beats_mit_inhalt > 0 && (
+                <label style={{
+                  display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer',
+                  padding: '10px 12px', borderRadius: 6,
+                  background: overwrite ? 'rgba(255,59,48,0.06)' : 'rgba(255,149,0,0.06)',
+                  border: `1px solid ${overwrite ? 'rgba(255,59,48,0.25)' : 'rgba(255,149,0,0.25)'}`,
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={overwrite}
+                    onChange={e => setOverwrite(e.target.checked)}
+                    style={{ marginTop: 1, flexShrink: 0 }}
+                  />
+                  <div style={{ fontSize: 12, lineHeight: 1.5 }}>
+                    <span style={{ color: overwrite ? '#FF3B30' : '#B8860B', fontWeight: 600 }}>
+                      {overwrite ? 'Vorsicht: ' : ''}
+                    </span>
+                    <span style={{ color: overwrite ? '#FF3B30' : '#B8860B' }}>
+                      {overwrite
+                        ? `Bestehende Prosa-Texte (${preview.beats_mit_inhalt}) werden unwiderruflich überschrieben. Manuelle Änderungen gehen verloren.`
+                        : `${preview.beats_mit_inhalt} Beats haben bereits Inhalt und werden standardmäßig übersprungen. Aktivieren um zu überschreiben.`}
+                    </span>
+                  </div>
+                </label>
+              )}
 
               {err && <div style={{ fontSize: 12, color: '#FF3B30' }}>{err}</div>}
             </div>
@@ -763,7 +791,7 @@ function JobRow({
               ...job,
               committed_at: new Date().toISOString(),
               committed_strands: result.committed_strands,
-              committed_beats: result.neue_beats + result.aktualisierte_beats,
+              committed_beats: result.neue_beats + result.aktualisierte_beats + (result.uebersprungene_beats ?? 0),
             }
             setJob(updated)
             onUpdate(updated)

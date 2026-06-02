@@ -394,6 +394,36 @@ function extractBlocks(ergebnisJson: any): Array<{ block_nummer: number; strang?
 
 const STRANG_COLORS = ['#007AFF', '#FF9500', '#AF52DE', '#00C853', '#FF3B30', '#FFCC00', '#32ADE6', '#FF2D55']
 
+/**
+ * Baut die Strang-Lookup-Map auf.
+ * Priorität: gespeicherte committed_strang_map (bleibt stabil nach Strang-Umbenennung)
+ * → dann aktueller Name-Match in der DB.
+ */
+async function buildStrangMap(
+  produktionId: string,
+  uniqueStrangNames: string[],
+  committedMap: Record<string, string>  // lowercase name → strang_id aus vorherigen Commits
+): Promise<Map<string, string>> {
+  // Zunächst aus gespeicherter Map befüllen (schützt vor Umbenennung)
+  const result = new Map<string, string>()
+  for (const name of uniqueStrangNames) {
+    const key = name.toLowerCase().trim()
+    if (committedMap[key]) result.set(key, committedMap[key])
+  }
+
+  // Für noch nicht aufgelöste Namen: aktueller Name-Match in DB
+  const unresolved = uniqueStrangNames.filter(n => !result.has(n.toLowerCase().trim()))
+  if (unresolved.length > 0) {
+    const rows = await query(
+      `SELECT id, name FROM straenge WHERE produktion_id = $1 AND LOWER(TRIM(name)) = ANY($2)`,
+      [produktionId, unresolved.map(n => n.toLowerCase().trim())]
+    )
+    for (const r of rows) result.set(r.name.toLowerCase().trim(), r.id)
+  }
+
+  return result
+}
+
 // GET /api/import-jobs/:id/commit-preview — Dry-Run: neue/vorhandene Stränge + Beat-Anzahl
 router.get('/:id/commit-preview', async (req, res) => {
   try {
@@ -404,43 +434,39 @@ router.get('/:id/commit-preview', async (req, res) => {
     const blocks = extractBlocks(job.ergebnis_json)
     if (blocks.length === 0) return res.status(400).json({ error: 'Keine Blöcke in ergebnis_json' })
 
-    // Einzigartige Strang-Namen
     const uniqueStrangNames = [...new Set(blocks.map(b => b.strang).filter(Boolean))] as string[]
+    const committedMap: Record<string, string> = job.ergebnis_json?.committed_strang_map ?? {}
+    const strangIdMap = await buildStrangMap(job.produktion_id, uniqueStrangNames, committedMap)
 
-    // Vorhandene Stränge in dieser Produktion
-    const existingRows = await query(
-      `SELECT id, name FROM straenge WHERE produktion_id = $1 AND LOWER(TRIM(name)) = ANY($2)`,
-      [job.produktion_id, uniqueStrangNames.map(n => n.toLowerCase().trim())]
-    )
-    const existingMap = new Map<string, string>(existingRows.map((r: any) => [r.name.toLowerCase().trim(), r.id]))
-
-    const neueStrangeNames = uniqueStrangNames.filter(n => !existingMap.has(n.toLowerCase().trim()))
+    const neueStrangeNames = uniqueStrangNames.filter(n => !strangIdMap.has(n.toLowerCase().trim()))
     const vorhandeneStrange = uniqueStrangNames
-      .filter(n => existingMap.has(n.toLowerCase().trim()))
-      .map(n => ({ name: n, id: existingMap.get(n.toLowerCase().trim())! }))
+      .filter(n => strangIdMap.has(n.toLowerCase().trim()))
+      .map(n => ({ name: n, id: strangIdMap.get(n.toLowerCase().trim())! }))
 
-    // Beat-Counts: neue vs. vorhandene
+    // Beat-Counts: neue / vorhandene leer / vorhandene mit Inhalt (letzte = stiller Verlust wenn überschrieben)
     let neueBeats = 0
-    let aktualisierteBeats = 0
+    let beatsLeer = 0    // vorhanden, aber prosa_text null/leer → sicher aktualisierbar
+    let beatsMitInhalt = 0  // vorhanden mit Inhalt → nur mit explizitem overwrite überschreiben
+
     for (const b of blocks) {
       if (!b.strang) continue
-      const strangId = existingMap.get(b.strang.toLowerCase().trim())
-      if (!strangId) {
-        neueBeats++
-        continue
-      }
+      const strangId = strangIdMap.get(b.strang.toLowerCase().trim())
+      if (!strangId) { neueBeats++; continue }
       const existing = await queryOne(
-        `SELECT id FROM strang_beats WHERE strang_id = $1 AND block_nummer = $2 AND ebene = 'future' LIMIT 1`,
+        `SELECT id, prosa_text FROM strang_beats WHERE strang_id = $1 AND block_nummer = $2 AND ebene = 'future' LIMIT 1`,
         [strangId, b.block_nummer]
       )
-      existing ? aktualisierteBeats++ : neueBeats++
+      if (!existing) { neueBeats++ }
+      else if (existing.prosa_text?.trim()) { beatsMitInhalt++ }
+      else { beatsLeer++ }
     }
 
     res.json({
       neue_straenge: neueStrangeNames,
       vorhandene_straenge: vorhandeneStrange,
       neue_beats: neueBeats,
-      aktualisierte_beats: aktualisierteBeats,
+      beats_leer: beatsLeer,
+      beats_mit_inhalt: beatsMitInhalt,
       total_blocks: blocks.length,
       already_committed: !!job.committed_at,
     })
@@ -450,12 +476,14 @@ router.get('/:id/commit-preview', async (req, res) => {
 })
 
 // POST /api/import-jobs/:id/commit — Stränge + Future-Beats in DB schreiben
+// body: { overwrite?: boolean }  — default false: Beats mit vorhandenem Inhalt werden übersprungen
 router.post('/:id/commit', async (req, res) => {
   try {
+    const overwrite: boolean = req.body?.overwrite === true
     const job = await queryOne('SELECT * FROM import_jobs WHERE id = $1', [req.params.id])
     if (!job) return res.status(404).json({ error: 'Job nicht gefunden' })
     if (job.status !== 'done') return res.status(400).json({ error: 'Nur für abgeschlossene Jobs' })
-    if (job.committed_at) return res.status(409).json({ error: 'Job wurde bereits committed' })
+    // Re-Commit erlaubt (mit overwrite-Schutz), daher kein 409 mehr
 
     const blocks = extractBlocks(job.ergebnis_json)
     if (blocks.length === 0) return res.status(400).json({ error: 'Keine Blöcke in ergebnis_json' })
@@ -463,20 +491,15 @@ router.post('/:id/commit', async (req, res) => {
     const uniqueStrangNames = [...new Set(blocks.map(b => b.strang).filter(Boolean))] as string[]
     const userId = (req as any).user?.user_id || null
 
+    // Strang-Map aufbauen (committed_strang_map schützt vor Rename-Drift)
+    const previousMap: Record<string, string> = job.ergebnis_json?.committed_strang_map ?? {}
+    const strangIdMap = await buildStrangMap(job.produktion_id, uniqueStrangNames, previousMap)
+
     const client = await pool.connect()
     try {
       await client.query('BEGIN')
 
-      // 1. Stränge anlegen oder finden
-      const existingRows = await client.query(
-        `SELECT id, name FROM straenge WHERE produktion_id = $1 AND LOWER(TRIM(name)) = ANY($2)`,
-        [job.produktion_id, uniqueStrangNames.map(n => n.toLowerCase().trim())]
-      )
-      const strangIdMap = new Map<string, string>(
-        existingRows.rows.map((r: any) => [r.name.toLowerCase().trim(), r.id])
-      )
-
-      // Aktuelle Strang-Anzahl für Farb-Zuweisung
+      // 1. Fehlende Stränge anlegen
       const countRow = await client.query(
         `SELECT COUNT(*) AS cnt FROM straenge WHERE produktion_id = $1`, [job.produktion_id]
       )
@@ -498,24 +521,32 @@ router.post('/:id/commit', async (req, res) => {
         strangIdMap.set(key, ins.rows[0].id)
       }
 
-      // 2. Future-Beats schreiben (upsert per SELECT + INSERT/UPDATE)
+      // 2. Future-Beats schreiben
       let createdBeats = 0
       let updatedBeats = 0
+      let skippedBeats = 0  // hat Inhalt + overwrite=false → kein Verlust von Handarbeit
+
       for (const b of blocks) {
         if (!b.strang) continue
         const strangId = strangIdMap.get(b.strang.toLowerCase().trim())
         if (!strangId) continue
 
         const existing = await client.query(
-          `SELECT id FROM strang_beats WHERE strang_id = $1 AND block_nummer = $2 AND ebene = 'future' LIMIT 1`,
+          `SELECT id, prosa_text FROM strang_beats WHERE strang_id = $1 AND block_nummer = $2 AND ebene = 'future' LIMIT 1`,
           [strangId, b.block_nummer]
         )
         if (existing.rows.length > 0) {
-          await client.query(
-            `UPDATE strang_beats SET prosa_text = $1 WHERE id = $2`,
-            [b.text || null, existing.rows[0].id]
-          )
-          updatedBeats++
+          const hasContent = existing.rows[0].prosa_text?.trim()
+          if (hasContent && !overwrite) {
+            // Bestehender Inhalt wird geschützt — kein stiller Verlust
+            skippedBeats++
+          } else {
+            await client.query(
+              `UPDATE strang_beats SET prosa_text = $1 WHERE id = $2`,
+              [b.text || null, existing.rows[0].id]
+            )
+            updatedBeats++
+          }
         } else {
           await client.query(
             `INSERT INTO strang_beats (strang_id, ebene, block_nummer, prosa_text, sort_order)
@@ -528,17 +559,29 @@ router.post('/:id/commit', async (req, res) => {
 
       await client.query('COMMIT')
 
-      // 3. Job als committed markieren
+      // 3. Job als committed markieren + committed_strang_map persistieren (Rename-Schutz)
+      const newStrangMap: Record<string, string> = {}
+      for (const [key, id] of strangIdMap) newStrangMap[key] = id
+
       await query(
-        `UPDATE import_jobs SET committed_at=NOW(), committed_strands=$1, committed_beats=$2 WHERE id=$3`,
-        [uniqueStrangNames.length, createdBeats + updatedBeats, job.id]
+        `UPDATE import_jobs
+         SET committed_at=NOW(), committed_strands=$1, committed_beats=$2,
+             ergebnis_json = ergebnis_json || $3::jsonb
+         WHERE id=$4`,
+        [
+          uniqueStrangNames.length,
+          createdBeats + updatedBeats,
+          JSON.stringify({ committed_strang_map: newStrangMap }),
+          job.id,
+        ]
       )
 
       res.json({
         committed_strands: uniqueStrangNames.length,
-        neue_straenge: uniqueStrangNames.length - existingRows.rows.length,
         neue_beats: createdBeats,
         aktualisierte_beats: updatedBeats,
+        uebersprungene_beats: skippedBeats,
+        overwrite_mode: overwrite,
       })
     } catch (txErr) {
       await client.query('ROLLBACK')
