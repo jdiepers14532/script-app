@@ -449,6 +449,10 @@ async function runMigrations() {
     'v171_node_id_backfill.sql',
     // Handoff 1 Phase 1 (Fix): v171 war No-Op (falsches Format). Korrekte Version für Array-Format.
     'v172_node_id_backfill_fix.sql',
+    // Handoff 1 Phase 2a: Re-Backfill nach Hocuspocus-Überschreibung beim Server-Neustart (217 Blöcke)
+    'v173_node_id_rebackfill.sql',
+    // Handoff 1 Phase 2b: block_uuid in szenen_revisionen — UUID-basiertes Revision-Matching
+    'v174_szenen_revisionen_block_uuid.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

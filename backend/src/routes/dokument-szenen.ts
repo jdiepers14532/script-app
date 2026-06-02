@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import type { PoolClient } from 'pg'
 import { pool, query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
 import { recalcSceneStats, updateReplikCount } from '../utils/recalcRepliken'
@@ -197,66 +198,90 @@ dokumentSzenenRouter.put('/:id', async (req, res) => {
     // Calculate page_length if content is provided
     const pageLength = effectiveContent ? calcPageLength(effectiveContent) : null
 
-    const row = await queryOne(
-      `UPDATE dokument_szenen SET
-        int_ext = COALESCE($1, int_ext),
-        tageszeit = COALESCE($2, tageszeit),
-        ort_name = COALESCE($3, ort_name),
-        zusammenfassung = COALESCE($4, zusammenfassung),
-        content = COALESCE($5, content),
-        sort_order = COALESCE($6, sort_order),
-        seiten = COALESCE($7, seiten),
-        spieltag = COALESCE($8, spieltag),
-        spielzeit = COALESCE($9, spielzeit),
-        szeneninfo = COALESCE($10, szeneninfo),
-        stoppzeit_sek = COALESCE($12, stoppzeit_sek),
-        notiz = COALESCE($13, notiz),
-        motiv_id = COALESCE($14, motiv_id),
-        format = COALESCE($16, format),
-        page_length = COALESCE($17, page_length),
-        sondertyp = CASE WHEN $18::text = '__null__' THEN NULL ELSE COALESCE($18, sondertyp) END,
-        stockshot_kategorie = CASE WHEN $19::text = '__null__' THEN NULL ELSE COALESCE($19, stockshot_kategorie) END,
-        stockshot_neu_drehen = COALESCE($20, stockshot_neu_drehen),
-        flashback_referenz_id = CASE WHEN $21::text = '__null__' THEN NULL ELSE COALESCE($21::uuid, flashback_referenz_id) END,
-        flashback_ganze_szene = COALESCE($23, flashback_ganze_szene),
-        flashback_referenz_werkstufe_id = CASE WHEN $24::text = '__null__' THEN NULL ELSE COALESCE($24::uuid, flashback_referenz_werkstufe_id) END,
-        flashback_referenz_freitext = CASE WHEN $25::text = '__null__' THEN NULL ELSE COALESCE($25, flashback_referenz_freitext) END,
-        vorlage_id = CASE WHEN $22::text = '__null__' THEN NULL ELSE COALESCE($22::uuid, vorlage_id) END,
-        ws_spezifikation = CASE WHEN $26::text = '__null__' THEN NULL ELSE COALESCE($26, ws_spezifikation) END,
-        element_type = CASE WHEN $27::text = '__null__' THEN NULL ELSE COALESCE($27, element_type) END,
-        wysiwyg_merged = COALESCE($28, wysiwyg_merged),
-        pre_vorlage_content = COALESCE($29, pre_vorlage_content),
-        updated_at = NOW(),
-        updated_by = $11
-       WHERE id = $15 RETURNING *`,
-      [
-        int_ext, tageszeit, ort_name, zusammenfassung,
-        effectiveContent ? JSON.stringify(effectiveContent) : null,
-        sort_order,
-        seiten ?? null, spieltag ?? null,
-        spielzeit ?? null, szeneninfo ?? null,
-        req.user?.name ?? null,
-        stoppzeit_sek !== undefined ? stoppzeit_sek : null,
-        notiz !== undefined ? notiz : null,
-        motiv_id !== undefined ? motiv_id : null,
-        req.params.id,
-        format ?? null,
-        pageLength,
-        sondertyp !== undefined ? (sondertyp === null ? '__null__' : sondertyp) : null,
-        stockshot_kategorie !== undefined ? (stockshot_kategorie === null ? '__null__' : stockshot_kategorie) : null,
-        stockshot_neu_drehen ?? null,
-        flashback_referenz_id !== undefined ? (flashback_referenz_id === null ? '__null__' : flashback_referenz_id) : null,
-        vorlage_id !== undefined ? (vorlage_id === null ? '__null__' : vorlage_id) : null,
-        flashback_ganze_szene !== undefined ? flashback_ganze_szene : null,
-        flashback_referenz_werkstufe_id !== undefined ? (flashback_referenz_werkstufe_id === null ? '__null__' : flashback_referenz_werkstufe_id) : null,
-        flashback_referenz_freitext !== undefined ? (flashback_referenz_freitext === null ? '__null__' : flashback_referenz_freitext) : null,
-        ws_spezifikation !== undefined ? (ws_spezifikation === null ? '__null__' : ws_spezifikation) : null,
-        element_type !== undefined ? (element_type === null ? '__null__' : element_type) : null,
-        wysiwyg_merged !== undefined ? wysiwyg_merged : null,
-        pre_vorlage_content !== undefined ? JSON.stringify(pre_vorlage_content) : null,
-      ]
-    )
-    if (!row) return res.status(404).json({ error: 'Szene nicht gefunden' })
+    // Invariante 2.1: content-Write und Revision-Deltas in einer Transaktion —
+    // kein Fenster wo Content neu ist aber Revision fehlt.
+    const client = await pool.connect()
+    let row: any = null
+    try {
+      await client.query('BEGIN')
+
+      const updateResult = await client.query(
+        `UPDATE dokument_szenen SET
+          int_ext = COALESCE($1, int_ext),
+          tageszeit = COALESCE($2, tageszeit),
+          ort_name = COALESCE($3, ort_name),
+          zusammenfassung = COALESCE($4, zusammenfassung),
+          content = COALESCE($5, content),
+          sort_order = COALESCE($6, sort_order),
+          seiten = COALESCE($7, seiten),
+          spieltag = COALESCE($8, spieltag),
+          spielzeit = COALESCE($9, spielzeit),
+          szeneninfo = COALESCE($10, szeneninfo),
+          stoppzeit_sek = COALESCE($12, stoppzeit_sek),
+          notiz = COALESCE($13, notiz),
+          motiv_id = COALESCE($14, motiv_id),
+          format = COALESCE($16, format),
+          page_length = COALESCE($17, page_length),
+          sondertyp = CASE WHEN $18::text = '__null__' THEN NULL ELSE COALESCE($18, sondertyp) END,
+          stockshot_kategorie = CASE WHEN $19::text = '__null__' THEN NULL ELSE COALESCE($19, stockshot_kategorie) END,
+          stockshot_neu_drehen = COALESCE($20, stockshot_neu_drehen),
+          flashback_referenz_id = CASE WHEN $21::text = '__null__' THEN NULL ELSE COALESCE($21::uuid, flashback_referenz_id) END,
+          flashback_ganze_szene = COALESCE($23, flashback_ganze_szene),
+          flashback_referenz_werkstufe_id = CASE WHEN $24::text = '__null__' THEN NULL ELSE COALESCE($24::uuid, flashback_referenz_werkstufe_id) END,
+          flashback_referenz_freitext = CASE WHEN $25::text = '__null__' THEN NULL ELSE COALESCE($25, flashback_referenz_freitext) END,
+          vorlage_id = CASE WHEN $22::text = '__null__' THEN NULL ELSE COALESCE($22::uuid, vorlage_id) END,
+          ws_spezifikation = CASE WHEN $26::text = '__null__' THEN NULL ELSE COALESCE($26, ws_spezifikation) END,
+          element_type = CASE WHEN $27::text = '__null__' THEN NULL ELSE COALESCE($27, element_type) END,
+          wysiwyg_merged = COALESCE($28, wysiwyg_merged),
+          pre_vorlage_content = COALESCE($29, pre_vorlage_content),
+          updated_at = NOW(),
+          updated_by = $11
+         WHERE id = $15 RETURNING *`,
+        [
+          int_ext, tageszeit, ort_name, zusammenfassung,
+          effectiveContent ? JSON.stringify(effectiveContent) : null,
+          sort_order,
+          seiten ?? null, spieltag ?? null,
+          spielzeit ?? null, szeneninfo ?? null,
+          req.user?.name ?? null,
+          stoppzeit_sek !== undefined ? stoppzeit_sek : null,
+          notiz !== undefined ? notiz : null,
+          motiv_id !== undefined ? motiv_id : null,
+          req.params.id,
+          format ?? null,
+          pageLength,
+          sondertyp !== undefined ? (sondertyp === null ? '__null__' : sondertyp) : null,
+          stockshot_kategorie !== undefined ? (stockshot_kategorie === null ? '__null__' : stockshot_kategorie) : null,
+          stockshot_neu_drehen ?? null,
+          flashback_referenz_id !== undefined ? (flashback_referenz_id === null ? '__null__' : flashback_referenz_id) : null,
+          vorlage_id !== undefined ? (vorlage_id === null ? '__null__' : vorlage_id) : null,
+          flashback_ganze_szene !== undefined ? flashback_ganze_szene : null,
+          flashback_referenz_werkstufe_id !== undefined ? (flashback_referenz_werkstufe_id === null ? '__null__' : flashback_referenz_werkstufe_id) : null,
+          flashback_referenz_freitext !== undefined ? (flashback_referenz_freitext === null ? '__null__' : flashback_referenz_freitext) : null,
+          ws_spezifikation !== undefined ? (ws_spezifikation === null ? '__null__' : ws_spezifikation) : null,
+          element_type !== undefined ? (element_type === null ? '__null__' : element_type) : null,
+          wysiwyg_merged !== undefined ? wysiwyg_merged : null,
+          pre_vorlage_content !== undefined ? JSON.stringify(pre_vorlage_content) : null,
+        ]
+      )
+      row = updateResult.rows[0] ?? null
+      if (!row) {
+        await client.query('ROLLBACK')
+        return res.status(404).json({ error: 'Szene nicht gefunden' })
+      }
+
+      // Revision-Deltas — synchron in derselben Transaktion (Invariante 2.1)
+      if (effectiveContent && row.werkstufe_id) {
+        await recordRevisionDeltas(client, req.params.id, row.werkstufe_id, oldContent, effectiveContent)
+      }
+
+      await client.query('COMMIT')
+    } catch (txErr) {
+      await client.query('ROLLBACK').catch(() => {})
+      throw txErr
+    } finally {
+      client.release()
+    }
 
     // Recalc repliken stats if content was updated
     if (effectiveContent && row.werkstufe_id && row.scene_identity_id) {
@@ -265,11 +290,6 @@ dokumentSzenenRouter.put('/:id', async (req, res) => {
     // Update replik_count for numbering
     if (effectiveContent) {
       updateReplikCount(row.id, { content: effectiveContent }).catch(() => {})
-    }
-
-    // Revision delta tracking: wenn Werkstufe eine Revision-Farbe hat, Diffs aufzeichnen
-    if (effectiveContent && row.werkstufe_id) {
-      recordRevisionDeltas(req.params.id, row.werkstufe_id, oldContent, effectiveContent).catch(() => {})
     }
 
     // Seitenzahlen neu berechnen (async, non-blocking)
@@ -719,7 +739,7 @@ dokumentSzenenRouter.get('/:id/revisionen', async (req, res) => {
     if (!ds) return res.status(404).json({ error: 'Szene nicht gefunden' })
 
     const rows = await query(
-      `SELECT field_type, block_index, block_type, old_value, new_value
+      `SELECT field_type, block_index, block_uuid, block_type, old_value, new_value
        FROM szenen_revisionen WHERE dokument_szene_id = $1`,
       [req.params.id]
     )
@@ -1040,49 +1060,67 @@ dokumentSzenenRouter.post('/stoppzeit-auto-folge/:werkstufId', authMiddleware, a
 })
 
 // ── Revision Delta Helper ─────────────────────────────────────────────────────
-// Wird nach jedem PUT aufgerufen, wenn die Werkstufe eine Revision-Farbe hat.
-// Vergleicht alte vs. neue Blöcke und schreibt Deltas in szenen_revisionen.
-// Baseline-Einträge (old_value = new_value) werden überschrieben aber nicht gelöscht —
-// wird der Block auf den Originalwert zurückgesetzt, verschwinden die * wieder.
+// UUID-basiertes Revision-Tracking (Phase 2, Handoff 1).
+// Läuft synchron in der PUT-Transaktion (Invariante 2.1).
+// Matching: node_id (= block_uuid) statt block_index — reihenfolge-unabhängig.
+// Invariante: old_value wird nur beim ersten Auftreten gesetzt (UPSERT-Semantik).
 async function recordRevisionDeltas(
+  client: PoolClient,
   szeneId: string,
   werkstufId: string,
   oldBlocks: any[] | null,
   newBlocks: any[]
 ): Promise<void> {
   // Nur aufzeichnen wenn Werkstufe eine Revision-Farbe hat
-  const ws = await queryOne(
+  const wsResult = await client.query(
     'SELECT revision_color_id FROM werkstufen WHERE id = $1',
     [werkstufId]
   )
-  if (!ws?.revision_color_id) return
+  if (!wsResult.rows[0]?.revision_color_id) return
+  if (!oldBlocks) return
 
-  if (!oldBlocks) return // Kein Vergleich möglich
+  // node_id → { json, blockType } Maps aufbauen
+  const oldMap = new Map<string, { json: string; blockType: string }>()
+  const newMap = new Map<string, { json: string; blockType: string }>()
 
-  const maxLen = Math.max(oldBlocks.length, newBlocks.length)
-  for (let i = 0; i < maxLen; i++) {
-    const oldB = oldBlocks[i] ?? null
-    const newB = newBlocks[i] ?? null
-    const oldJson = oldB ? JSON.stringify(oldB) : null
-    const newJson = newB ? JSON.stringify(newB) : null
+  for (const b of oldBlocks) {
+    const id: string | null = b?.attrs?.node_id ?? null
+    if (id) oldMap.set(id, { json: JSON.stringify(b), blockType: b?.type ?? 'unknown' })
+  }
+  for (const b of newBlocks) {
+    const id: string | null = b?.attrs?.node_id ?? null
+    if (id) newMap.set(id, { json: JSON.stringify(b), blockType: b?.type ?? 'unknown' })
+  }
+
+  // Alle node_ids aus beiden Versionen
+  const allIds = new Set([...oldMap.keys(), ...newMap.keys()])
+
+  for (const nodeId of allIds) {
+    const old = oldMap.get(nodeId)
+    const neu = newMap.get(nodeId)
+    const oldJson = old?.json ?? null
+    const newJson = neu?.json ?? null
 
     if (oldJson === newJson) {
-      // Block unverändert — wenn ein Eintrag existiert und new_value == old_value (Baseline),
-      // dann ist der Block auf den Ursprungswert zurückgekehrt → Eintrag löschen (kein * mehr)
-      await pool.query(
+      // Block unverändert — Baseline-Einträge entfernen (kein * mehr)
+      await client.query(
         `DELETE FROM szenen_revisionen
-         WHERE dokument_szene_id = $1 AND block_index = $2
-           AND new_value = old_value`,
-        [szeneId, i]
+         WHERE dokument_szene_id = $1 AND block_uuid = $2
+           AND field_type = 'content_block' AND new_value = old_value`,
+        [szeneId, nodeId]
       )
     } else {
-      // Block hat sich geändert — UPSERT: old_value nur setzen wenn noch kein Eintrag existiert
-      await pool.query(
-        `INSERT INTO szenen_revisionen (dokument_szene_id, field_type, block_index, block_type, old_value, new_value)
+      // Block geändert — UPSERT: old_value nur beim ersten Eintrag setzen
+      await client.query(
+        `INSERT INTO szenen_revisionen
+           (dokument_szene_id, field_type, block_uuid, block_type, old_value, new_value)
          VALUES ($1, 'content_block', $2, $3, $4, $5)
-         ON CONFLICT (dokument_szene_id, block_index) WHERE field_type = 'content_block'
-         DO UPDATE SET new_value = EXCLUDED.new_value`,
-        [szeneId, i, (newB ?? oldB)?.type ?? 'unknown', oldJson, newJson]
+         ON CONFLICT (dokument_szene_id, block_uuid)
+           WHERE field_type = 'content_block' AND block_uuid IS NOT NULL
+         DO UPDATE SET
+           new_value  = EXCLUDED.new_value,
+           block_type = EXCLUDED.block_type`,
+        [szeneId, nodeId, (neu ?? old)?.blockType ?? 'unknown', oldJson, newJson]
       )
     }
   }

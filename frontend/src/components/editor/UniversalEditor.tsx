@@ -329,7 +329,7 @@ interface UniversalEditorProps {
   replikOffset?: number
   replikBaseline?: any[] | null
   isLocked?: boolean
-  changedBlocks?: Set<number>
+  changedBlocks?: Set<string>
   revisionColor?: string | null
   /** Ref that is populated with the active Tiptap editor instance for external reads */
   editorRef?: React.MutableRefObject<any>

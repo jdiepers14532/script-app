@@ -3,6 +3,7 @@ import { Database } from '@hocuspocus/extension-database'
 import { pool } from './db'
 import fetch from 'node-fetch'
 import * as Y from 'yjs'
+import { randomUUID } from 'crypto'
 import { recalcSceneStats, updateReplikCount } from './utils/recalcRepliken'
 import { calcPageLength } from './utils/calcPageLength'
 import { autoUpsertNtEintraege } from './routes/nt-eintraege'
@@ -45,6 +46,38 @@ function yjsDocToContent(doc: Y.Doc): any {
   } catch {
     return null
   }
+}
+
+// ── node_id-Schutz für Hocuspocus-Store ──────────────────────────────────────
+// Yjs XmlElement-Attribute enthalten keine node_ids wenn der Yjs-State vor der
+// node_id-Einführung gespeichert wurde. Beim nächsten Store würde yjsDocToContent
+// Blöcke ohne node_id liefern und das DB-Backfill überschreiben.
+// Diese Funktion liest die vorhandenen DB-node_ids und injiziert sie positions-
+// basiert in die freshBlocks. Nach dem ersten Client-Reconnect übernimmt
+// appendTransaction (NodeIdExtension) und Yjs hat die korrekten node_ids — dann
+// ist diese Funktion ein No-Op (alle Blöcke haben bereits node_ids).
+async function preserveOrInjectNodeIds(szeneId: string, freshBlocks: any[]): Promise<any[]> {
+  // Fast-path: alle Blöcke haben bereits node_id — nichts zu tun
+  if (freshBlocks.every(b => b?.attrs?.node_id)) return freshBlocks
+
+  // DB-Content lesen um Backfill-node_ids zu erhalten
+  const res = await pool.query('SELECT content FROM dokument_szenen WHERE id = $1', [szeneId])
+  const raw = res.rows[0]?.content
+  const existingBlocks: any[] = Array.isArray(raw) ? raw : (raw?.content ?? [])
+
+  // Positions-Map: Index → node_id (nur für Blöcke die eine node_id haben)
+  const idByPos = new Map<number, string>()
+  existingBlocks.forEach((b: any, i: number) => {
+    const id = b?.attrs?.node_id
+    if (id) idByPos.set(i, id)
+  })
+
+  return freshBlocks.map((block: any, i: number) => {
+    if (!block || typeof block !== 'object') return block
+    if (block?.attrs?.node_id) return block  // schon vorhanden — unberührt
+    const nodeId = idByPos.get(i) ?? randomUUID()
+    return { ...block, attrs: { ...(block.attrs ?? {}), node_id: nodeId } }
+  })
 }
 
 /**
@@ -140,7 +173,16 @@ export function createHocuspocusServer() {
           if (!parsed) return
 
           // Content aus Yjs-Dokument extrahieren (aktueller Stand, nicht DB-Cache)
-          const freshContent = yjsDocToContent(document as unknown as Y.Doc)
+          let freshContent = yjsDocToContent(document as unknown as Y.Doc)
+
+          // node_id-Schutz: Yjs-State vor der node_id-Einführung enthält keine node_id-Attribute.
+          // preserveOrInjectNodeIds stellt sicher, dass das Backfill nicht überschrieben wird.
+          // Ist nach dem ersten Client-Reconnect (appendTransaction) ein No-Op.
+          if (freshContent) {
+            const rawBlocks: any[] = Array.isArray(freshContent.content) ? freshContent.content : []
+            const mergedBlocks = await preserveOrInjectNodeIds(parsed.id, rawBlocks)
+            freshContent = { ...freshContent, content: mergedBlocks }
+          }
 
           // yjs_state + content synchron schreiben (content wird von applyNtVerweisFix & allen
           // anderen Checks aus der DB gelesen — muss immer aktuell sein)

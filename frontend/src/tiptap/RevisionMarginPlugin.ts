@@ -4,13 +4,15 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view'
 export const revisionMarginKey = new PluginKey('revisionMargin')
 
 export interface RevisionMarginOptions {
-  changedBlocks: Set<number>
+  // Set von node_ids (= block_uuid aus szenen_revisionen) geänderter Blöcke
+  changedBlocks: Set<string>
   revisionColor: string | null
 }
 
 /**
  * Marks changed paragraphs with a CSS class that renders a `*` in the right margin.
  * Matches the WGA/Final-Draft standard for revision pages.
+ * Matching erfolgt über node.attrs.node_id (UUID) — positionsunabhängig.
  */
 export function createRevisionMarginPlugin(opts: RevisionMarginOptions) {
   return new Plugin({
@@ -31,9 +33,9 @@ export function createRevisionMarginPlugin(opts: RevisionMarginOptions) {
 function buildDecorations(doc: any, opts: RevisionMarginOptions): DecorationSet {
   if (!opts.changedBlocks.size || !opts.revisionColor) return DecorationSet.empty
   const decos: Decoration[] = []
-  let idx = 0
   doc.forEach((node: any, offset: number) => {
-    if (opts.changedBlocks.has(idx)) {
+    const nodeId: string | null = node.attrs?.node_id ?? null
+    if (nodeId && opts.changedBlocks.has(nodeId)) {
       decos.push(
         Decoration.node(offset, offset + node.nodeSize, {
           class: 'revision-changed',
@@ -41,7 +43,6 @@ function buildDecorations(doc: any, opts: RevisionMarginOptions): DecorationSet 
         })
       )
     }
-    idx++
   })
   return DecorationSet.create(doc, decos)
 }

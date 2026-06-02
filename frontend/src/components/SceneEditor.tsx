@@ -124,7 +124,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
   const [saveMsg, setSaveMsg] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [changedBlocks, setChangedBlocks] = useState<Set<number>>(new Set())
+  const [changedBlocks, setChangedBlocks] = useState<Set<string>>(new Set())
   const [revisionColor, setRevisionColor] = useState<string | null>(null)
   const [splitRatio, setSplitRatio] = useState(0.5)
   const [showSpielzeitInfo, setShowSpielzeitInfo] = useState(false)
@@ -520,9 +520,9 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
           }
           api.getDokumentSzeneRevisionen(szeneId)
             .then(deltas => {
-              const changed = new Set<number>()
+              const changed = new Set<string>()
               deltas.forEach((d: any) => {
-                if (d.field_type === 'content_block' && d.block_index != null) changed.add(d.block_index)
+                if (d.field_type === 'content_block' && d.block_uuid) changed.add(d.block_uuid)
               })
               setChangedBlocks(changed)
               const colorDelta = deltas.find((d: any) => d.revision_color)
@@ -555,10 +555,12 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
       // Load revision deltas for this scene
       api.getSzeneRevisionen(szeneId, stageId ?? undefined)
         .then(deltas => {
-          const changed = new Set<number>()
+          const changed = new Set<string>()
           deltas.forEach((d: any) => {
-            if (d.field_type === 'content_block' && d.block_index != null) {
-              changed.add(d.block_index)
+            if (d.field_type === 'content_block') {
+              // Neue Szenen: block_uuid (node_id) — legacy: block_index als String
+              if (d.block_uuid) changed.add(d.block_uuid)
+              else if (d.block_index != null) changed.add(String(d.block_index))
             }
           })
           setChangedBlocks(changed)

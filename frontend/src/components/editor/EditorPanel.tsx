@@ -495,7 +495,7 @@ export default function EditorPanel({
   const kategorie = sceneFormat ?? selectedWerk?.typ ?? 'drehbuch'
 
   // ── Revision data ─────────────────────────────────────────────────────────
-  const [changedBlocks, setChangedBlocks] = useState<Set<number>>(new Set())
+  const [changedBlocks, setChangedBlocks] = useState<Set<string>>(new Set())
   const [revisionColor, setRevisionColor] = useState<string | null>(null)
 
   useEffect(() => {
@@ -509,9 +509,10 @@ export default function EditorPanel({
     if (!loadRevisions) { setChangedBlocks(new Set()); setRevisionColor(null); return }
     loadRevisions
       .then(deltas => {
-        const changed = new Set<number>()
+        // UUID-basiertes Matching (block_uuid = node_id) — legacy block_index wird ignoriert
+        const changed = new Set<string>()
         deltas.forEach((d: any) => {
-          if (d.field_type === 'content_block' && d.block_index != null) changed.add(d.block_index)
+          if (d.field_type === 'content_block' && d.block_uuid) changed.add(d.block_uuid)
         })
         setChangedBlocks(changed)
         const colorDelta = deltas.find((d: any) => d.revision_color)
