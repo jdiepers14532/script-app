@@ -191,7 +191,13 @@ export default function EditorPanel({
       .catch(() => setVorlagePreviewData(null))
   }, [currentSzene?.vorlage_id, produktionId])
 
-  // Auto-select preferred werkstufe type once on first load
+  // Reset werkstufe selection when folge changes (prevents stale selectedWerkId pointing to old folge)
+  useEffect(() => {
+    setSelectedWerkId(null)
+    initialApplied.current = false
+  }, [folgeId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-select preferred werkstufe type once on first load (and on each folge change after reset)
   // Prefer non-empty werkstufen (szenen_count > 0) among matching type, then highest version_nummer
   // Without defaultTyp: apply drehbuch > storyline > notiz priority (same as ScriptPage)
   useEffect(() => {
