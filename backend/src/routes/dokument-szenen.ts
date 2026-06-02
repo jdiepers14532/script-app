@@ -196,8 +196,10 @@ dokumentSzenenRouter.put('/:id', async (req, res) => {
     }
 
     // Freeze-Guard: Content-PUTs auf eingefrorene Werkstufen verweigern (403).
-    // Metadaten-Updates (kein content im Body) dürfen immer durch — auch für Label-Rename (Handoff 2).
-    if (effectiveContent) {
+    // Prüft ob Body den content-KEY enthält (unabhängig vom Wert) — content:null
+    // und content:[] sind ebenfalls Schreibversuche und müssen geblockt werden.
+    // Metadaten-Updates (kein content-Key im Body) gehen immer durch — Label-Rename (Handoff 2) hat keinen content-Key.
+    if ('content' in req.body || clear_content) {
       const frozenCheck = await queryOne(
         `SELECT w.eingefroren FROM dokument_szenen ds
          JOIN werkstufen w ON w.id = ds.werkstufe_id

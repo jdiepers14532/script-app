@@ -703,8 +703,12 @@ export default function EditorPanelHeader({
                     if (!confirm('Revision abschließen und Werkstufe einfrieren?\nDie Fassung kann danach nicht mehr bearbeitet werden. Revisionsmarkierungen bleiben als historischer Nachweis erhalten.')) return
                     setRevisionSaving(true)
                     try {
-                      await api.einfrierenWerkstufe(selectedWerk.id)
-                      onReloadWerkstufen()
+                      const frozen = await api.einfrierenWerkstufe(selectedWerk.id)
+                      await onReloadWerkstufen()
+                      // UX: User nach dem Freeze direkt zur nächsten editierbaren Fassung führen
+                      if (confirm(`Revisionsstufe ${frozen.revisionsstufen_nr} gespeichert.\n\nMöchtest du jetzt eine neue Fassung für weitere Änderungen anlegen?`)) {
+                        onNeueFassungClick?.(selectedWerk.typ as 'drehbuch' | 'storyline' | 'notiz')
+                      }
                     } catch { /* ignore */ } finally { setRevisionSaving(false) }
                   }}
                   disabled={revisionSaving}

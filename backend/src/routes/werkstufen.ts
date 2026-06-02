@@ -569,13 +569,12 @@ werkstufenRouter.put('/:id/einfrieren', async (req, res) => {
       return res.status(409).json({ error: 'Werkstufe ist bereits eingefroren' })
     }
 
-    // Nächste revisionsstufen_nr für diese Produktion ermitteln
+    // Nächste revisionsstufen_nr PER FOLGE (nicht produktionsweit)
     const nrResult = await client.query(
       `SELECT COALESCE(MAX(w2.revisionsstufen_nr), 0) + 1 AS next_nr
        FROM werkstufen w2
-       JOIN folgen f2 ON f2.id = w2.folge_id
-       WHERE f2.produktion_id = $1 AND w2.ist_revisionsstufe = TRUE`,
-      [ws.rows[0].produktion_id]
+       WHERE w2.folge_id = $1 AND w2.ist_revisionsstufe = TRUE`,
+      [ws.rows[0].folge_id]
     )
     const nextNr = nrResult.rows[0].next_nr as number
 
