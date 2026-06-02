@@ -13,6 +13,7 @@ import type { AbsatzFormat } from '../../tiptap/AbsatzExtension'
 import { useOfflineQueueContext, DokumentVorlagenEditor, useTerminologie } from '../../sw-ui'
 import { mergeVorlageWithContent } from '../../utils/mergeVorlage'
 import { Clock, GitCompare, X } from 'lucide-react'
+import DiffView from './DiffView'
 import Tooltip from '../Tooltip'
 import MagicFunktionenModal from './MagicFunktionenModal'
 import BatchCheckModal from '../BatchCheckModal'
@@ -502,6 +503,8 @@ export default function EditorPanel({
   const [diffWerkId, setDiffWerkId] = useState<string | null>(null)
   const [diffResult, setDiffResult] = useState<any[] | null>(null)   // raw diff array
   const [diffLoading, setDiffLoading] = useState(false)
+  const [diffDetailData, setDiffDetailData] = useState<any | null>(null)
+  const [diffDetailLoading, setDiffDetailLoading] = useState(false)
 
   useEffect(() => {
     const szId = currentSzene?.id ?? selectedSzeneId
@@ -535,6 +538,19 @@ export default function EditorPanel({
       .catch(() => setDiffResult([]))
       .finally(() => setDiffLoading(false))
   }, [diffWerkId, selectedWerkId])
+
+  // Diff-Detail für aktuelle Szene laden (Phase 5: Wort-Diff, Block-Klassifikation)
+  useEffect(() => {
+    if (!diffWerkId || !selectedWerkId || !currentSzene?.scene_identity_id) {
+      setDiffDetailData(null)
+      return
+    }
+    setDiffDetailLoading(true)
+    api.getWerkstufeDiffDetail(selectedWerkId, diffWerkId, currentSzene.scene_identity_id)
+      .then(setDiffDetailData)
+      .catch(() => setDiffDetailData(null))
+      .finally(() => setDiffDetailLoading(false))
+  }, [diffWerkId, selectedWerkId, currentSzene?.scene_identity_id])
 
   // Im Diff-Modus: changedBlocks aus Diff-Daten für aktuelle Szene überschreiben
   useEffect(() => {
@@ -619,7 +635,7 @@ export default function EditorPanel({
         onReloadWerkstufen={onReloadWerkstufen}
         onDiffRequest={(compareId) => {
           setDiffWerkId(compareId)
-          if (!compareId) { setDiffResult(null); setChangedBlocks(new Set()); setRevisionColor(null) }
+          if (!compareId) { setDiffResult(null); setDiffDetailData(null); setChangedBlocks(new Set()); setRevisionColor(null) }
         }}
         onChangeSceneFormat={async (fmt) => {
           if (!currentSzene?.id || typeof currentSzene.id !== 'string') return
@@ -690,7 +706,7 @@ export default function EditorPanel({
               </span>
             )}
             <button
-              onClick={() => { setDiffWerkId(null); setDiffResult(null); setChangedBlocks(new Set()); setRevisionColor(null) }}
+              onClick={() => { setDiffWerkId(null); setDiffResult(null); setDiffDetailData(null); setChangedBlocks(new Set()); setRevisionColor(null) }}
               style={{
                 marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 3,
                 padding: '2px 6px', borderRadius: 4, fontSize: 10, border: '1px solid rgba(0,122,255,0.3)',
@@ -1057,6 +1073,17 @@ export default function EditorPanel({
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', fontSize: 13 }}>
             Kein Inhalt
           </div>
+        ) : diffWerkId ? (
+          // ── Diff-Modus: DiffView statt Editor (Phase 5, read-only) ──
+          <DiffView
+            data={diffDetailData}
+            loading={diffDetailLoading}
+            baseWerkLabel={selectedWerk?.label ?? selectedWerk?.typ ?? 'Aktuelle Fassung'}
+            otherWerkLabel={(() => {
+              const cw = werkstufen.find(w => w.id === diffWerkId)
+              return cw?.ist_revisionsstufe ? `Rev. ${cw.revisionsstufen_nr}` : (cw?.label ?? cw?.typ ?? 'Vergleichsfassung')
+            })()}
+          />
         ) : (
           <Suspense fallback={null}>
             <UniversalEditor

@@ -275,6 +275,8 @@ export const api = {
     request<any>('PUT', `/werkstufen/${werkstufId}/einfrieren`),
   getWerkstufeDiff: (baseId: string, otherId: string) =>
     request<any>('GET', `/werkstufen/${baseId}/diff/${otherId}`),
+  getWerkstufeDiffDetail: (baseId: string, otherId: string, sceneIdentityId: string) =>
+    request<any>('GET', `/werkstufen/${baseId}/diff-detail/${otherId}?scene_identity_id=${encodeURIComponent(sceneIdentityId)}`),
   updateWerkstufe: (werkstufId: string, data: any) =>
     request<any>('PUT', `/werkstufen/${werkstufId}`, data),
 

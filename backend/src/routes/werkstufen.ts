@@ -602,6 +602,148 @@ werkstufenRouter.put('/:id/einfrieren', async (req, res) => {
 })
 
 // ══════════════════════════════════════════════════════════════════════════════
+// GET /api/werkstufen/:id/diff-detail/:otherId?scene_identity_id=X
+// Phase 5 (Handoff 1): Detaillierter Block-Diff einer einzelnen Szene.
+// Klassifiziert Blöcke als unchanged/changed/moved/deleted/added.
+// Word-Diff für geänderte Blöcke (LCS-basiert, token-level).
+// ══════════════════════════════════════════════════════════════════════════════
+werkstufenRouter.get('/:id/diff-detail/:otherId', async (req, res) => {
+  const { id, otherId } = req.params
+  const sceneIdentityId = req.query.scene_identity_id as string | undefined
+  if (!sceneIdentityId) return res.status(400).json({ error: 'scene_identity_id required' })
+
+  try {
+    const [baseSzene, otherSzene] = await Promise.all([
+      queryOne(
+        `SELECT content FROM dokument_szenen WHERE werkstufe_id=$1 AND scene_identity_id=$2 AND geloescht=FALSE`,
+        [id, sceneIdentityId]
+      ),
+      queryOne(
+        `SELECT content FROM dokument_szenen WHERE werkstufe_id=$1 AND scene_identity_id=$2 AND geloescht=FALSE`,
+        [otherId, sceneIdentityId]
+      )
+    ])
+
+    const toBlocks = (content: any): any[] => {
+      if (!content) return []
+      const raw = typeof content === 'string' ? JSON.parse(content) : content
+      return Array.isArray(raw) ? raw : (raw?.content ?? [])
+    }
+
+    const extractText = (node: any): string => {
+      const parts: string[] = []
+      const walk = (n: any) => {
+        if (n.type === 'text') parts.push(n.text ?? '')
+        if (n.type === 'hardBreak') parts.push(' ')
+        for (const c of n.content ?? []) walk(c)
+      }
+      walk(node)
+      return parts.join('')
+    }
+
+    // LCS-based word diff, capped at 500 tokens per side
+    const wordDiff = (baseText: string, otherText: string): Array<{ op: '=' | '+' | '-'; text: string }> => {
+      const tokenize = (s: string): string[] => s.match(/\S+|\s+/g) ?? []
+      const a = tokenize(baseText).slice(0, 500)
+      const b = tokenize(otherText).slice(0, 500)
+      const m = a.length, n = b.length
+      if (m === 0 && n === 0) return []
+      if (m === 0) return b.map(t => ({ op: '+' as const, text: t }))
+      if (n === 0) return a.map(t => ({ op: '-' as const, text: t }))
+      const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0))
+      for (let i = 1; i <= m; i++)
+        for (let j = 1; j <= n; j++)
+          dp[i][j] = a[i-1] === b[j-1] ? dp[i-1][j-1] + 1 : Math.max(dp[i-1][j], dp[i][j-1])
+      const ops: Array<{ op: '=' | '+' | '-'; text: string }> = []
+      let i = m, j = n
+      while (i > 0 || j > 0) {
+        if (i > 0 && j > 0 && a[i-1] === b[j-1]) { ops.unshift({ op: '=', text: a[i-1] }); i--; j-- }
+        else if (j > 0 && (i === 0 || dp[i][j-1] >= dp[i-1][j])) { ops.unshift({ op: '+', text: b[j-1] }); j-- }
+        else { ops.unshift({ op: '-', text: a[i-1] }); i-- }
+      }
+      return ops
+    }
+
+    interface BlockEntry {
+      uuid: string | null
+      status: 'unchanged' | 'changed' | 'moved' | 'deleted' | 'added'
+      block_json: any
+      base_idx: number | null
+      other_idx: number | null
+      word_diff?: Array<{ op: '=' | '+' | '-'; text: string }>
+    }
+
+    const baseBlocks = toBlocks(baseSzene?.content)
+    const otherBlocks = toBlocks(otherSzene?.content)
+
+    const baseUuidMap = new Map<string, { block: any; idx: number; text: string }>()
+    const otherUuidMap = new Map<string, { block: any; idx: number; text: string }>()
+    baseBlocks.forEach((b, i) => { const u = b?.attrs?.node_id; if (u) baseUuidMap.set(u, { block: b, idx: i, text: extractText(b) }) })
+    otherBlocks.forEach((b, i) => { const u = b?.attrs?.node_id; if (u) otherUuidMap.set(u, { block: b, idx: i, text: extractText(b) }) })
+
+    const base_blocks: BlockEntry[] = []
+    const other_blocks: BlockEntry[] = []
+
+    // UUID-based classification for base blocks
+    for (const [uuid, { block, idx, text }] of baseUuidMap) {
+      const other = otherUuidMap.get(uuid)
+      if (!other) {
+        base_blocks.push({ uuid, status: 'deleted', block_json: block, base_idx: idx, other_idx: null })
+      } else if (text === other.text) {
+        base_blocks.push({ uuid, status: idx === other.idx ? 'unchanged' : 'moved', block_json: block, base_idx: idx, other_idx: other.idx })
+      } else {
+        base_blocks.push({ uuid, status: 'changed', block_json: block, base_idx: idx, other_idx: other.idx, word_diff: wordDiff(text, other.text) })
+      }
+    }
+
+    // UUID-based classification for other blocks
+    for (const [uuid, { block, idx, text }] of otherUuidMap) {
+      const base = baseUuidMap.get(uuid)
+      if (!base) {
+        other_blocks.push({ uuid, status: 'added', block_json: block, base_idx: null, other_idx: idx })
+      } else if (text === base.text) {
+        other_blocks.push({ uuid, status: idx === base.idx ? 'unchanged' : 'moved', block_json: block, base_idx: base.idx, other_idx: idx })
+      } else {
+        other_blocks.push({ uuid, status: 'changed', block_json: block, base_idx: base.idx, other_idx: idx, word_diff: wordDiff(base.text, text) })
+      }
+    }
+
+    // Fallback for blocks without UUID (legacy, positional comparison)
+    const maxLen = Math.max(baseBlocks.length, otherBlocks.length)
+    for (let i = 0; i < maxLen; i++) {
+      const b = baseBlocks[i]
+      const o = otherBlocks[i]
+      if (b && !b?.attrs?.node_id) {
+        const bt = extractText(b)
+        if (!o) {
+          base_blocks.push({ uuid: null, status: 'deleted', block_json: b, base_idx: i, other_idx: null })
+        } else {
+          const ot = extractText(o)
+          base_blocks.push({ uuid: null, status: bt === ot ? 'unchanged' : 'changed', block_json: b, base_idx: i, other_idx: i,
+            word_diff: bt !== ot ? wordDiff(bt, ot) : undefined })
+        }
+      }
+      if (o && !o?.attrs?.node_id && !baseBlocks[i]) {
+        other_blocks.push({ uuid: null, status: 'added', block_json: o, base_idx: null, other_idx: i })
+      }
+    }
+
+    base_blocks.sort((a, b) => (a.base_idx ?? 999999) - (b.base_idx ?? 999999))
+    other_blocks.sort((a, b) => (a.other_idx ?? 999999) - (b.other_idx ?? 999999))
+
+    res.json({
+      scene_identity_id: sceneIdentityId,
+      base_has_scene: !!baseSzene,
+      other_has_scene: !!otherSzene,
+      base_blocks,
+      other_blocks,
+    })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
 // GET /api/werkstufen/:id/diff/:otherId — Vergleich zweier Werkstufen auf Block-Ebene
 // Gibt geänderte block_uuids pro Szene zurück (phase 3: scene-level diff).
 // ══════════════════════════════════════════════════════════════════════════════
