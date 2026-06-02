@@ -438,6 +438,8 @@ async function runMigrations() {
     'v167_bible.sql',
     // Versionierung: future_versionen + konzept_versionen + versions_aenderungen
     'v168_versionen_import.sql',
+    // Glossar — Wechselschnitt erweitert + verwandte Schnitttermini (Parallelmontage, RB, Vision, Insert)
+    'v169_glossar_wechselschnitt_verwandte.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
