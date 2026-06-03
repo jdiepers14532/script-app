@@ -259,7 +259,7 @@ function renderVonnegutSvg(data: any): string {
   const PX_PER = 14
   const W = Math.max(600, xKeys.length * PX_PER + 140)
   const CH = 170
-  const PAD = { top: 26, right: 50, bottom: 36, left: 50 }
+  const PAD = { top: 18, right: 50, bottom: 36, left: 50 }
   const cW = W - PAD.left - PAD.right
   const cH = CH - PAD.top - PAD.bottom
 
@@ -276,9 +276,6 @@ function renderVonnegutSvg(data: any): string {
   // ── One SVG page per strand ─────────────────────────────────────────────────
   const pages = straenge.map((curStrang: any, si: number) => {
     const sp: string[] = []
-
-    // Strand title header
-    sp.push(`<text x="${PAD.left}" y="15" font-size="10" font-weight="700" fill="${esc(curStrang.farbe)}" font-family="sans-serif">● ${esc(curStrang.name)}</text>`)
 
     // Y-axis grid + labels
     for (const v of [-5, -4, -2, 0, 2, 4, 5]) {
@@ -351,7 +348,8 @@ function renderVonnegutSvg(data: any): string {
       const textLines: string[] = []
       if (p.figuren) wrapSvgText(cleanText(p.figuren), MAX_CHARS).forEach(l => textLines.push(l))
       if (p.zusammenfassung) wrapSvgText(cleanText(p.zusammenfassung), MAX_CHARS).forEach(l => textLines.push(l))
-      if (p.notiz) wrapSvgText(cleanText(p.notiz), MAX_CHARS).forEach(l => textLines.push(`\u2014\u202f${l}`))
+      // \x01-Prefix = interner Marker für kursive Notiz-Zeilen (kein sichtbares Zeichen)
+      if (p.notiz) wrapSvgText(cleanText(p.notiz), MAX_CHARS).forEach(l => textLines.push('\x01' + l))
       const totalLines = 1 + textLines.length  // 1 header + content
 
       // Stagger: find lowest level without x-collision
@@ -397,18 +395,22 @@ function renderVonnegutSvg(data: any): string {
       const headerY = by + ENTRY_PAD + LINE_H - 2
       sp.push(`<text x="${bx + 3}" y="${headerY}" font-size="8" font-family="sans-serif" fill="${esc(curStrang.farbe)}" opacity="0.8">${esc(loc)}</text>`)
       sp.push(`<text x="${bx + ENTRY_W - 3}" y="${headerY}" font-size="10" font-family="sans-serif" font-weight="700" fill="${esc(curStrang.farbe)}" text-anchor="end">${esc(val)}</text>`)
-      // Content lines
+      // Content lines (\x01-Prefix = Notiz-Zeile → kursiv, Marker wird nicht angezeigt)
       textLines.forEach((line, li) => {
         const ty = by + ENTRY_PAD + (li + 2) * LINE_H - 2
-        const isNotiz = line.startsWith('\u2014')
-        sp.push(`<text x="${bx + 3}" y="${ty}" font-size="9" font-family="sans-serif" fill="${isNotiz ? '#666' : '#222'}" font-style="${isNotiz ? 'italic' : 'normal'}">${esc(line)}</text>`)
+        const isNotiz = line.startsWith('\x01')
+        const displayLine = isNotiz ? line.slice(1) : line
+        sp.push(`<text x="${bx + 3}" y="${ty}" font-size="9" font-family="sans-serif" fill="${isNotiz ? '#555' : '#222'}" font-style="${isNotiz ? 'italic' : 'normal'}">${esc(displayLine)}</text>`)
       })
     })
 
     const totalH = ANNO_TOP + totalAnnoH + 6
     const pageBreak = si < straenge.length - 1 ? 'page-break-after:always;' : ''
 
-    return `<div style="${pageBreak}page-break-inside:avoid"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${totalH}" style="display:block;width:100%;height:auto;max-height:13cm;font-family:sans-serif">${sp.join('')}</svg></div>`
+    return `<div style="${pageBreak}page-break-inside:avoid;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif">
+<div style="font-size:15pt;font-weight:700;color:${esc(curStrang.farbe)};margin-bottom:6pt;padding-bottom:4pt;border-bottom:2pt solid ${esc(curStrang.farbe)}">&#x25CF; ${esc(curStrang.name)}</div>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${totalH}" style="display:block;width:100%;height:auto;max-height:12cm;font-family:sans-serif">${sp.join('')}</svg>
+</div>`
   })
 
   return pages.join('\n')
