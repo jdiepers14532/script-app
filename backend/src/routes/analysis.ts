@@ -803,6 +803,8 @@ router.get('/run/:id/pdf', async (req, res) => {
     const logoUrl: string | null = companyInfo?.logo_url ?? companyInfo?.logos?.light ?? null
     const logoBase64 = logoUrl ? await fetchBase64(logoUrl) : null
 
+    const tmpl = templateData?.template ?? templateData ?? null
+
     const ctx: PdfCtx = {
       companyInfo,
       produktionTitel: run.produktion_titel ?? undefined,
@@ -812,8 +814,6 @@ router.get('/run/:id/pdf', async (req, res) => {
     }
 
     const html = buildAnalysisPdfHtml(run, companyInfo, methodFilter)
-
-    const tmpl = templateData?.template ?? templateData ?? null
     const headerZone = buildPuppeteerZone(
       { left: tmpl?.header_left, center: tmpl?.header_center, right: tmpl?.header_right },
       ctx
