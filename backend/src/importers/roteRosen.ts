@@ -64,10 +64,13 @@ function isMarginNumber(line: string, ocrMode = false): boolean {
   const t = line.trim()
   if (!/^\d+$/.test(t)) return false
   const n = parseInt(t, 10)
-  // pdftotext: only multiples of 5 appear in the margin
   // Mistral OCR: all line numbers 1-99 can appear
   if (ocrMode) return n > 0 && n <= 99
-  return n > 0 && n <= 100 && n % 5 === 0
+  // pdftotext/bbox: multiples of 5 are the most common margin numbers,
+  // but single digits 1-9 also occur (e.g. the "9" on page line 9 that
+  // bbox merges with location text). All other single digits are equally
+  // unlikely to be legitimate standalone content in screenplay format.
+  return n > 0 && n <= 100 && (n % 5 === 0 || n <= 9)
 }
 
 // ─── Mistral OCR Preprocessor ────────────────────────────
@@ -360,13 +363,28 @@ function parseCoverMeta(lines: string[]): CoverMeta {
 }
 
 // ─── Find content start ─────────────────────────────────
+//
+// Skips "Outline/Register" pages that list scene numbers followed by
+// a sentence summary (e.g. "4497.1 Während Carla sich bewegt...").
+// In the actual content, bbox-format scene headers look like:
+//   "4497.1 Studio 1 / Pferdehof / Wohnbereich I/T59"
+// i.e. they END with an INT/EXT code ([IE]/[TNAD]\d+).
+// Outline entries end with natural-language text (no INT/EXT code).
+
+const INT_EXT_AT_END_RE = /\s+[IE]\/[TNAD]\d+\s*$/
 
 function findContentStart(lines: string[]): number {
   for (let i = 0; i < lines.length; i++) {
     const t = lines[i].trim()
     if (/^FOLGE\s+\d+$/.test(t)) return i
     if (t === 'Memo') return i
-    if (SCENE_NUM_RE.test(t)) return i
+    const numM = SCENE_NUM_RE.exec(t)
+    if (numM) {
+      const trailing = numM[3]?.trim() || ''
+      // Accept: scene number alone on line (pdftotext) OR ending with INT/EXT code (bbox)
+      if (!trailing || INT_EXT_AT_END_RE.test(t)) return i
+      // Skip: outline entries (scene number + sentence text, no INT/EXT at end)
+    }
   }
   return 0
 }
@@ -535,6 +553,12 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
       ort_name = candidate
       i = skipBlanks(lines, i + 1)
     }
+  }
+  // Strip stray single-digit margin numbers that bbox merges with location text.
+  // E.g. "Ziegenhof 9" (page line 9 at same Y) → "Ziegenhof".
+  // Does NOT affect "Studio 1 / Wohnbereich" (digit is not at line end).
+  if (ort_name && /\s[1-9]$/.test(ort_name)) {
+    ort_name = ort_name.replace(/\s+[1-9]$/, '').trim()
   }
 
   // Characters line (comma-separated names) — comes BEFORE INT/EXT in Rote Rosen format
@@ -1411,6 +1435,37 @@ export function parseRoteRosen(rawText: string, ocrMode = false, layout?: BboxLa
     }
 
     i = blockEnd
+  }
+
+  // ── Post-parse deduplication ────────────────────────────────────────────────
+  // If findContentStart still let some outline entries through (edge cases), or if the
+  // PDF has genuinely duplicate scene numbers, deduplicate by scene number.
+  // Keep the version with the richer content (more textelemente, longer zusammenfassung,
+  // characters detected). Add a warning so the user knows dedup happened.
+  if (szenen.length > 0) {
+    const byNummer = new Map<number, { idx: number; score: number }>()
+    for (let idx = 0; idx < szenen.length; idx++) {
+      const s = szenen[idx]
+      const score =
+        s.textelemente.length * 20 +
+        (s.zusammenfassung?.length || 0) +
+        (s.charaktere.length > 0 ? 10 : 0) +
+        (s.ort_name ? 5 : 0)
+      const existing = byNummer.get(s.nummer)
+      if (!existing || score > existing.score) {
+        byNummer.set(s.nummer, { idx, score })
+      }
+    }
+    if (byNummer.size < szenen.length) {
+      const dupCount = szenen.length - byNummer.size
+      warnings.push(
+        `${dupCount} doppelte Szenennummer(n) erkannt und zusammengeführt (Outline-Register in PDF übersprungen).`
+      )
+      const keepIdxs = new Set(Array.from(byNummer.values()).map(v => v.idx))
+      const deduped = szenen.filter((_, idx) => keepIdxs.has(idx))
+      szenen.length = 0
+      szenen.push(...deduped)
+    }
   }
 
   if (szenen.length === 0) {
