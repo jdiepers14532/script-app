@@ -388,6 +388,7 @@ function BeziehungsbaumInner() {
             {staffeln.map((s, i) => (
               <button
                 key={s.id}
+                className="bb-seg-btn"
                 onClick={() => setSelectedStaffelIdx(i)}
                 style={{
                   padding: '6px 12px', border: 'none',
@@ -410,6 +411,7 @@ function BeziehungsbaumInner() {
         {/* Diff-Toggle */}
         {staffeln.length > 1 && selectedStaffelIdx > 0 && (
           <button
+            className="bb-btn"
             style={btnStyle(diffMode)}
             onClick={() => setDiffMode(d => !d)}
           >
@@ -421,6 +423,7 @@ function BeziehungsbaumInner() {
         {/* Seed-Review-Button (nur für schreiben) */}
         {zugriff.schreiben && (
           <button
+            className="bb-btn"
             style={btnStyle(seedPanelOpen)}
             onClick={() => { setSeedPanelOpen(p => !p); setDrawerState({ mode: 'none' }) }}
           >

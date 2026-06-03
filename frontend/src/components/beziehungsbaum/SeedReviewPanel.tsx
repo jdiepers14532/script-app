@@ -218,7 +218,7 @@ export default function SeedReviewPanel({
               {/* Aktion-Buttons */}
               {freigabeForm?.kandidatId !== k.id ? (
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <button onClick={() => handleFreigabeStart(k)} style={{
+                  <button className="bb-btn" onClick={() => handleFreigabeStart(k)} style={{
                     display: 'flex', alignItems: 'center', gap: 4,
                     padding: '6px 10px', background: '#000', color: '#fff',
                     border: 'none', borderRadius: 5, fontSize: 11, cursor: 'pointer',
@@ -226,7 +226,7 @@ export default function SeedReviewPanel({
                   }}>
                     <Check size={12} /> Freigeben
                   </button>
-                  <button onClick={() => handleAblehnen(k.id)} style={{
+                  <button className="bb-btn" onClick={() => handleAblehnen(k.id)} style={{
                     display: 'flex', alignItems: 'center', gap: 4,
                     padding: '6px 10px', background: '#FFF2F0', color: '#FF3B30',
                     border: '1px solid #FF3B30', borderRadius: 5, fontSize: 11,
@@ -321,14 +321,14 @@ function FreigabeForm({
         </div>
       )}
       <div style={{ display: 'flex', gap: 6 }}>
-        <button onClick={onSubmit} style={{
+        <button className="bb-btn" onClick={onSubmit} style={{
           flex: 1, padding: '7px 12px', background: '#000', color: '#fff',
           border: 'none', borderRadius: 5, fontSize: 12,
           fontFamily: 'Inter, sans-serif', cursor: 'pointer', minHeight: 32,
         }}>
           Bestätigen
         </button>
-        <button onClick={onCancel} style={{
+        <button className="bb-btn" onClick={onCancel} style={{
           padding: '7px 12px', background: '#fff', color: '#757575',
           border: '1px solid #E0E0E0', borderRadius: 5, fontSize: 12,
           fontFamily: 'Inter, sans-serif', cursor: 'pointer', minHeight: 32,

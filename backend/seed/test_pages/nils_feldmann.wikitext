@@ -1,0 +1,21 @@
+{{Infobox Figur
+|bild            = NilsFeldmann.jpg
+|darsteller      = Jan Hofer
+|erstefolge      = 2101
+|letztefolge     = 2350
+|status          = ausgestiegen
+|ehefrau         = Carolin Lohmann
+|kinder          = Lena Feldmann, Paul Feldmann
+|vater           = Friedrich Feldmann
+|feinde          = Klaus Berger
+}}
+
+'''Nils Feldmann''' ist eine fiktive Nebenfigur.
+
+== Biografie ==
+Nils Feldmann ist der Sohn von [[Friedrich Feldmann]].
+
+== Beziehungen ==
+Nils und [[Carolin Lohmann]] heirateten in Staffel 6 und haben zwei gemeinsame
+Kinder: [[Lena Feldmann]] (Staffel 7) und [[Paul Feldmann]] (Staffel 9).
+[[Klaus Berger]] war jahrelang sein größter Rivale im Unternehmen.

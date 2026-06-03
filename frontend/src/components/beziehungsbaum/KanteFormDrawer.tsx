@@ -144,6 +144,7 @@ export default function KanteFormDrawer({
             Beziehungstyp *
           </label>
           <select
+            className="bb-select"
             value={beziehungstyp}
             onChange={e => setBeziehungstyp(e.target.value)}
             style={{
@@ -172,6 +173,7 @@ export default function KanteFormDrawer({
               Gültig ab Staffel *
             </label>
             <input
+              className="bb-input"
               type="number" min={0} value={ab} onChange={e => setAb(e.target.value)}
               style={{
                 width: '100%', padding: '8px 10px', border: '1px solid #E0E0E0',
@@ -185,6 +187,7 @@ export default function KanteFormDrawer({
               Gültig bis Staffel
             </label>
             <input
+              className="bb-input"
               type="number" min={0} value={bis} onChange={e => setBis(e.target.value)}
               placeholder="offen"
               style={{
@@ -214,6 +217,7 @@ export default function KanteFormDrawer({
             Status
           </label>
           <select
+            className="bb-select"
             value={status} onChange={e => setStatus(e.target.value)}
             style={{
               width: '100%', padding: '8px 10px', border: '1px solid #E0E0E0',
@@ -236,6 +240,7 @@ export default function KanteFormDrawer({
             {[1, 2, 3, 4, 5].map(n => (
               <button
                 key={n}
+                className="bb-staerke-btn"
                 onClick={() => setStaerke(staerke === String(n) ? '' : String(n))}
                 style={{
                   width: 36, height: 36, border: '1px solid',
@@ -258,6 +263,7 @@ export default function KanteFormDrawer({
             Beschriftung (optional)
           </label>
           <input
+            className="bb-input"
             type="text" value={label} onChange={e => setLabel(e.target.value)}
             placeholder="z.B. seit 1985"
             maxLength={60}
@@ -302,6 +308,7 @@ export default function KanteFormDrawer({
       }}>
         <div style={{ display: 'flex', gap: 8 }}>
           <button
+            className="bb-btn"
             onClick={handleSave}
             disabled={saving}
             style={{
@@ -314,6 +321,7 @@ export default function KanteFormDrawer({
             {saving ? 'Speichert…' : 'Speichern'}
           </button>
           <button
+            className="bb-btn"
             onClick={onClose}
             style={{
               padding: '10px 16px', background: '#F5F5F5', color: '#000',
@@ -326,6 +334,7 @@ export default function KanteFormDrawer({
         </div>
         {mode === 'edit' && onDelete && (
           <button
+            className="bb-btn"
             onClick={handleDelete}
             disabled={deleting}
             style={{

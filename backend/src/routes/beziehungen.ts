@@ -338,6 +338,33 @@ beziehungenRouter.get('/staffeln', requireBeziehungenAccess('lesen'), async (req
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
+// GET /api/beziehungen/figuren-suche?q=<name>&limit=<N>
+// Fuzzy-Suche nach Figuren-Namen (pg_trgm + ILIKE) — für Seed-Pipeline-Mapping.
+// ─────────────────────────────────────────────────────────────────────────────
+beziehungenRouter.get('/figuren-suche', requireBeziehungenAccess('lesen'), async (req, res) => {
+  const q = ((req.query.q as string) ?? '').trim()
+  if (q.length < 2) return res.json([])
+  const limit = Math.min(parseInt((req.query.limit as string) || '10', 10), 50)
+
+  try {
+    const rows = await query(`
+      SELECT id, name
+      FROM characters
+      WHERE name ILIKE '%' || $1 || '%'
+         OR (length($1) >= 3 AND name % $1)
+      ORDER BY
+        (lower(name) LIKE lower($1) || '%')::int DESC,
+        similarity(name, $1) DESC,
+        name
+      LIMIT $2
+    `, [q, limit])
+    res.json(rows)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
 // POST /api/beziehungen — Kante anlegen
 // Body: { reihen_id, character_id, related_character_id, beziehungstyp,
 //         gueltig_ab_staffel, gueltig_bis_staffel?, status?, staerke?,
