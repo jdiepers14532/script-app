@@ -223,6 +223,11 @@ function wrapSvgText(text: string, maxChars: number): string[] {
   return lines
 }
 
+/** Entfernt Markdown-Formatierungszeichen aus KI-generiertem Text (Unterstriche, Sternchen am Zeilenanfang/-ende). */
+function cleanText(s: string): string {
+  return s.replace(/^[\s_*]+|[\s_*]+$/gm, ' ').replace(/\s+/g, ' ').trim()
+}
+
 function renderVonnegutSvg(data: any): string {
   const straenge = data?.straenge ?? []
   if (!straenge.length) return '<p>Keine Arc-Daten</p>'
@@ -257,10 +262,10 @@ function renderVonnegutSvg(data: any): string {
     : PAD.left + cW / 2
   const yPos = (v: number) => PAD.top + ((5 - v) / 10) * cH
 
-  const ENTRY_W = 90       // px width of each annotation box
+  const ENTRY_W = 120      // px width of each annotation box
   const LINE_H  = 7        // px per text line (~5.5pt)
   const ENTRY_PAD = 5      // vertical padding inside box
-  const MAX_CHARS = 40     // chars per wrapped line
+  const MAX_CHARS = 24     // chars per wrapped line (bei font-size 5.5 und 120px Box)
 
   // ── One SVG page per strand ─────────────────────────────────────────────────
   const pages = straenge.map((curStrang: any, si: number) => {
@@ -297,7 +302,7 @@ function renderVonnegutSvg(data: any): string {
         .filter(Boolean) as { x: number; y: number }[]
       if (!pts.length) return
       const path = pts.map((p, idx) => `${idx === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')
-      sp.push(`<path d="${path}" fill="none" stroke="${esc(strand.farbe)}" stroke-width="${isCur ? 2.5 : 1}" stroke-linejoin="round" opacity="${isCur ? 1 : 0.15}"/>`)
+      sp.push(`<path d="${path}" fill="none" stroke="${esc(strand.farbe)}" stroke-width="${isCur ? 2.5 : 1}" stroke-linejoin="round" opacity="${isCur ? 1 : 0.35}"/>`)
       if (isCur)
         pts.forEach(p => sp.push(`<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="3.5" fill="${esc(curStrang.farbe)}" stroke="#fff" stroke-width="1.5"/>`))
     })
@@ -313,9 +318,9 @@ function renderVonnegutSvg(data: any): string {
       const lx = PAD.left + col * LEG_IW
       const ly = LEG_Y + row * LEG_RH + LEG_RH / 2
       const isCur = i === si
-      sp.push(`<line x1="${lx}" y1="${ly.toFixed(1)}" x2="${(lx + 11).toFixed(1)}" y2="${ly.toFixed(1)}" stroke="${esc(strand.farbe)}" stroke-width="${isCur ? 2 : 1}" opacity="${isCur ? 1 : 0.3}"/>`)
-      sp.push(`<circle cx="${(lx + 5.5).toFixed(1)}" cy="${ly.toFixed(1)}" r="${isCur ? 2.5 : 1.8}" fill="${esc(strand.farbe)}" stroke="#fff" stroke-width="0.8" opacity="${isCur ? 1 : 0.3}"/>`)
-      sp.push(`<text x="${lx + 15}" y="${(ly + 3).toFixed(1)}" font-size="7" font-family="sans-serif" fill="${isCur ? '#222' : '#bbb'}" font-weight="${isCur ? 700 : 400}">${esc(strand.name)}</text>`)
+      sp.push(`<line x1="${lx}" y1="${ly.toFixed(1)}" x2="${(lx + 11).toFixed(1)}" y2="${ly.toFixed(1)}" stroke="${esc(strand.farbe)}" stroke-width="${isCur ? 2 : 1}" opacity="${isCur ? 1 : 0.5}"/>`)
+      sp.push(`<circle cx="${(lx + 5.5).toFixed(1)}" cy="${ly.toFixed(1)}" r="${isCur ? 2.5 : 1.8}" fill="${esc(strand.farbe)}" stroke="#fff" stroke-width="0.8" opacity="${isCur ? 1 : 0.5}"/>`)
+      sp.push(`<text x="${lx + 15}" y="${(ly + 3).toFixed(1)}" font-size="7" font-family="sans-serif" fill="${isCur ? '#222' : '#888'}" font-weight="${isCur ? 700 : 400}">${esc(strand.name)}</text>`)
     })
 
     // ── Build annotation entries (stagger algorithm) ──────────────────────────
@@ -336,11 +341,11 @@ function renderVonnegutSvg(data: any): string {
       const cx = xPos(i)
       const cy = yPos(p.wert)
 
-      // Text lines
+      // Text lines (cleanText entfernt Markdown-Sonderzeichen wie führende Unterstriche)
       const textLines: string[] = []
-      if (p.figuren) wrapSvgText(p.figuren, MAX_CHARS).forEach(l => textLines.push(l))
-      if (p.zusammenfassung) wrapSvgText(p.zusammenfassung, MAX_CHARS).forEach(l => textLines.push(l))
-      if (p.notiz) wrapSvgText(p.notiz, MAX_CHARS).forEach(l => textLines.push(`\u2014\u202f${l}`))
+      if (p.figuren) wrapSvgText(cleanText(p.figuren), MAX_CHARS).forEach(l => textLines.push(l))
+      if (p.zusammenfassung) wrapSvgText(cleanText(p.zusammenfassung), MAX_CHARS).forEach(l => textLines.push(l))
+      if (p.notiz) wrapSvgText(cleanText(p.notiz), MAX_CHARS).forEach(l => textLines.push(`\u2014\u202f${l}`))
       const totalLines = 1 + textLines.length  // 1 header + content
 
       // Stagger: find lowest level without x-collision

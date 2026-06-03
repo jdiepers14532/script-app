@@ -1035,12 +1035,17 @@ function ReportView({ run, activeTab, onTabChange, onRerunMethod, onPreviewPdf, 
   activeTab: string | null
   onTabChange: (tab: string) => void
   onRerunMethod?: (method: string) => void
-  onPreviewPdf?: (method: string) => void
-  onDownloadPdf?: (method: string) => void
+  onPreviewPdf?: (method: string, orientation: 'portrait' | 'landscape') => void
+  onDownloadPdf?: (method: string, orientation: 'portrait' | 'landscape') => void
   isPolling?: boolean
 }) {
   const currentTab = activeTab ?? run.method_results[0]?.method ?? null
   const result = run.method_results.find(r => r.method === currentTab)
+
+  // Per-Methode: Hoch-/Querformat — Vonnegut-Arcs default Quer
+  const [orientations, setOrientations] = useState<Record<string, 'portrait' | 'landscape'>>({})
+  const getOrientation = (method: string): 'portrait' | 'landscape' =>
+    orientations[method] ?? (method === 'vonnegut_arcs' ? 'landscape' : 'portrait')
 
   const scopeLabel = run.folge_nummer != null
     ? `Folge ${run.folge_nummer}`
@@ -1119,7 +1124,7 @@ function ReportView({ run, activeTab, onTabChange, onRerunMethod, onPreviewPdf, 
                 </span>
               )}
               {(onRerunMethod || onPreviewPdf || onDownloadPdf) && (
-                <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+                <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center' }}>
                   {onRerunMethod && (
                     <button
                       onClick={() => onRerunMethod(result.method)}
@@ -1136,9 +1141,31 @@ function ReportView({ run, activeTab, onTabChange, onRerunMethod, onPreviewPdf, 
                       <RefreshCw size={10} /> Neu
                     </button>
                   )}
+                  {(onPreviewPdf || onDownloadPdf) && result.status === 'completed' && (
+                    <>
+                      <div style={{ width: 1, height: 14, background: 'var(--border)' }} />
+                      {(['portrait', 'landscape'] as const).map(ori => (
+                        <button
+                          key={ori}
+                          onClick={() => setOrientations(prev => ({ ...prev, [result.method]: ori }))}
+                          title={ori === 'portrait' ? 'Hochformat' : 'Querformat'}
+                          style={{
+                            padding: '2px 7px', borderRadius: 4, fontSize: 11, fontFamily: 'inherit',
+                            border: `1px solid ${getOrientation(result.method) === ori ? '#007AFF' : 'var(--border)'}`,
+                            background: getOrientation(result.method) === ori ? 'rgba(0,122,255,0.08)' : 'transparent',
+                            color: getOrientation(result.method) === ori ? '#007AFF' : 'var(--text-secondary)',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {ori === 'portrait' ? '↕' : '↔'}
+                        </button>
+                      ))}
+                      <div style={{ width: 1, height: 14, background: 'var(--border)' }} />
+                    </>
+                  )}
                   {onPreviewPdf && result.status === 'completed' && (
                     <button
-                      onClick={() => onPreviewPdf(result.method)}
+                      onClick={() => onPreviewPdf(result.method, getOrientation(result.method))}
                       title="PDF-Voransicht im Browser öffnen"
                       style={{
                         display: 'inline-flex', alignItems: 'center', gap: 4,
@@ -1152,7 +1179,7 @@ function ReportView({ run, activeTab, onTabChange, onRerunMethod, onPreviewPdf, 
                   )}
                   {onDownloadPdf && result.status === 'completed' && (
                     <button
-                      onClick={() => onDownloadPdf(result.method)}
+                      onClick={() => onDownloadPdf(result.method, getOrientation(result.method))}
                       title="Als PDF herunterladen"
                       style={{
                         display: 'inline-flex', alignItems: 'center', gap: 4,
@@ -1344,7 +1371,6 @@ export default function AnalysisPage() {
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // PDF-Optionen
-  const [pdfOrientation, setPdfOrientation] = useState<'portrait' | 'landscape'>('portrait')
   const [pdfFzText, setPdfFzText] = useState('')
 
   useEffect(() => {
@@ -1772,34 +1798,22 @@ export default function AnalysisPage() {
             </div>
           ) : selectedRunData ? (
             <>
-              {/* PDF-Optionen */}
+              {/* PDF-Fußzeile (global für alle Berichte) */}
               <div style={{
-                padding: '6px 20px', borderBottom: '1px solid var(--border)',
+                padding: '5px 20px', borderBottom: '1px solid var(--border)',
                 background: 'var(--bg-subtle)', flexShrink: 0,
-                display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap',
+                display: 'flex', gap: 6, alignItems: 'center',
               }}>
-                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 0 }}>PDF</span>
-                {(['portrait', 'landscape'] as const).map(ori => (
-                  <button key={ori} onClick={() => setPdfOrientation(ori)} style={{
-                    padding: '3px 8px', borderRadius: 5, fontSize: 11, fontFamily: 'inherit',
-                    border: `1px solid ${pdfOrientation === ori ? '#007AFF' : 'var(--border)'}`,
-                    background: pdfOrientation === ori ? 'rgba(0,122,255,0.08)' : 'transparent',
-                    color: pdfOrientation === ori ? '#007AFF' : 'var(--text-secondary)',
-                    cursor: 'pointer', fontWeight: pdfOrientation === ori ? 600 : 400,
-                  }}>
-                    {ori === 'portrait' ? '↕ Hoch' : '↔ Quer'}
-                  </button>
-                ))}
-                <div style={{ width: 1, height: 14, background: 'var(--border)', flexShrink: 0 }} />
+                <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, flexShrink: 0 }}>Fußzeile</span>
                 <input
                   type="text"
                   value={pdfFzText}
                   onChange={e => setPdfFzText(e.target.value)}
-                  placeholder="Fußzeile (leer = Standard)"
+                  placeholder="Fußzeilen-Text (leer = Standard)"
                   style={{
                     padding: '3px 7px', fontSize: 11, border: '1px solid var(--border)',
                     borderRadius: 5, background: 'var(--bg-canvas)', color: 'var(--text-primary)',
-                    fontFamily: 'inherit', outline: 'none', minWidth: 160, flex: 1, maxWidth: 280,
+                    fontFamily: 'inherit', outline: 'none', minWidth: 160, flex: 1, maxWidth: 320,
                   }}
                 />
               </div>
@@ -1808,13 +1822,13 @@ export default function AnalysisPage() {
                 activeTab={selectedTab}
                 onTabChange={setSelectedTab}
                 onRerunMethod={handleRerunMethod}
-                onPreviewPdf={(method) => {
-                  const p = new URLSearchParams({ method, inline: '1', landscape: pdfOrientation === 'landscape' ? '1' : '0' })
+                onPreviewPdf={(method, orientation) => {
+                  const p = new URLSearchParams({ method, inline: '1', landscape: orientation === 'landscape' ? '1' : '0' })
                   if (pdfFzText.trim()) p.set('fzText', pdfFzText.trim())
                   window.open(`/api/analysis/run/${selectedRunData.id}/pdf?${p}`, '_blank')
                 }}
-                onDownloadPdf={(method) => {
-                  const p = new URLSearchParams({ method, landscape: pdfOrientation === 'landscape' ? '1' : '0' })
+                onDownloadPdf={(method, orientation) => {
+                  const p = new URLSearchParams({ method, landscape: orientation === 'landscape' ? '1' : '0' })
                   if (pdfFzText.trim()) p.set('fzText', pdfFzText.trim())
                   window.open(`/api/analysis/run/${selectedRunData.id}/pdf?${p}`, '_blank')
                 }}
