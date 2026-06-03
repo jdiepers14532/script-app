@@ -6,12 +6,23 @@ const router = Router()
 
 // GET /api/me/whoami — same-origin user info (no cross-origin dependency)
 router.get('/whoami', authMiddleware, (req: any, res) => {
+  const roles: string[] = req.user.roles || []
+  const role: string = req.user.role || ''
+  // Kein Zugriff auf die Script-App: Token gültig, aber keine Rolle zugewiesen
+  if (roles.length === 0 && role === '') {
+    return res.status(403).json({
+      error: 'Kein Zugriff auf diese App',
+      code: 'NO_APP_ACCESS',
+      name: req.user.name,
+      email: req.user.email,
+    })
+  }
   res.json({
     user_id: req.user.user_id,
     name: req.user.name,
     email: req.user.email,
-    role: req.user.role,
-    roles: req.user.roles,
+    role,
+    roles,
   })
 })
 

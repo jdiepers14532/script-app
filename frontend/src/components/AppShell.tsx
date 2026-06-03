@@ -253,6 +253,7 @@ export default function AppShell({
   const [ansichtsModalOpen, setAnsichtsModalOpen] = useState(false)
   const [farbschemaOpen, setFarbschemaOpen] = useState(false)
   const [currentUser, setCurrentUser] = useState<{ username?: string; email?: string; user_id?: string } | null>(null)
+  const [noAppAccess, setNoAppAccess] = useState<{ name: string; email: string } | null>(null)
   const [sendedatum, setSendedatum] = useState<{ datum: string; ist_ki_prognose: boolean } | null>(null)
   const [sunWeather, setSunWeather] = useState<{
     avgSunrise: string | null
@@ -501,11 +502,18 @@ export default function AppShell({
     const pendingRedirect = sessionStorage.getItem('auth_redirect_after_login')
 
     fetch('/api/me/whoami', { credentials: 'include' })
-      .then(r => {
+      .then(async r => {
         if (r.status === 401) {
           const redirectUrl = window.location.href
           sessionStorage.setItem('auth_redirect_after_login', redirectUrl)
           window.location.href = `https://auth.serienwerft.studio/?redirect=${encodeURIComponent(redirectUrl)}`
+          return null
+        }
+        if (r.status === 403) {
+          const err = await r.json().catch(() => ({})) as any
+          if (err.code === 'NO_APP_ACCESS') {
+            setNoAppAccess({ name: err.name || '', email: err.email || '' })
+          }
           return null
         }
         return r.ok ? r.json() : null
@@ -930,6 +938,29 @@ export default function AppShell({
   ]
 
   const activeBgName = resolvePalette(tweaks, tweaks.theme).name
+
+  if (noAppAccess) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', gap: 16, fontFamily: 'Inter, sans-serif', background: '#F5F5F5' }}>
+        <div style={{ background: '#fff', border: '1px solid #E0E0E0', borderRadius: 12, padding: '40px 48px', textAlign: 'center', maxWidth: 380 }}>
+          <div style={{ fontSize: 32, marginBottom: 12 }}>🔒</div>
+          <div style={{ fontWeight: 600, fontSize: 18, marginBottom: 8 }}>Kein Zugriff</div>
+          <div style={{ color: '#757575', fontSize: 14, marginBottom: 4 }}>
+            Du hast keinen Zugriff auf die Script-App.
+          </div>
+          <div style={{ color: '#757575', fontSize: 13, marginBottom: 24 }}>
+            {noAppAccess.name || noAppAccess.email}
+          </div>
+          <a
+            href={`https://auth.serienwerft.studio/logout?redirect=${encodeURIComponent(window.location.origin)}`}
+            style={{ display: 'inline-block', padding: '10px 24px', background: '#000', color: '#fff', borderRadius: 8, textDecoration: 'none', fontSize: 14, fontWeight: 500 }}
+          >
+            Abmelden
+          </a>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="app" data-theme={tweaks.theme}>
