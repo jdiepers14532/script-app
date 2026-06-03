@@ -172,6 +172,8 @@ export default function ImportPage() {
   const [pdfCropLeft, setPdfCropLeft] = useState(0)
   const [pdfCropRight, setPdfCropRight] = useState(0)
   const [pdfCropBottom, setPdfCropBottom] = useState(0)
+  const cropSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const cropSettingsLoaded = useRef(false)
   const [pdfPageFrom, setPdfPageFrom] = useState<number | ''>('')
   const [pdfPageTo, setPdfPageTo] = useState<number | ''>('')
   const [pdfTotalPages, setPdfTotalPages] = useState<number | null>(null)
@@ -183,6 +185,29 @@ export default function ImportPage() {
       if (data?.mistral_available) setOcrAvailable(true)
     }).catch(() => {})
   }, [])
+
+  // Load saved PDF crop settings on mount
+  useEffect(() => {
+    api.getSettings().then((data: any) => {
+      const crop = data?.ui_settings?.pdf_crop
+      if (crop) {
+        if (crop.left != null) setPdfCropLeft(crop.left)
+        if (crop.right != null) setPdfCropRight(crop.right)
+        if (crop.bottom != null) setPdfCropBottom(crop.bottom)
+      }
+      cropSettingsLoaded.current = true
+    }).catch(() => { cropSettingsLoaded.current = true })
+  }, [])
+
+  // Debounced save of PDF crop settings when they change
+  useEffect(() => {
+    if (!cropSettingsLoaded.current) return
+    if (cropSaveTimer.current) clearTimeout(cropSaveTimer.current)
+    cropSaveTimer.current = setTimeout(() => {
+      api.updateSettings({ ui_settings: { pdf_crop: { left: pdfCropLeft, right: pdfCropRight, bottom: pdfCropBottom } } }).catch(() => {})
+    }, 800)
+    return () => { if (cropSaveTimer.current) clearTimeout(cropSaveTimer.current) }
+  }, [pdfCropLeft, pdfCropRight, pdfCropBottom])
 
   // Load Blöcke from ProdDB (same as ScriptPage: api.getBloecke)
   useEffect(() => {
