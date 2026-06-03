@@ -561,6 +561,28 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
     ort_name = ort_name.replace(/\s+[1-9]$/, '').trim()
   }
 
+  // bbox mode: skip repeated partial location that appears as a separate line after the header.
+  // Rote Rosen PDFs sometimes repeat a sub-word of the location visually at the top of the
+  // content area. The bbox extractor picks it up as an extra line, e.g.:
+  //   scene header: "4497.30 A.D. Hof an den Teichen ( Ziegenhof ) / A. D. E/T5"
+  //   next line:    "Ziegenhof 9"  ← partial location + stray margin number
+  // Only trigger when (a) location came from same line (bbox format), (b) the next line
+  // ends with a digit (stray margin number merged in), and (c) the stripped word is a
+  // sub-string of ort_name — this avoids skipping character names.
+  if (locationOnSameLine && i < lines.length && /\s\d+$/.test(lines[i].trim())) {
+    const dupCandidate = lines[i].trim()
+    const stripped = dupCandidate.replace(/\s+\d+$/, '').trim()
+    if (
+      stripped.length >= 4 &&
+      !stripped.includes(',') &&
+      /^[A-Za-zÄÖÜäöüß]/.test(stripped) &&
+      stripped.split(/\s+/).length <= 3 &&
+      ort_name.toLowerCase().includes(stripped.toLowerCase())
+    ) {
+      i = skipBlanks(lines, i + 1)
+    }
+  }
+
   // Characters line (comma-separated names) — comes BEFORE INT/EXT in Rote Rosen format
   // Also handle single-character scenes by looking ahead for INT/EXT pattern
   let charaktere: string[] = []
