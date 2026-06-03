@@ -49,6 +49,8 @@ router.put('/:key', async (req, res) => {
     // Beziehungsbaum-Berechtigungen (v189): JSON-Array von Rollennamen, leer = alle erlaubt
     'beziehungsbaum_lesen_rollen',
     'beziehungsbaum_schreiben_rollen',
+    // Bereichs-Switcher (v190): Rollen-Whitelist für Konzept- und Analyse-Bereich
+    'konzept_allowed_roles',
   ]
 
   if (!allowed.includes(key)) {
