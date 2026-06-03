@@ -223,9 +223,15 @@ function wrapSvgText(text: string, maxChars: number): string[] {
   return lines
 }
 
-/** Entfernt Markdown-Formatierungszeichen aus KI-generiertem Text (Unterstriche, Sternchen am Zeilenanfang/-ende). */
+/** Entfernt Markdown-Formatierungszeichen aus KI-generiertem Text (_italic_, *bold*, führende Sonderzeichen). */
 function cleanText(s: string): string {
-  return s.replace(/^[\s_*]+|[\s_*]+$/gm, ' ').replace(/\s+/g, ' ').trim()
+  return s
+    .replace(/_+([^_\n]+)_+/g, '$1')   // _italic_ → text
+    .replace(/\*+([^*\n]+)\*+/g, '$1') // *bold* / **bold** → text
+    .replace(/^[\s_*#`>-]+/gm, '')     // führende Markdown-Zeichen pro Zeile
+    .replace(/[\s_*`]+$/gm, '')        // abschließende Markdown-Zeichen pro Zeile
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 function renderVonnegutSvg(data: any): string {
@@ -262,10 +268,10 @@ function renderVonnegutSvg(data: any): string {
     : PAD.left + cW / 2
   const yPos = (v: number) => PAD.top + ((5 - v) / 10) * cH
 
-  const ENTRY_W = 120      // px width of each annotation box
-  const LINE_H  = 7        // px per text line (~5.5pt)
-  const ENTRY_PAD = 5      // vertical padding inside box
-  const MAX_CHARS = 24     // chars per wrapped line (bei font-size 5.5 und 120px Box)
+  const ENTRY_W = 200      // px width of each annotation box
+  const LINE_H  = 14       // px per text line
+  const ENTRY_PAD = 8      // vertical padding inside box
+  const MAX_CHARS = 22     // chars per wrapped line (bei font-size 10 und 200px Box)
 
   // ── One SVG page per strand ─────────────────────────────────────────────────
   const pages = straenge.map((curStrang: any, si: number) => {
@@ -383,16 +389,16 @@ function renderVonnegutSvg(data: any): string {
       const by = levelY[level]
       const boxH = (1 + textLines.length) * LINE_H + ENTRY_PAD * 2
       // subtle background
-      sp.push(`<rect x="${bx - 1}" y="${by}" width="${ENTRY_W + 2}" height="${boxH}" fill="${hexWithAlpha(curStrang.farbe, 0.06)}" rx="2"/>`)
-      // Folge/Szene label (very small) + value
-      const headerY = by + ENTRY_PAD + LINE_H - 1
-      sp.push(`<text x="${bx + 2}" y="${headerY}" font-size="4.5" font-family="sans-serif" fill="${esc(curStrang.farbe)}" opacity="0.65">${esc(loc)}</text>`)
-      sp.push(`<text x="${bx + ENTRY_W - 3}" y="${headerY}" font-size="5.5" font-family="sans-serif" font-weight="700" fill="${esc(curStrang.farbe)}" text-anchor="end">${esc(val)}</text>`)
+      sp.push(`<rect x="${bx - 2}" y="${by}" width="${ENTRY_W + 4}" height="${boxH}" fill="${hexWithAlpha(curStrang.farbe, 0.07)}" rx="3"/>`)
+      // Folge/Szene label + value
+      const headerY = by + ENTRY_PAD + LINE_H - 2
+      sp.push(`<text x="${bx + 3}" y="${headerY}" font-size="8" font-family="sans-serif" fill="${esc(curStrang.farbe)}" opacity="0.8">${esc(loc)}</text>`)
+      sp.push(`<text x="${bx + ENTRY_W - 3}" y="${headerY}" font-size="10" font-family="sans-serif" font-weight="700" fill="${esc(curStrang.farbe)}" text-anchor="end">${esc(val)}</text>`)
       // Content lines
       textLines.forEach((line, li) => {
-        const ty = by + ENTRY_PAD + (li + 2) * LINE_H - 1
+        const ty = by + ENTRY_PAD + (li + 2) * LINE_H - 2
         const isNotiz = line.startsWith('\u2014')
-        sp.push(`<text x="${bx + 2}" y="${ty}" font-size="5.5" font-family="sans-serif" fill="${isNotiz ? '#777' : '#333'}" font-style="${isNotiz ? 'italic' : 'normal'}">${esc(line)}</text>`)
+        sp.push(`<text x="${bx + 3}" y="${ty}" font-size="9" font-family="sans-serif" fill="${isNotiz ? '#666' : '#222'}" font-style="${isNotiz ? 'italic' : 'normal'}">${esc(line)}</text>`)
       })
     })
 
@@ -509,7 +515,13 @@ ${sections}
 
 // ── Puppeteer Header/Footer Zonen ─────────────────────────────────────────────
 
-interface PdfCtx { companyInfo: any; produktionTitel?: string; logoBase64?: string | null }
+interface PdfCtx {
+  companyInfo: any
+  produktionTitel?: string
+  logoBase64?: string | null
+  logoHeight?: number       // aus template.logo_height
+  logoWidthCm?: number | null // aus template.logo_width_cm
+}
 
 function buildPuppeteerZone(zones: { left?: any[]; center?: any[]; right?: any[] }, ctx: PdfCtx): string {
   const raw = ctx.companyInfo
@@ -521,8 +533,9 @@ function buildPuppeteerZone(zones: { left?: any[]; center?: any[]; right?: any[]
       if (el.type === 'token') switch (el.key) {
         case 'firma_logo':
           if (ctx.logoBase64) {
-            const h = el.size === 'L' ? 32 : el.size === 'S' ? 16 : 24
-            return `<img src="${ctx.logoBase64}" style="height:${h}px;vertical-align:middle">`
+            const h = ctx.logoHeight ?? (el.size === 'L' ? 32 : el.size === 'S' ? 16 : 24)
+            const wStyle = ctx.logoWidthCm ? `max-width:${ctx.logoWidthCm}cm;` : ''
+            return `<img src="${ctx.logoBase64}" style="height:${h}px;${wStyle}vertical-align:middle">`
           }
           return esc(raw?.company_name ?? '')
         case 'firma_name': return esc(raw?.company_name ?? '')
@@ -794,6 +807,8 @@ router.get('/run/:id/pdf', async (req, res) => {
       companyInfo,
       produktionTitel: run.produktion_titel ?? undefined,
       logoBase64,
+      logoHeight: tmpl?.logo_height ?? undefined,
+      logoWidthCm: tmpl?.logo_width_cm ? parseFloat(tmpl.logo_width_cm) : undefined,
     }
 
     const html = buildAnalysisPdfHtml(run, companyInfo, methodFilter)
