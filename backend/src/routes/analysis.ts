@@ -367,12 +367,7 @@ function renderVonnegutSvg(data: any): string {
       })
     })
 
-    // Guide lines (drawn before boxes so boxes appear on top)
-    entries.forEach(({ cx, cy }) => {
-      sp.push(`<line x1="${cx.toFixed(1)}" y1="${(cy + 5).toFixed(1)}" x2="${cx.toFixed(1)}" y2="${ANNO_TOP - 4}" stroke="${esc(curStrang.farbe)}" stroke-width="0.75" stroke-dasharray="3,3" opacity="0.5"/>`)
-    })
-
-    // Calculate level y-offsets (each level stacks vertically)
+    // ── Level-Offsets zuerst berechnen (werden für Guide-Linien gebraucht) ────
     const levelMaxLines: number[] = []
     entries.forEach(e => { levelMaxLines[e.level] = Math.max(levelMaxLines[e.level] ?? 0, e.totalLines) })
     const levelY: number[] = []
@@ -382,6 +377,14 @@ function renderVonnegutSvg(data: any): string {
       cumY += (levelMaxLines[l] ?? 0) * LINE_H + ENTRY_PAD * 2 + 6
     }
     const totalAnnoH = levelMaxLines.length > 0 ? cumY - ANNO_TOP : 0
+
+    // Guide lines — von Datenpunkt bis Oberkante der zugehörigen Annotationsbox
+    entries.forEach(({ cx, cy, level }) => {
+      const bx = Math.max(PAD.left, Math.min(W - ENTRY_W - 4, cx - ENTRY_W / 2))
+      const boxCenterX = bx + ENTRY_W / 2
+      const lineY2 = levelY[level] - 2
+      sp.push(`<line x1="${cx.toFixed(1)}" y1="${(cy + 5).toFixed(1)}" x2="${boxCenterX.toFixed(1)}" y2="${lineY2.toFixed(1)}" stroke="${esc(curStrang.farbe)}" stroke-width="0.75" stroke-dasharray="3,3" opacity="0.5"/>`)
+    })
 
     // Draw annotation boxes
     entries.forEach(({ cx, loc, val, textLines, level }) => {
@@ -405,7 +408,7 @@ function renderVonnegutSvg(data: any): string {
     const totalH = ANNO_TOP + totalAnnoH + 6
     const pageBreak = si < straenge.length - 1 ? 'page-break-after:always;' : ''
 
-    return `<div style="${pageBreak}"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${totalH}" width="${W}" height="${totalH}" style="display:block;max-width:100%;font-family:sans-serif">${sp.join('')}</svg></div>`
+    return `<div style="${pageBreak}page-break-inside:avoid"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${totalH}" style="display:block;width:100%;height:auto;max-height:13cm;font-family:sans-serif">${sp.join('')}</svg></div>`
   })
 
   return pages.join('\n')
@@ -486,9 +489,9 @@ function buildAnalysisPdfHtml(run: any, companyInfo: any, singleMethod?: string)
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Arial,sans-serif;font-size:10pt;line-height:1.55;color:#111}
-.header{margin-bottom:20pt;padding-bottom:12pt;border-bottom:2pt solid #000}
-.header h1{font-size:17pt;font-weight:700;margin-bottom:3pt}
-.meta{font-size:9pt;color:#666}
+.header{margin-bottom:10pt;padding-bottom:6pt;border-bottom:1.5pt solid #000}
+.header h1{font-size:12pt;font-weight:700;margin-bottom:2pt}
+.meta{font-size:8pt;color:#666}
 h2{font-size:12.5pt;font-weight:700;margin:0 0 8pt;padding-bottom:4pt;border-bottom:1.5pt solid #000}
 h3{font-size:11pt;font-weight:600;margin:10pt 0 4pt}
 h4{font-size:10pt;font-weight:600;margin:8pt 0 3pt}
@@ -535,7 +538,7 @@ function buildPuppeteerZone(zones: { left?: any[]; center?: any[]; right?: any[]
           if (ctx.logoBase64) {
             const h = ctx.logoHeight ?? (el.size === 'L' ? 32 : el.size === 'S' ? 16 : 24)
             const wStyle = ctx.logoWidthCm ? `max-width:${ctx.logoWidthCm}cm;` : ''
-            return `<img src="${ctx.logoBase64}" style="height:${h}px;${wStyle}vertical-align:middle">`
+            return `<img src="${ctx.logoBase64}" style="max-height:${h}px;width:auto;${wStyle}vertical-align:middle">`
           }
           return esc(raw?.company_name ?? '')
         case 'firma_name': return esc(raw?.company_name ?? '')
