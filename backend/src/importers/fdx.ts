@@ -87,7 +87,11 @@ function extractFdxAlignment(paragraph: any): 'left' | 'center' | 'right' | unde
 }
 
 function extractCharakters(paragraph: any): string[] {
-  const beats = paragraph.CharacterArcBeat
+  // FDX V6+: CharacterArcBeat is a direct child of Paragraph
+  // FDX V5:  CharacterArcBeat is nested under SceneProperties.SceneArcBeats
+  const beats =
+    paragraph.CharacterArcBeat ??
+    paragraph.SceneProperties?.SceneArcBeats?.CharacterArcBeat
   if (!beats) return []
   const arr = Array.isArray(beats) ? beats : [beats]
   return arr
@@ -102,7 +106,7 @@ export function parseFdx(xmlContent: string): ImportResult {
   const parser = new XMLParser({
     ignoreAttributes: false,
     attributeNamePrefix: '@_',
-    isArray: (name) => ['Paragraph', 'Text', 'CharacterArcBeat', 'Tag', 'Scene'].includes(name),
+    isArray: (name) => ['Paragraph', 'Text', 'CharacterArcBeat', 'Tag', 'Scene', 'Character'].includes(name),
     textNodeName: '#text',
     allowBooleanAttributes: true,
   })
@@ -127,7 +131,7 @@ export function parseFdx(xmlContent: string): ImportResult {
 
   const paragraphs: any[] = Array.isArray(content.Paragraph) ? content.Paragraph : (content.Paragraph ? [content.Paragraph] : [])
 
-  // Collect TagData characters
+  // Collect TagData characters (V6+ format: TagData.Tag[@Category='Cast Members'])
   const tagCharacters: string[] = []
   const tagData = root.TagData
   if (tagData) {
@@ -137,6 +141,15 @@ export function parseFdx(xmlContent: string): ImportResult {
         const name = tag['@_Label'] ?? tag['@_Name'] ?? ''
         if (name) tagCharacters.push(name.toUpperCase().trim())
       }
+    }
+  }
+  // V5 format: Characters element with <Character>Name</Character> children
+  const charsEl = root.Characters
+  if (charsEl) {
+    const charNodes = Array.isArray(charsEl.Character) ? charsEl.Character : (charsEl.Character ? [charsEl.Character] : [])
+    for (const c of charNodes) {
+      const name = typeof c === 'string' ? c : (c['#text'] ?? c['@_Name'] ?? '')
+      if (name) tagCharacters.push(name.toUpperCase().trim())
     }
   }
 
@@ -236,6 +249,13 @@ export function parseFdx(xmlContent: string): ImportResult {
   }
 
   const totalTextelemente = szenen.reduce((sum, s) => sum + s.textelemente.length, 0)
+
+  // Warn when file appears to be a scene outline (no screenplay content)
+  if (szenen.length > 0 && totalTextelemente === 0) {
+    warnings.push(
+      'Keine Dialogzeilen oder Regieanweisungen gefunden. Die FDX-Datei enthält nur Szenennummern und -köpfe (Szenenübersicht / Beat Sheet). Szenenstruktur wurde importiert.'
+    )
+  }
 
   return {
     szenen,
