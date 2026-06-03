@@ -490,6 +490,8 @@ async function runMigrations() {
     'v188_check_gate_overrides.sql',
     // Beziehungsbaum: Typ-Katalog, charakter_beziehungen-Erweiterung, figuren_layout, Seed-Staging
     'v189_beziehungsbaum.sql',
+    // Bereichs-Switcher: Bereich-Zugriffs-Keys (konzept_allowed_roles + analysis_allowed_roles-Seed)
+    'v190_bereich_access_seed.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

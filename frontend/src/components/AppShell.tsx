@@ -224,6 +224,10 @@ export default function AppShell({
 }: AppShellProps) {
   const location = useLocation()
   const navigate = useNavigate()
+  const activeBereich: 'script' | 'konzept' | 'analyse' =
+    location.pathname.startsWith('/planung') ? 'konzept'
+    : location.pathname.startsWith('/analysis') ? 'analyse'
+    : 'script'
   const { focus, toggle, toolbarOpen, setToolbarOpen, setToolbarPos, setToolbarOpenedVia } = useFocus()
   const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent)
   // AppShell IS the TweaksContext provider → can't use useShortcut() hook here.
@@ -249,6 +253,7 @@ export default function AppShell({
   const [appList, setAppList] = useState<any[]>([])
   const [isAdmin, setIsAdmin] = useState(false)
   const [hasDkAccess, setHasDkAccess] = useState(false)
+  const [bereichAccess, setBereichAccess] = useState<{ konzept: boolean; analyse: boolean }>({ konzept: false, analyse: false })
   const [pendingFreigabenCount, setPendingFreigabenCount] = useState(0)
   const [ansichtsModalOpen, setAnsichtsModalOpen] = useState(false)
   const [farbschemaOpen, setFarbschemaOpen] = useState(false)
@@ -549,6 +554,12 @@ export default function AppShell({
         setAppList(data.apps || [])
         setIsAdmin(data.is_admin || false)
       })
+      .catch(() => {})
+
+    // Bereich-Zugriffsrechte (Script/Konzept/Analyse) — einmal beim Mount laden
+    fetch('/api/me/bereich-access', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : null)
+      .then((data: any) => { if (data) setBereichAccess(data) })
       .catch(() => {})
 
     // DK access check
@@ -981,12 +992,12 @@ export default function AppShell({
               })()}
             </button>
           </Tooltip>
-          {/* Text → App-Nav-Menü */}
+          {/* Text → App-Nav-Menü (zeigt aktiven Bereich) */}
           <button
             className="brand-label-btn"
             onClick={() => { setNavMenuOpen(v => !v); setAppSwitcherOpen(false); setCompanyMenuOpen(false); setUserMenuOpen(false) }}
           >
-            script
+            {activeBereich === 'konzept' ? 'Konzept' : activeBereich === 'analyse' ? 'Analyse' : 'script'}
           </button>
         </div>
 
@@ -1589,6 +1600,37 @@ export default function AppShell({
               {appList.length === 0 && (
                 <div className="as-empty">Keine Apps verfügbar</div>
               )}
+            </div>
+
+            {/* ── Bereiche · Script-App ── */}
+            <div className="as-separator" />
+            <div className="as-header">Bereiche · Script</div>
+            <div className="as-bereiche">
+              {([
+                { id: 'script'  as const, label: 'Script',  icon: <AlignLeft size={14} />,  path: '/',         canAccess: true },
+                { id: 'konzept' as const, label: 'Konzept', icon: <BookMarked size={14} />, path: '/planung',  canAccess: bereichAccess.konzept },
+                { id: 'analyse' as const, label: 'Analyse', icon: <BarChart3 size={14} />,  path: '/analysis', canAccess: bereichAccess.analyse },
+              ]).map(b => {
+                const isActive = activeBereich === b.id
+                const btn = (
+                  <button
+                    className={`as-bereich-item${isActive ? ' as-bereich-active' : ''}${!b.canAccess ? ' as-bereich-disabled' : ''}`}
+                    disabled={!b.canAccess}
+                    onClick={() => { if (b.canAccess) { setAppSwitcherOpen(false); navigate(b.path) } }}
+                  >
+                    {b.icon}
+                    <span>{b.label}</span>
+                    {isActive && <span className="as-bereich-dot" />}
+                  </button>
+                )
+                return (
+                  <div key={b.id}>
+                    <Tooltip text={b.canAccess ? '' : 'Nur für Admins verfügbar'} placement="right">
+                      {btn}
+                    </Tooltip>
+                  </div>
+                )
+              })}
             </div>
           </div>
         </>

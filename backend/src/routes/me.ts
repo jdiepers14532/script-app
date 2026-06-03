@@ -126,4 +126,37 @@ router.put('/settings', authMiddleware, async (req: any, res) => {
   }
 })
 
+// Tier-1-Rollen gelten als Admin für Bereichs-Zugriff (konsistent mit auth.ts TIER1_ROLES)
+const TIER1_ROLES_BEREICH = ['superadmin', 'geschaeftsfuehrung', 'herstellungsleitung']
+
+// GET /api/me/bereich-access — Bereichs-Zugriffsrechte für Bereichs-Switcher
+// analyse: spiegelt canAnalyse() aus routes/analysis.ts 1:1 (Rollen ∩ analysis_allowed_roles)
+// konzept: Tier-1-Admin ODER Rollen ∩ konzept_allowed_roles (flag-getrieben, Default: Admin)
+router.get('/bereich-access', authMiddleware, async (req: any, res) => {
+  try {
+    const userRoles: string[] = req.user.roles || [req.user.role]
+
+    const [analysisResult, konzeptResult] = await Promise.all([
+      pool.query(`SELECT value FROM app_settings WHERE key = 'analysis_allowed_roles'`),
+      pool.query(`SELECT value FROM app_settings WHERE key = 'konzept_allowed_roles'`),
+    ])
+
+    const analysisAllowed: string[] = (() => {
+      try { return JSON.parse(analysisResult.rows[0]?.value || '[]') } catch { return [] }
+    })()
+    const konzeptAllowed: string[] = (() => {
+      try { return JSON.parse(konzeptResult.rows[0]?.value || '[]') } catch { return [] }
+    })()
+
+    const analyse = userRoles.some(r => analysisAllowed.includes(r))
+    const konzept = userRoles.some(r => TIER1_ROLES_BEREICH.includes(r)) ||
+                    userRoles.some(r => konzeptAllowed.includes(r))
+
+    res.json({ konzept, analyse })
+  } catch (err) {
+    console.error('bereich-access error:', err)
+    res.status(500).json({ error: 'Fehler beim Laden der Bereich-Zugriffsrechte' })
+  }
+})
+
 export default router

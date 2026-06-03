@@ -1125,6 +1125,26 @@
 .app-switcher .as-ext { color: var(--text-muted); }
 .app-switcher .as-empty { padding: 12px 14px; color: var(--text-muted); font-size: 12px; }
 
+/* ── Bereichs-Switcher (Script / Konzept / Analyse) ── */
+.app-switcher .as-separator { height: 1px; background: var(--border); margin: 4px 0; }
+.app-switcher .as-bereiche { display: block; }
+.app-switcher .as-bereich-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 14px;
+  background: none; border: none; cursor: pointer;
+  color: var(--text-primary); font-size: 13px; font-family: inherit;
+  text-align: left; width: 100%;
+  transition: background 0.12s;
+}
+.app-switcher .as-bereich-item:hover:not(:disabled) { background: var(--bg-hover); }
+.app-switcher .as-bereich-item:disabled,
+.app-switcher .as-bereich-disabled { opacity: 0.4; cursor: not-allowed; }
+.app-switcher .as-bereich-active { font-weight: 600; }
+.app-switcher .as-bereich-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: #007AFF; margin-left: auto; flex-shrink: 0;
+}
+
 /* ── User Menu ── */
 .user-menu {
   position: fixed; top: 48px; right: 8px; z-index: 200;
