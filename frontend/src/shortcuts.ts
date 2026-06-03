@@ -150,6 +150,24 @@ export const SHORTCUT_DEFS: Record<string, ShortcutDef> = {
     label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+G`,
   },
 
+  // ── Bereichs-Switcher (Alt+1/2/3) ────────────────────────────────────────
+  // Digit1–3 sind auf allen Tastatur-Layouts identisch — kein Layout-Mapping nötig.
+  bereichScript: {
+    codes: ['Digit1'],
+    altKey: true,
+    label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+1`,
+  },
+  bereichKonzept: {
+    codes: ['Digit2'],
+    altKey: true,
+    label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+2`,
+  },
+  bereichAnalyse: {
+    codes: ['Digit3'],
+    altKey: true,
+    label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+3`,
+  },
+
   // ── Editor: Cursor Anfang/Ende der Szene ─────────────────────────────────
   editorGotoStart: {
     codes: ['Home'],

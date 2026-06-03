@@ -739,6 +739,17 @@ export default function AppShell({
     return () => window.removeEventListener('keydown', handler)
   }, [hasDkAccess, navigate])
 
+  // ── Bereichs-Shortcuts (Alt+1/2/3) ───────────────────────────────────────
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (matchesShortcut('bereichScript', e))                              { e.preventDefault(); navigate('/') }
+      else if (matchesShortcut('bereichKonzept', e) && bereichAccess.konzept) { e.preventDefault(); navigate('/planung') }
+      else if (matchesShortcut('bereichAnalyse', e) && bereichAccess.analyse) { e.preventDefault(); navigate('/analysis') }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [bereichAccess, navigate])
+
   // ── CSS-Variablen bei Änderung sofort anwenden ────────────────────────────
   useEffect(() => {
     applyViewSettings(tweaks)
@@ -1577,6 +1588,39 @@ export default function AppShell({
         <>
           <div className="menu-overlay" onClick={() => setAppSwitcherOpen(false)} />
           <div className="app-switcher">
+            {/* ── Bereiche · Script-App ── */}
+            <div className="as-header">Bereiche · Script</div>
+            <div className="as-bereiche">
+              {([
+                { id: 'script'  as const, label: 'Script',  icon: <AlignLeft size={14} />,  path: '/',         canAccess: true,                   scId: 'bereichScript' },
+                { id: 'konzept' as const, label: 'Konzept', icon: <BookMarked size={14} />, path: '/planung',  canAccess: bereichAccess.konzept,   scId: 'bereichKonzept' },
+                { id: 'analyse' as const, label: 'Analyse', icon: <BarChart3 size={14} />,  path: '/analysis', canAccess: bereichAccess.analyse,   scId: 'bereichAnalyse' },
+              ]).map(b => {
+                const isActive = activeBereich === b.id
+                const btn = (
+                  <button
+                    className={`as-bereich-item${isActive ? ' as-bereich-active' : ''}${!b.canAccess ? ' as-bereich-disabled' : ''}`}
+                    disabled={!b.canAccess}
+                    onClick={() => { if (b.canAccess) { setAppSwitcherOpen(false); navigate(b.path) } }}
+                  >
+                    {b.icon}
+                    <span>{b.label}</span>
+                    <span className="as-bereich-sc">{sc(b.scId)}</span>
+                    {isActive && <span className="as-bereich-dot" />}
+                  </button>
+                )
+                return (
+                  <div key={b.id}>
+                    <Tooltip text={b.canAccess ? '' : 'Nur für Admins verfügbar'} placement="right">
+                      {btn}
+                    </Tooltip>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* ── Apps ── */}
+            <div className="as-separator" />
             <div className="as-header">Apps</div>
             <div className="as-grid">
               {appList.map(app => (
@@ -1600,37 +1644,6 @@ export default function AppShell({
               {appList.length === 0 && (
                 <div className="as-empty">Keine Apps verfügbar</div>
               )}
-            </div>
-
-            {/* ── Bereiche · Script-App ── */}
-            <div className="as-separator" />
-            <div className="as-header">Bereiche · Script</div>
-            <div className="as-bereiche">
-              {([
-                { id: 'script'  as const, label: 'Script',  icon: <AlignLeft size={14} />,  path: '/',         canAccess: true },
-                { id: 'konzept' as const, label: 'Konzept', icon: <BookMarked size={14} />, path: '/planung',  canAccess: bereichAccess.konzept },
-                { id: 'analyse' as const, label: 'Analyse', icon: <BarChart3 size={14} />,  path: '/analysis', canAccess: bereichAccess.analyse },
-              ]).map(b => {
-                const isActive = activeBereich === b.id
-                const btn = (
-                  <button
-                    className={`as-bereich-item${isActive ? ' as-bereich-active' : ''}${!b.canAccess ? ' as-bereich-disabled' : ''}`}
-                    disabled={!b.canAccess}
-                    onClick={() => { if (b.canAccess) { setAppSwitcherOpen(false); navigate(b.path) } }}
-                  >
-                    {b.icon}
-                    <span>{b.label}</span>
-                    {isActive && <span className="as-bereich-dot" />}
-                  </button>
-                )
-                return (
-                  <div key={b.id}>
-                    <Tooltip text={b.canAccess ? '' : 'Nur für Admins verfügbar'} placement="right">
-                      {btn}
-                    </Tooltip>
-                  </div>
-                )
-              })}
             </div>
           </div>
         </>

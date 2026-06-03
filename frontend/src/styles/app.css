@@ -1140,9 +1140,13 @@
 .app-switcher .as-bereich-item:disabled,
 .app-switcher .as-bereich-disabled { opacity: 0.4; cursor: not-allowed; }
 .app-switcher .as-bereich-active { font-weight: 600; }
+.app-switcher .as-bereich-sc {
+  margin-left: auto; font-size: 10px; color: var(--text-secondary);
+  opacity: 0.6; flex-shrink: 0; font-variant-numeric: tabular-nums;
+}
 .app-switcher .as-bereich-dot {
   width: 6px; height: 6px; border-radius: 50%;
-  background: #007AFF; margin-left: auto; flex-shrink: 0;
+  background: #007AFF; margin-left: 6px; flex-shrink: 0;
 }
 
 /* ── User Menu ── */
@@ -1252,4 +1256,11 @@
 
   /* iOS Auto-Zoom verhindern — Inputs mit font-size < 16px triggern Zoom auf iOS Safari */
   input, textarea, select { font-size: 16px !important; }
+
+  /* Beziehungsbaum: min. 44px Touch-Targets für Buttons, Selects, Inputs */
+  .bb-btn { min-height: 44px !important; padding-top: 10px !important; padding-bottom: 10px !important; }
+  .bb-select { min-height: 44px !important; padding-top: 10px !important; padding-bottom: 10px !important; }
+  .bb-input { min-height: 44px !important; padding-top: 10px !important; padding-bottom: 10px !important; }
+  .bb-seg-btn { min-height: 44px !important; min-width: 44px !important; }
+  .bb-staerke-btn { min-height: 44px !important; min-width: 44px !important; }
 }
