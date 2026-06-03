@@ -75,6 +75,7 @@ import { planungVersionenRouter } from './routes/planung-versionen'
 import { konzeptImportRouter } from './routes/konzept-import'
 import { planungKiRouter } from './routes/planung-ki'
 import { importJobsRouter } from './routes/import-jobs'
+import { beziehungstypenRouter, beziehungenRouter } from './routes/beziehungen'
 
 // Load .env from project root or backend dir
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') })
@@ -232,6 +233,10 @@ app.use('/api/werkstufen', sichtbarkeitRouter)
 
 app.use('/api/statistik', statistikRouter)
 app.use('/api/admin/colab-gruppen-register', adminColabRegisterRouter)
+
+// Figuren-Beziehungsbaum (v189)
+app.use('/api/beziehungstypen', beziehungstypenRouter)
+app.use('/api/beziehungen', beziehungenRouter)
 app.use('/api/notifications', notificationsRouter)
 app.use('/api/admin', dokAdminRouter)
 app.use('/api/autocomplete', autocompleteRouter)
@@ -483,6 +488,8 @@ async function runMigrations() {
     'v187_ki_check_settings.sql',
     // Handoff 3 §7: Audit-Tabelle für Check-Gate-Overrides
     'v188_check_gate_overrides.sql',
+    // Beziehungsbaum: Typ-Katalog, charakter_beziehungen-Erweiterung, figuren_layout, Seed-Staging
+    'v189_beziehungsbaum.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

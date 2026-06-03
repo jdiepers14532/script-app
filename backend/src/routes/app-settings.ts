@@ -46,6 +46,9 @@ router.put('/:key', async (req, res) => {
     'private_docs_viewer_roles',
     // Charakter-Suffixe & Action-AC (P4)
     'suffix_settings',
+    // Beziehungsbaum-Berechtigungen (v189): JSON-Array von Rollennamen, leer = alle erlaubt
+    'beziehungsbaum_lesen_rollen',
+    'beziehungsbaum_schreiben_rollen',
   ]
 
   if (!allowed.includes(key)) {

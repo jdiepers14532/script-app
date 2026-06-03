@@ -9,3 +9,8 @@ export async function prodQueryOne(sql: string, params?: any[]): Promise<any | n
   const res = await prodPool.query(sql, params)
   return res.rows[0] || null
 }
+
+export async function prodQuery(sql: string, params?: any[]): Promise<any[]> {
+  const res = await prodPool.query(sql, params)
+  return res.rows
+}
