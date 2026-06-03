@@ -324,7 +324,7 @@ beziehungenRouter.get('/staffeln', requireBeziehungenAccess('lesen'), async (req
   if (!reihen_id) return res.status(400).json({ error: 'reihen_id ist erforderlich' })
   try {
     const rows = await prodQuery(`
-      SELECT id, title, staffelnummer, slug
+      SELECT id, title, staffelnummer
       FROM productions
       WHERE reihen_id = $1
         AND staffelnummer IS NOT NULL
