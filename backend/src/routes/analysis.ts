@@ -528,7 +528,7 @@ interface PdfCtx {
   logoWidthCm?: number | null // aus template.logo_width_cm
 }
 
-function buildPuppeteerZone(zones: { left?: any[]; center?: any[]; right?: any[] }, ctx: PdfCtx): string {
+function buildPuppeteerZone(zones: { left?: any[]; center?: any[]; right?: any[] }, ctx: PdfCtx, valign: string = 'top'): string {
   const raw = ctx.companyInfo
   const renderZone = (zone?: any[]): string => {
     if (!zone?.length) return ''
@@ -548,7 +548,7 @@ function buildPuppeteerZone(zones: { left?: any[]; center?: any[]; right?: any[]
         case 'pflichtangaben': return esc(buildPflichtangaben(raw))
         case 'seite': return 'Seite <span class="pageNumber"></span>&thinsp;/&thinsp;<span class="totalPages"></span>'
         case 'erstelldatum': return new Date().toLocaleDateString('de-DE')
-        case 'produktion_titel': return esc(ctx.produktionTitel ?? '')
+        case 'produktion_titel': return esc((ctx.produktionTitel ?? '').replace(/\s+Staffel\s+\d+$/i, ''))
         case 'datum': return new Date().toLocaleDateString('de-DE')
       }
       return ''
@@ -558,7 +558,8 @@ function buildPuppeteerZone(zones: { left?: any[]; center?: any[]; right?: any[]
   const c = renderZone(zones.center)
   const r = renderZone(zones.right)
   if (!l && !c && !r) return ''
-  return `<div style="font-size:8pt;font-family:sans-serif;color:#444;width:100%;padding:0 2.5cm;display:flex;justify-content:space-between;align-items:center"><span style="flex:1">${l}</span><span style="flex:1;text-align:center">${c}</span><span style="flex:1;text-align:right">${r}</span></div>`
+  const alignItems = valign === 'bottom' ? 'flex-end' : 'flex-start'
+  return `<div style="font-size:8pt;font-family:sans-serif;color:#444;width:100%;padding:0 2.5cm;display:flex;justify-content:space-between;align-items:${alignItems}"><span style="flex:1">${l}</span><span style="flex:1;text-align:center">${c}</span><span style="flex:1;text-align:right">${r}</span></div>`
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -821,11 +822,13 @@ router.get('/run/:id/pdf', async (req, res) => {
     const html = buildAnalysisPdfHtml(run, companyInfo, methodFilter)
     const headerZone = buildPuppeteerZone(
       { left: tmpl?.header_left, center: tmpl?.header_center, right: tmpl?.header_right },
-      ctx
+      ctx,
+      tmpl?.header_valign ?? 'top'
     )
     const footerZone = buildPuppeteerZone(
       { left: tmpl?.footer_left, center: tmpl?.footer_center, right: tmpl?.footer_right },
-      ctx
+      ctx,
+      tmpl?.footer_valign ?? 'bottom'
     )
     const fallbackFooter = `<div style="font-size:8pt;font-family:sans-serif;color:#888;width:100%;text-align:center">Seite <span class="pageNumber"></span>&thinsp;/&thinsp;<span class="totalPages"></span></div>`
 
