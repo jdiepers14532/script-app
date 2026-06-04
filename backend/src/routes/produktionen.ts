@@ -57,6 +57,7 @@ router.get('/:id/copy-preview', async (req, res) => {
       revEinst, vorstoppEinst, absatzCnt, kfRows, vorlagenCnt,
       stockshotCnt, glossarCnt, autorenKatCnt,
       freieLabelsCnt, deskriptorCnt, rollenFreigabeRow,
+      stimmungenCnt,
     ] = await Promise.all([
       pool.query('SELECT key, value FROM production_app_settings WHERE production_id = $1', [sourceId]),
       pool.query('SELECT COUNT(*) FROM character_kategorien WHERE produktion_id = $1', [sourceId]),
@@ -76,6 +77,7 @@ router.get('/:id/copy-preview', async (req, res) => {
       pool.query('SELECT COUNT(*) FROM freie_dokument_labels WHERE produktion_id = $1', [sourceId]),
       pool.query('SELECT COUNT(*) FROM deskriptor_vorlagen WHERE production_id = $1', [sourceId]),
       pool.query('SELECT freigabe_aktiv FROM rollen_freigabe_konfiguration WHERE production_id = $1 LIMIT 1', [sourceId]),
+      pool.query('SELECT COUNT(*) FROM tageszeit_stimmungen WHERE production_id = $1', [sourceId]),
     ])
 
     const s: Record<string, string> = {}
@@ -129,6 +131,7 @@ router.get('/:id/copy-preview', async (req, res) => {
     const vsE = vorstoppEinst.rows[0]
     const konfKF = (kfRows.rows as any[]).filter(r => r.kopfzeile_aktiv || r.fusszeile_aktiv)
     const autorenCnt = parseInt(autorenKatCnt.rows[0]?.count ?? '0')
+    const stimmCnt = parseInt(stimmungenCnt.rows[0]?.count ?? '0')
 
     res.json({
       darstellung: {
@@ -137,28 +140,32 @@ router.get('/:id/copy-preview', async (req, res) => {
         szenenfarben:    { label: s.scene_env_colors ? 'angepasst' : 'Standard' },
         ln_settings:     { label: lnLabel },
         replik_settings: { label: replikLabel },
+        stimmungen:      { count: stimmCnt, label: stimmCnt > 0 ? `${stimmCnt} Stimmungen` : '—' },
       },
       terminologie: {
-        treatment_label: { label: s.treatment_label ?? 'Treatment' },
-        glossar: { count: parseInt(glossarCnt.rows[0].count), label: `${glossarCnt.rows[0].count} Einträge` },
+        treatment_label:    { label: s.treatment_label ?? 'Treatment' },
+        glossar:            { count: parseInt(glossarCnt.rows[0].count), label: `${glossarCnt.rows[0].count} Einträge` },
+        terminologie_config: { label: s.terminologie ? 'konfiguriert' : 'Standard' },
+        figuren_label:      { label: s.figuren_label ?? 'Rollen' },
       },
       figuren: {
         kategorien:       { count: parseInt(kategorienCnt.rows[0].count), label: `${kategorienCnt.rows[0].count} Kategorien` },
         charakter_felder: { count: parseInt(charFelderCnt.rows[0].count), label: `${charFelderCnt.rows[0].count} Felder` },
+        suffix_settings:  { label: s.suffix_settings ? 'konfiguriert' : 'Standard' },
       },
       fassungen: {
-        labels:       { count: parseInt(labelsCnt.rows[0].count), label: `${labelsCnt.rows[0].count} Labels` },
-        colors:       { count: parseInt(colorsCnt.rows[0].count), label: `${colorsCnt.rows[0].count} Farben` },
-        einstellungen: { label: revE ? `${revE.memo_schwellwert_zeichen} Zeichen Memo-Schwelle` : '—' },
-        vorstopp:     { label: vsE ? `${vsE.menge} ${vsE.methode === 'seiten' ? 'Seiten' : 'Zeichen'} = ${Math.round(vsE.dauer_sekunden / 60)} Min` : '—' },
+        labels:           { count: parseInt(labelsCnt.rows[0].count), label: `${labelsCnt.rows[0].count} Labels` },
+        colors:           { count: parseInt(colorsCnt.rows[0].count), label: `${colorsCnt.rows[0].count} Farben` },
+        einstellungen:    { label: revE ? `${revE.memo_schwellwert_zeichen} Zeichen Memo-Schwelle` : '—' },
+        vorstopp:         { label: vsE ? `${vsE.menge} ${vsE.methode === 'seiten' ? 'Seiten' : 'Zeichen'} = ${Math.round(vsE.dauer_sekunden / 60)} Min` : '—' },
       },
       format: {
-        absatzformate:       { count: parseInt(absatzCnt.rows[0].count), label: `${absatzCnt.rows[0].count} Formate` },
+        absatzformate:        { count: parseInt(absatzCnt.rows[0].count), label: `${absatzCnt.rows[0].count} Formate` },
         seitenformat_margins: { label: seitenformatLabel },
-        kopf_fusszeilen:     { count: konfKF.length, label: konfKF.length > 0 ? `${konfKF.length} Typ${konfKF.length > 1 ? 'en' : ''} konfiguriert` : '—' },
-        vorlagen:            { count: parseInt(vorlagenCnt.rows[0].count), label: `${vorlagenCnt.rows[0].count} Vorlagen` },
-        stockshot_templates: { count: parseInt(stockshotCnt.rows[0].count), label: `${stockshotCnt.rows[0].count} Templates` },
-        freie_dok_labels:    { count: parseInt(freieLabelsCnt.rows[0].count), label: `${freieLabelsCnt.rows[0].count} Labels` },
+        kopf_fusszeilen:      { count: konfKF.length, label: konfKF.length > 0 ? `${konfKF.length} Typ${konfKF.length > 1 ? 'en' : ''} konfiguriert` : '—' },
+        vorlagen:             { count: parseInt(vorlagenCnt.rows[0].count), label: `${vorlagenCnt.rows[0].count} Vorlagen` },
+        stockshot_templates:  { count: parseInt(stockshotCnt.rows[0].count), label: `${stockshotCnt.rows[0].count} Templates` },
+        freie_dok_labels:     { count: parseInt(freieLabelsCnt.rows[0].count), label: `${freieLabelsCnt.rows[0].count} Labels` },
       },
       sonstige: {
         daily_regeln:              { label: dailyLabel },
@@ -169,6 +176,7 @@ router.get('/:id/copy-preview', async (req, res) => {
         synopsis_settings:         { label: s.synopsis_settings ? 'konfiguriert' : 'Standard' },
         inhaltskennzeichnung:      { count: parseInt(deskriptorCnt.rows[0].count), label: `${deskriptorCnt.rows[0].count} Vorlagen` },
         rollen_freigabe_config:    { label: rollenFreigabeRow.rows[0] ? (rollenFreigabeRow.rows[0].freigabe_aktiv ? 'aktiv' : 'konfiguriert') : '—' },
+        snapshot_settings:         { label: s.snapshot_settings ? 'konfiguriert' : 'Standard' },
       },
       autorenplan: {
         autorenplan_kategorien: { count: autorenCnt, label: autorenCnt > 0 ? `${autorenCnt} Job-Kategorien` : '—' },
@@ -196,6 +204,7 @@ router.post('/:id/copy-settings', async (req, res) => {
     'kopf_fusszeilen', 'stockshot_templates', 'daily_regeln', 'statistik_config', 'autorenplan_kategorien',
     'statistik_modal_config', 'sonstige_dokumente_format',
     'freie_dok_labels', 'drehbuch_checks', 'synopsis_settings', 'inhaltskennzeichnung', 'rollen_freigabe_config',
+    'stimmungen', 'terminologie_config', 'figuren_label', 'suffix_settings', 'snapshot_settings',
   ]
   const invalid = (sections as string[]).filter(s => !ALLOWED.includes(s))
   if (invalid.length) return res.status(400).json({ error: `Ungültige Sections: ${invalid.join(', ')}` })
@@ -240,6 +249,10 @@ router.post('/:id/copy-settings', async (req, res) => {
       await copyAppSetting(client, 'seitenformat')
       await copyAppSetting(client, 'page_margin_mm')
     }
+    if (sections.includes('terminologie_config')) await copyAppSetting(client, 'terminologie')
+    if (sections.includes('figuren_label'))       await copyAppSetting(client, 'figuren_label')
+    if (sections.includes('suffix_settings'))     await copyAppSetting(client, 'suffix_settings')
+    if (sections.includes('snapshot_settings'))   await copyAppSetting(client, 'snapshot_settings')
 
     // ── Vorstopp (single-row upsert) ────────────────────────────────────────
     if (sections.includes('vorstopp')) {
@@ -524,6 +537,29 @@ router.post('/:id/copy-settings', async (req, res) => {
           [targetId, row.name, row.sort_order]
         )
       }
+    }
+
+    // ── Tageszeit-Stimmungen ─────────────────────────────────────────────────
+    if (sections.includes('stimmungen')) {
+      const src = await client.query(
+        'SELECT * FROM tageszeit_stimmungen WHERE production_id = $1 ORDER BY position',
+        [source_produktion_id]
+      )
+      if (!merge) await client.query('DELETE FROM tageszeit_stimmungen WHERE production_id = $1', [targetId])
+      for (const row of src.rows) {
+        if (merge) {
+          const exists = await client.query(
+            'SELECT id FROM tageszeit_stimmungen WHERE production_id=$1 AND name=$2',
+            [targetId, row.name]
+          )
+          if (exists.rows.length) continue
+        }
+        await client.query(
+          'INSERT INTO tageszeit_stimmungen (production_id, name, kuerzel, position) VALUES ($1, $2, $3, $4)',
+          [targetId, row.name, row.kuerzel, row.position]
+        )
+      }
+      // Stimmungen-Changed auslösen damit App-Context neu lädt
     }
 
     // ── Rollen-Freigabe-Konfiguration ─────────────────────────────────────────

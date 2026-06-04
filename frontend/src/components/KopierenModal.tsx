@@ -54,6 +54,12 @@ const SECTION_GROUPS: GroupDef[] = [
         label: 'Replikennummern',
         tooltip: 'Farbe und Modus der Replikennummerierung.\nModus "Durchgehend": eine laufende Nummer über alle Szenen (1 bis n).\nModus "Pro Szene": jede Szene beginnt bei Replik 1.',
       },
+      {
+        id: 'stimmungen',
+        label: 'Tageszeit-Stimmungen',
+        isList: true,
+        tooltip: 'Tageszeiten und ihre Reihenfolge im Verlauf des Spieltags.\nJede Stimmung hat einen Namen (z. B. "Tag", "Abend", "Nacht") und ein einbuchstabiges Kürzel.\nDie letzte Stimmung in der Liste markiert das Ende des Spieltags.\nErsetzen: alle vorhandenen Stimmungen werden gelöscht.\nDazufügen: Stimmungen mit gleichem Namen werden übersprungen.',
+      },
     ],
   },
   {
@@ -70,6 +76,16 @@ const SECTION_GROUPS: GroupDef[] = [
         label: 'Glossar',
         isList: true,
         tooltip: 'Abkürzungsverzeichnis der Produktion.\nJeder Eintrag besteht aus: Kürzel (z. B. NMDP), vollständiger Name und Erklärung.\nErsetzen: alle vorhandenen Einträge werden gelöscht und durch die der Quelle ersetzt.\nDazufügen: Einträge mit bereits vorhandenem Kürzel werden übersprungen.',
+      },
+      {
+        id: 'terminologie_config',
+        label: 'Terminologie-Konfiguration',
+        tooltip: 'Produktionsspezifische Bezeichnungen für zentrale Begriffe: Szene, Motiv, Staffel, Darsteller, Komparse, Stockshot, Flashback, Spieltag, Drehbuch u. a.\nBeispiel: "Folge" statt "Episode".\nGilt für alle UI-Texte und Exporte dieser Produktion.',
+      },
+      {
+        id: 'figuren_label',
+        label: 'Figuren-Label',
+        tooltip: 'Bezeichnung des Figuren-Menüpunkts in der App-Navigation.\nOptionen: "Rollen", "Figuren", "Charaktere" o. ä.\nWird im Seitenmenü und in der Drehbuch-Koordination angezeigt.',
       },
     ],
   },
@@ -88,6 +104,11 @@ const SECTION_GROUPS: GroupDef[] = [
         label: 'Charakter-Felder',
         isList: true,
         tooltip: 'Eigene Profilfelder für Rollen und Motive.\nBeispiele: Alter, Backstory, Charakterbeschreibung, Dramaturgische Funktion.\nFeldbereiche: "Alle", "Nur Rollen", "Nur Komparsen", "Nur Motive".\nErsetzen: alle Felder werden gelöscht — bestehende Feldwerte in der Ziel-Produktion gehen verloren!\nDazufügen: Felder mit gleichem Name+Bereich werden übersprungen.',
+      },
+      {
+        id: 'suffix_settings',
+        label: 'Suffix- & Autocomplete-Einstellungen',
+        tooltip: 'Konfiguration der Szenen-Suffixe (OFF-Tag, NT-Tag, VO, Einweg) und des Autocomplete-Verhaltens im Editor.\nSuffixe erscheinen als Kürzel hinter der Szenen-Bezeichnung.\nAutocomplete: globale Deaktivierung, Figuren-AC oder Erlaubnis aller Figuren-Namen.',
       },
     ],
   },
@@ -204,6 +225,11 @@ const SECTION_GROUPS: GroupDef[] = [
         id: 'rollen_freigabe_config',
         label: 'Rollen-Freigabe-Konfig',
         tooltip: 'Konfiguration des Rollen-Freigabe-Workflows (Scope, Quorum, Lock-Trigger, OT-Obergrenze).\nNicht kopiert: die Genehmiger-Liste — die ist produktionsspezifisch und muss manuell eingetragen werden.\nHinweis: Das kopierte Lock-Trigger-Label muss in den Fassungs-Labels der Zielproduktion vorhanden sein.',
+      },
+      {
+        id: 'snapshot_settings',
+        label: 'Verlauf & Sicherung',
+        tooltip: 'Konfiguration der automatischen Szenen- und Werkstufen-Snapshots.\nEinstellungen: Intervall in Minuten, maximale Snapshot-Anzahl, Snapshot beim Wechsel der Werkstufe.\nBeeinflusst wie detailliert der Schreib-Verlauf aufgezeichnet wird.',
       },
     ],
   },
