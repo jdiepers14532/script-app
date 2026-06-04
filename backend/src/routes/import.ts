@@ -496,6 +496,15 @@ importRouter.post('/preview', upload.single('file'), async (req, res) => {
       return { ...sz, charaktere_detail, komparsen_detail }
     })
 
+    // Build episodes array for multi-episode (block) PDFs
+    const episodesSummary = result.perEpisode
+      ? result.perEpisode.map((ep: any) => ({
+          episode_nr: ep.episodeNr,
+          scene_count: ep.szenen.length,
+          charaktere: ep.charaktere,
+        }))
+      : null
+
     res.json({
       format: result.meta.format,
       version: result.meta.version,
@@ -511,6 +520,7 @@ importRouter.post('/preview', upload.single('file'), async (req, res) => {
       filename_metadata: filenameMeta,
       watermark_found: wmPayload !== null,
       rote_rosen_meta: result.meta.roteRosenMeta || null,
+      episodes: episodesSummary,
     })
   } catch (err) {
     res.status(422).json({ error: String(err) })
@@ -562,6 +572,30 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
     if (!result) {
       result = await parseScript(req.file.originalname, parseBuffer, parseOpts)
       cacheSet(cacheKey, result)
+    }
+
+    // ── Episode filter for block (multi-episode) imports ──
+    // When episode_filter is provided, restrict result.szenen to that episode.
+    if (req.body.episode_filter) {
+      const episodeFilter = parseInt(req.body.episode_filter, 10)
+      if (!isNaN(episodeFilter) && result.perEpisode) {
+        const epData = result.perEpisode.find((e: any) => e.episodeNr === episodeFilter)
+        if (epData) {
+          result = {
+            ...result,
+            szenen: epData.szenen,
+            nonSceneElements: epData.nonSceneElements ?? result.nonSceneElements,
+            meta: { ...result.meta, charaktere: epData.charaktere },
+          }
+        }
+      } else if (!isNaN(episodeFilter)) {
+        // Fallback: filter by episodeNr field on scenes
+        const filtered = result.szenen.filter((s: any) => s.episodeNr === episodeFilter)
+        if (filtered.length > 0) {
+          const chars = [...new Set<string>(filtered.flatMap((s: any) => s.charaktere || []))]
+          result = { ...result, szenen: filtered, meta: { ...result.meta, charaktere: chars } }
+        }
+      }
     }
 
     // Auto-detect stage_type from Rote-Rosen metadata if not explicitly set

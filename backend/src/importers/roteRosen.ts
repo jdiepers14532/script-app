@@ -9,7 +9,7 @@
  * - Doppelte Text-Runs (Dialog-Nummern, Dauer, Komparsen)
  */
 
-import { Textelement, ImportResult, ParsedScene, NonSceneElement, nextId, BboxLayout, LineInfo } from './types'
+import { Textelement, ImportResult, PerEpisodeResult, ParsedScene, NonSceneElement, nextId, BboxLayout, LineInfo } from './types'
 
 // ─── Detection ──────────────────────────────────────────
 
@@ -18,7 +18,13 @@ const DOC_TYPE_RE = /(Treatment|Drehbuch)\s+-\s+Episode\s+(\d+)/
 
 export function isRoteRosenFormat(text: string): boolean {
   const header = text.slice(0, 3000) // Mistral OCR may have more preamble
-  return TITLE_RE.test(header) && DOC_TYPE_RE.test(header)
+  if (!TITLE_RE.test(header)) return false
+  // Standard single-episode format
+  if (DOC_TYPE_RE.test(header)) return true
+  // Block-level format: has Block number + scene numbers (e.g. "Rote Rosen Staffel 25 / Block 893")
+  const hasBlock = /Block\s+\d{3,4}/.test(header)
+  const hasSceneNums = /\d{4}\.\d{1,3}/.test(text.slice(0, 10000))
+  return hasBlock && hasSceneNums
 }
 
 // ─── Filename Parser ────────────────────────────────────
@@ -320,6 +326,12 @@ function parseCoverMeta(lines: string[]): CoverMeta {
   if (docM) {
     meta.typ = docM[1].toLowerCase() as 'treatment' | 'drehbuch'
     meta.episode = parseInt(docM[2], 10)
+  } else {
+    // Block-level: "Storyline Block 893" / "Treatment Block 893" / "Drehbuch Block 893"
+    const blockDocM = joined.match(/(Treatment|Storyline|Drehbuch)\s+Block\s+\d+/i)
+    if (blockDocM) {
+      meta.typ = blockDocM[1].toLowerCase() === 'drehbuch' ? 'drehbuch' : 'treatment'
+    }
   }
 
   const blockM = joined.match(/(?:^|\n)\s*Block\s+(\d+)/m)
@@ -1327,6 +1339,7 @@ export function parseRoteRosen(rawText: string, ocrMode = false, layout?: BboxLa
 
     return {
       nummer: header.sceneNr,
+      episodeNr: header.episodeNr,
       int_ext: finalIntExt,
       tageszeit: header.tageszeit,
       ort_name: header.ort_name,
@@ -1464,30 +1477,58 @@ export function parseRoteRosen(rawText: string, ocrMode = false, layout?: BboxLa
   // PDF has genuinely duplicate scene numbers, deduplicate by scene number.
   // Keep the version with the richer content (more textelemente, longer zusammenfassung,
   // characters detected). Add a warning so the user knows dedup happened.
+  // For multi-episode (block) PDFs: key by "episodeNr:sceneNr" so scenes from different
+  // episodes with the same scene number are NOT collapsed into one.
   if (szenen.length > 0) {
-    const byNummer = new Map<number, { idx: number; score: number }>()
+    const episodeNrSet = new Set(szenen.map(s => s.episodeNr ?? 0))
+    const isMultiEpisode = episodeNrSet.size > 1
+    const byKey = new Map<string, { idx: number; score: number }>()
     for (let idx = 0; idx < szenen.length; idx++) {
       const s = szenen[idx]
+      const key = isMultiEpisode ? `${s.episodeNr ?? 0}:${s.nummer}` : String(s.nummer)
       const score =
         s.textelemente.length * 20 +
         (s.zusammenfassung?.length || 0) +
         (s.charaktere.length > 0 ? 10 : 0) +
         (s.ort_name ? 5 : 0)
-      const existing = byNummer.get(s.nummer)
+      const existing = byKey.get(key)
       if (!existing || score > existing.score) {
-        byNummer.set(s.nummer, { idx, score })
+        byKey.set(key, { idx, score })
       }
     }
-    if (byNummer.size < szenen.length) {
-      const dupCount = szenen.length - byNummer.size
+    if (byKey.size < szenen.length) {
+      const dupCount = szenen.length - byKey.size
       warnings.push(
         `${dupCount} doppelte Szenennummer(n) erkannt und zusammengeführt (Outline-Register in PDF übersprungen).`
       )
-      const keepIdxs = new Set(Array.from(byNummer.values()).map(v => v.idx))
+      const keepIdxs = new Set(Array.from(byKey.values()).map(v => v.idx))
       const deduped = szenen.filter((_, idx) => keepIdxs.has(idx))
       szenen.length = 0
       szenen.push(...deduped)
     }
+  }
+
+  // ── Multi-episode splitting ──────────────────────────────────────────────────
+  // If multiple distinct episodeNr values are present (block PDF), build perEpisode array.
+  // Each episode gets its own set of scenes, non-scene elements, and character list.
+  const episodeNrValues = [...new Set(szenen.map(s => s.episodeNr).filter((n): n is number => n != null))].sort((a, b) => a - b)
+  const perEpisode: PerEpisodeResult[] = []
+
+  if (episodeNrValues.length > 1) {
+    for (const epNr of episodeNrValues) {
+      const epSzenen = szenen.filter(s => s.episodeNr === epNr)
+      const epChars = [...new Set(epSzenen.flatMap(s => s.charaktere))]
+      perEpisode.push({
+        episodeNr: epNr,
+        szenen: epSzenen,
+        nonSceneElements: undefined, // cover/synopsis are shared — added below
+        charaktere: epChars,
+      })
+    }
+    // Add a warning about block import
+    warnings.push(
+      `Block-PDF erkannt: ${episodeNrValues.length} Folgen (${episodeNrValues[0]}–${episodeNrValues[episodeNrValues.length - 1]}). Bitte jede Folge einzeln importieren.`
+    )
   }
 
   if (szenen.length === 0) {
@@ -1567,9 +1608,20 @@ export function parseRoteRosen(rawText: string, ocrMode = false, layout?: BboxLa
 
   const totalTextelemente = szenen.reduce((sum, s) => sum + s.textelemente.length, 0)
 
+  // Include per-episode breakdown in roteRosenMeta when block PDF detected
+  if (perEpisode.length > 1) {
+    metaObj.block_import = true
+    metaObj.episodes = perEpisode.map(e => ({
+      episodeNr: e.episodeNr,
+      scene_count: e.szenen.length,
+      charaktere: e.charaktere,
+    }))
+  }
+
   return {
     szenen,
     nonSceneElements: nonSceneElements.length > 0 ? nonSceneElements : undefined,
+    ...(perEpisode.length > 1 ? { perEpisode } : {}),
     meta: {
       format: `rote-rosen-${docType}`,
       total_scenes: szenen.length,

@@ -40,6 +40,12 @@ interface DetectResult {
   } | null
 }
 
+interface EpisodeSummary {
+  episode_nr: number
+  scene_count: number
+  charaktere: string[]
+}
+
 interface PreviewResult {
   format: string
   total_scenes: number
@@ -53,6 +59,7 @@ interface PreviewResult {
     document_type?: string
     staffel?: number
     episode?: number
+    block_import?: boolean
     [key: string]: any
   }
   filename_metadata?: {
@@ -62,6 +69,7 @@ interface PreviewResult {
     fassungsdatum?: string
     show?: string
   }
+  episodes?: EpisodeSummary[]  // set for block (multi-episode) PDFs
 }
 
 interface CommitResult {
@@ -112,6 +120,13 @@ export default function ImportPage() {
     setSceneOverrides(prev => ({ ...prev, [idx]: { ...prev[idx], [field]: value } }))
   }
   const getSceneVal = (sz: any, idx: number, field: string) => sceneOverrides[idx]?.[field] ?? sz[field]
+
+  // Block import state (multi-episode PDFs)
+  const [selectedEpisodes, setSelectedEpisodes] = useState<Set<number>>(new Set())
+  const [blockImportResults, setBlockImportResults] = useState<Array<{
+    episode_nr: number; success: boolean; scenes_imported?: number; error?: string
+  }> | null>(null)
+  const [blockImporting, setBlockImporting] = useState(false)
 
   // All folgen across all blocks
   const allFolgen: { nr: number; block: any }[] = []
@@ -308,6 +323,11 @@ export default function ImportPage() {
         pendingAutoEpisode.current = detectedEpisode
       }
 
+      // Block import: auto-select all episodes
+      if (data.episodes && data.episodes.length > 1) {
+        setSelectedEpisodes(new Set(data.episodes.map((e: EpisodeSummary) => e.episode_nr)))
+      }
+
       // Auto-recognize production from staffel
       if (data.rote_rosen_meta?.staffel) {
         const matchProd = productions.find(p => p.staffelnummer === data.rote_rosen_meta.staffel)
@@ -345,30 +365,68 @@ export default function ImportPage() {
     }
   }
 
+  // Build common PDF params for commit calls
+  const buildCommitFormData = (folgeNummer: number, episodeFilter?: number): FormData => {
+    const fd = new FormData()
+    fd.append('file', file!)
+    fd.append('produktion_id', selectedId!)
+    fd.append('folge_nummer', String(folgeNummer))
+    if (selectedBlock?.proddb_id) fd.append('proddb_block_id', selectedBlock.proddb_id)
+    fd.append('stage_type', stageType)
+    if (standDatum) fd.append('stand_datum', standDatum)
+    if (isPdf) {
+      fd.append('pdf_method', pdfMethod)
+      if (pdfMethod === 'pdftotext') {
+        if (pdfCropLeft > 0) fd.append('pdf_crop_left', String(pdfCropLeft))
+        if (pdfCropRight > 0) fd.append('pdf_crop_right', String(pdfCropRight))
+        if (pdfCropBottom > 0) fd.append('pdf_crop_bottom', String(pdfCropBottom))
+      }
+      if (pdfPageFrom !== '') fd.append('pdf_page_from', String(pdfPageFrom))
+      if (pdfPageTo !== '') fd.append('pdf_page_to', String(pdfPageTo))
+    }
+    if (nonSceneElements.length > 0) fd.append('non_scene_elements', JSON.stringify(nonSceneElements))
+    if (Object.keys(sceneOverrides).length > 0) fd.append('scene_overrides', JSON.stringify(sceneOverrides))
+    if (episodeFilter != null) fd.append('episode_filter', String(episodeFilter))
+    return fd
+  }
+
+  // Block import: import each selected episode separately
+  const handleBlockImport = async () => {
+    if (!file || !selectedId || !previewResult?.episodes) return
+    const episodesToImport = previewResult.episodes.filter(e => selectedEpisodes.has(e.episode_nr))
+    if (episodesToImport.length === 0) return
+    setBlockImporting(true)
+    setError(null)
+    const results: typeof blockImportResults = []
+    for (const ep of episodesToImport) {
+      try {
+        const fd = buildCommitFormData(ep.episode_nr, ep.episode_nr)
+        const res = await fetch('/api/import/commit', { method: 'POST', body: fd, credentials: 'include' })
+        if (!res.ok) {
+          const err = await res.json()
+          results.push({ episode_nr: ep.episode_nr, success: false, error: err.error || `Fehler ${res.status}` })
+        } else {
+          const data = await res.json()
+          results.push({ episode_nr: ep.episode_nr, success: true, scenes_imported: data.scenes_imported })
+        }
+      } catch (err) {
+        results.push({ episode_nr: ep.episode_nr, success: false, error: String(err) })
+      }
+    }
+    setBlockImportResults(results)
+    setBlockImporting(false)
+    window.dispatchEvent(new Event('script-import-complete'))
+    if (results.every(r => r.success)) {
+      setStep(3)
+    }
+  }
+
   const handleCommit = async () => {
     if (!file || !selectedId || selectedFolgeNummer == null) return
     setLoading(true)
     setError(null)
     try {
-      const fd = new FormData()
-      fd.append('file', file)
-      fd.append('produktion_id', selectedId)
-      fd.append('folge_nummer', String(selectedFolgeNummer))
-      if (selectedBlock?.proddb_id) fd.append('proddb_block_id', selectedBlock.proddb_id)
-      fd.append('stage_type', stageType)
-      if (standDatum) fd.append('stand_datum', standDatum)
-      if (isPdf) {
-        fd.append('pdf_method', pdfMethod)
-        if (pdfMethod === 'pdftotext') {
-          if (pdfCropLeft > 0) fd.append('pdf_crop_left', String(pdfCropLeft))
-          if (pdfCropRight > 0) fd.append('pdf_crop_right', String(pdfCropRight))
-          if (pdfCropBottom > 0) fd.append('pdf_crop_bottom', String(pdfCropBottom))
-        }
-        if (pdfPageFrom !== '') fd.append('pdf_page_from', String(pdfPageFrom))
-        if (pdfPageTo !== '') fd.append('pdf_page_to', String(pdfPageTo))
-      }
-      if (nonSceneElements.length > 0) fd.append('non_scene_elements', JSON.stringify(nonSceneElements))
-      if (Object.keys(sceneOverrides).length > 0) fd.append('scene_overrides', JSON.stringify(sceneOverrides))
+      const fd = buildCommitFormData(selectedFolgeNummer)
       const res = await fetch('/api/import/commit', { method: 'POST', body: fd, credentials: 'include' })
       if (!res.ok) {
         const err = await res.json()
@@ -1174,6 +1232,32 @@ export default function ImportPage() {
                 })}
               </div>
 
+              {/* Block import panel (multi-episode PDFs) */}
+              {previewResult.episodes && previewResult.episodes.length > 1 && (
+                <div style={{ padding: '12px 16px', borderTop: '1px solid #e0e0e0', background: '#fafafa', flexShrink: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>
+                    {previewResult.episodes.length} Folgen erkannt — bitte Auswahl bestätigen:
+                  </div>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+                    {previewResult.episodes.map(ep => (
+                      <label key={ep.episode_nr} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontSize: 13 }}>
+                        <input
+                          type="checkbox"
+                          checked={selectedEpisodes.has(ep.episode_nr)}
+                          onChange={e => {
+                            const next = new Set(selectedEpisodes)
+                            if (e.target.checked) next.add(ep.episode_nr)
+                            else next.delete(ep.episode_nr)
+                            setSelectedEpisodes(next)
+                          }}
+                        />
+                        <span>Folge {ep.episode_nr} ({ep.scene_count} {t('szene', 'p')})</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Bottom bar: actions */}
               <div style={{
                 padding: '10px 16px', borderTop: '1px solid #e0e0e0', background: '#fff',
@@ -1191,16 +1275,73 @@ export default function ImportPage() {
                   }}>
                     Zurück
                   </button>
-                  <button onClick={handleCommit} disabled={selectedFolgeNummer == null || loading} style={{
-                    background: '#000', color: '#fff', border: 'none', borderRadius: 6,
-                    padding: '8px 20px', fontWeight: 600, fontSize: 13,
-                    cursor: 'pointer', opacity: selectedFolgeNummer == null || loading ? 0.4 : 1,
-                  }}>
-                    {loading ? 'Importiere…' : `${previewResult.total_scenes} ${t('szene', 'p')} → ${t('episode')} ${selectedFolgeNummer ?? '?'} importieren`}
-                  </button>
+                  {previewResult.episodes && previewResult.episodes.length > 1 ? (
+                    <button
+                      onClick={handleBlockImport}
+                      disabled={selectedEpisodes.size === 0 || blockImporting}
+                      style={{
+                        background: '#000', color: '#fff', border: 'none', borderRadius: 6,
+                        padding: '8px 20px', fontWeight: 600, fontSize: 13, cursor: 'pointer',
+                        opacity: selectedEpisodes.size === 0 || blockImporting ? 0.4 : 1,
+                      }}
+                    >
+                      {blockImporting ? 'Importiere…' : `${selectedEpisodes.size} Folge${selectedEpisodes.size !== 1 ? 'n' : ''} importieren`}
+                    </button>
+                  ) : (
+                    <button onClick={handleCommit} disabled={selectedFolgeNummer == null || loading} style={{
+                      background: '#000', color: '#fff', border: 'none', borderRadius: 6,
+                      padding: '8px 20px', fontWeight: 600, fontSize: 13,
+                      cursor: 'pointer', opacity: selectedFolgeNummer == null || loading ? 0.4 : 1,
+                    }}>
+                      {loading ? 'Importiere…' : `${previewResult.total_scenes} ${t('szene', 'p')} → ${t('episode')} ${selectedFolgeNummer ?? '?'} importieren`}
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Step 3 — Block import results */}
+        {step === 3 && blockImportResults && (
+          <div style={{ textAlign: 'center', padding: '32px 0' }}>
+            <div style={{
+              width: 56, height: 56, borderRadius: '50%', background: '#e8f5e9',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              margin: '0 auto 16px',
+            }}>
+              <CheckCircle size={28} color="var(--sw-green)" />
+            </div>
+            <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>Block-Import abgeschlossen</h2>
+            <p style={{ color: '#757575', fontSize: 14, marginBottom: 20 }}>
+              {blockImportResults.filter(r => r.success).length} von {blockImportResults.length} Folgen erfolgreich importiert
+            </p>
+            <div style={{ maxWidth: 400, margin: '0 auto 24px', textAlign: 'left' }}>
+              {blockImportResults.map(r => (
+                <div key={r.episode_nr} style={{
+                  display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
+                  marginBottom: 6, borderRadius: 6,
+                  background: r.success ? '#f1f8e9' : '#fce4ec',
+                  border: `1px solid ${r.success ? '#c8e6c9' : '#f48fb1'}`,
+                }}>
+                  {r.success
+                    ? <CheckCircle size={14} color="var(--sw-green)" />
+                    : <AlertTriangle size={14} color="var(--sw-danger)" />
+                  }
+                  <span style={{ fontSize: 13, fontWeight: 500 }}>
+                    Folge {r.episode_nr}
+                    {r.success && r.scenes_imported != null && ` — ${r.scenes_imported} ${t('szene', 'p')}`}
+                    {!r.success && r.error && `: ${r.error}`}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <button
+              onClick={() => navigate('/?imported=' + Date.now())}
+              style={{ background: '#000', color: '#fff', border: 'none', borderRadius: 6, padding: '10px 24px', fontWeight: 600, fontSize: 14, cursor: 'pointer' }}
+            >
+              Zum Drehbuch
+            </button>
           </div>
         )}
 

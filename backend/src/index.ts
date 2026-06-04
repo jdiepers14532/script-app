@@ -492,6 +492,8 @@ async function runMigrations() {
     'v189_beziehungsbaum.sql',
     // Bereichs-Switcher: Bereich-Zugriffs-Keys (konzept_allowed_roles + analysis_allowed_roles-Seed)
     'v190_bereich_access_seed.sql',
+    // Glossar: SL (Storyline/Treatment) + DB (Drehbuch/Dialogbuch) Abkürzungen
+    'v191_glossar_sl_db.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

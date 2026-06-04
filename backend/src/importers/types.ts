@@ -21,6 +21,7 @@ export interface Textelement {
 
 export interface ParsedScene {
   nummer: number
+  episodeNr?: number   // set for multi-episode (block) imports
   int_ext: 'INT' | 'EXT' | 'INT/EXT'
   tageszeit: 'TAG' | 'NACHT' | 'ABEND' | 'DÄMMERUNG'
   ort_name: string
@@ -37,6 +38,13 @@ export interface ParsedScene {
   szeneninfo?: string
 }
 
+export interface PerEpisodeResult {
+  episodeNr: number
+  szenen: ParsedScene[]
+  nonSceneElements?: NonSceneElement[]
+  charaktere: string[]
+}
+
 export interface NonSceneElement {
   type: 'titelseite' | 'synopsis' | 'recap' | 'precap' | 'memo'
   label: string
@@ -46,6 +54,7 @@ export interface NonSceneElement {
 export interface ImportResult {
   szenen: ParsedScene[]
   nonSceneElements?: NonSceneElement[]
+  perEpisode?: PerEpisodeResult[]  // set when PDF contains multiple episodes (block import)
   meta: {
     format: string
     version?: string
