@@ -238,6 +238,9 @@ def _parse_beziehungen_section(figur_name: str, wikitext: str) -> list[dict]:
         if not links_v:
             continue
         ziel_name, ziel_verstorben = links_v[0]
+        # † kann auch außerhalb des Links stehen: "* [[Name]], Onkel †"
+        if not ziel_verstorben and '†' in item:
+            ziel_verstorben = True
         if ziel_name.lower() == figur_name.lower():
             continue
 
