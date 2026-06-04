@@ -252,11 +252,18 @@ interface EinreichenFormProps {
   tippText?: string;
   checkMistral: (t: string, b: string) => Promise<{ vorschlag: { titel: string; beschreibung: string } | null; fehler?: string }>;
   isTouch: boolean;
+  storageKey?: string;
 }
 
-function EinreichenForm({ onSubmit, ladeSpruch, bestaetigungsSpruch, tippText, checkMistral, isTouch }: EinreichenFormProps) {
-  const [titel, setTitel] = useState('');
-  const [beschreibung, setBeschreibung] = useState('');
+function EinreichenForm({ onSubmit, ladeSpruch, bestaetigungsSpruch, tippText, checkMistral, isTouch, storageKey }: EinreichenFormProps) {
+  const [titel, setTitel] = useState(() => {
+    if (!storageKey) return '';
+    try { return localStorage.getItem(`${storageKey}-titel`) || ''; } catch { return ''; }
+  });
+  const [beschreibung, setBeschreibung] = useState(() => {
+    if (!storageKey) return '';
+    try { return localStorage.getItem(`${storageKey}-beschreibung`) || ''; } catch { return ''; }
+  });
   const [titelFocused, setTitelFocused] = useState(false);
   const [pruefLoading, setPruefLoading] = useState(false);
   const [vorschlag, setVorschlag] = useState<{ titel: string; beschreibung: string } | null>(null);
@@ -275,6 +282,19 @@ function EinreichenForm({ onSubmit, ladeSpruch, bestaetigungsSpruch, tippText, c
     const iv = setInterval(() => setSpruchIdx(i => (i + 1) % ladesprueche.length), 3000);
     return () => clearInterval(iv);
   }, [pruefLoading]);
+
+  useEffect(() => {
+    if (!storageKey) return;
+    const t = setTimeout(() => {
+      try {
+        if (titel) localStorage.setItem(`${storageKey}-titel`, titel);
+        else localStorage.removeItem(`${storageKey}-titel`);
+        if (beschreibung) localStorage.setItem(`${storageKey}-beschreibung`, beschreibung);
+        else localStorage.removeItem(`${storageKey}-beschreibung`);
+      } catch {}
+    }, 500);
+    return () => clearTimeout(t);
+  }, [titel, beschreibung, storageKey]);
 
   async function handlePruefen() {
     if (!titel.trim()) return;
@@ -309,6 +329,12 @@ function EinreichenForm({ onSubmit, ladeSpruch, bestaetigungsSpruch, tippText, c
       setSuccess(bestaetigungsSpruch || spruch || 'Wunsch eingegangen!');
       setTitel('');
       setBeschreibung('');
+      if (storageKey) {
+        try {
+          localStorage.removeItem(`${storageKey}-titel`);
+          localStorage.removeItem(`${storageKey}-beschreibung`);
+        } catch {}
+      }
       setVorschlag(null);
       setVorschlagAngenommen(null);
       if (successRef.current) fireMagicConfetti(successRef.current);
@@ -656,6 +682,7 @@ export function WuenscheModal({ isOpen, onClose, authApiBase, appKontext }: Wuen
               tippText={dialoge?.aktuell?.einreichen_tipp}
               checkMistral={checkMistral}
               isTouch={isBottomSheet}
+              storageKey={`wuensche-draft-${appKontext}`}
             />
           )}
 
