@@ -400,8 +400,7 @@ export default function KopierenModal({
       <div style={{
         background: 'var(--bg-surface)', borderRadius: 14,
         boxShadow: '0 24px 60px rgba(0,0,0,0.3)',
-        width: 580, maxWidth: '95vw', maxHeight: '90vh',
-        display: 'grid', gridTemplateRows: 'auto 1fr auto', overflow: 'hidden',
+        width: 580, maxWidth: '95vw',
       }}>
 
         {/* Header */}
@@ -416,7 +415,7 @@ export default function KopierenModal({
         </div>
 
         {/* Scrollbarer Body */}
-        <div style={{ overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ overflowY: 'auto', maxHeight: 'calc(90vh - 220px)', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
           {/* Quelle */}
           <div>
@@ -564,7 +563,7 @@ export default function KopierenModal({
         </div>
 
         {/* Footer */}
-        <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border)', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
           {error && (
             <div style={{ fontSize: 12, color: '#FF3B30', padding: '8px 12px', background: 'rgba(255,59,48,0.06)', borderRadius: 7, border: '1px solid rgba(255,59,48,0.25)' }}>
               {error}
