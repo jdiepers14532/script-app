@@ -68,9 +68,9 @@ async function extractText(
 
 // ── KI-Extraktion ────────────────────────────────────────────────────────────
 
-async function callMistral(apiKey: string, model: string, prompt: string): Promise<string> {
+async function callMistral(apiKey: string, model: string, prompt: string, maxTokens = 8000): Promise<string> {
   const ctrl = new AbortController()
-  const t = setTimeout(() => ctrl.abort(), 60000)
+  const t = setTimeout(() => ctrl.abort(), 120000)
   try {
     const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
       method: 'POST',
@@ -78,7 +78,7 @@ async function callMistral(apiKey: string, model: string, prompt: string): Promi
       body: JSON.stringify({
         model,
         messages: [{ role: 'user', content: prompt }],
-        max_tokens: 4000,
+        max_tokens: maxTokens,
         temperature: 0.1,
       }),
       signal: ctrl.signal,
@@ -149,7 +149,7 @@ Bestehende Stränge in der Datenbank (für Zuordnung nutzen):
 ${bestehende}
 
 Dokument:
-${text.slice(0, 8000)}
+${text.slice(0, 30000)}
 
 Antworte AUSSCHLIESSLICH in diesem Format:
 ###JSON_START###
@@ -208,10 +208,10 @@ Antworte AUSSCHLIESSLICH in diesem Format:
 
     if (quelltyp === 'B') {
       // Future-Prosa: {strang_name, block_nummer, prosa_text}
-      prompt = `Du bist ein Story-Analyst für eine deutsche TV-Soap. Extrahiere aus diesem Future-Prosa-Dokument alle Strangentwicklungen nach Blocknummer.
+      prompt = `Du bist ein Story-Analyst für eine deutsche TV-Soap. Extrahiere aus diesem Future-Prosa-Dokument ALLE Strangentwicklungen nach Blocknummer. Das Dokument kann viele Blöcke enthalten – erfasse lückenlos jeden Block und jeden Strang.
 
 Dokument:
-${text.slice(0, 8000)}
+${text.slice(0, 80000)}
 
 Antworte AUSSCHLIESSLICH in diesem Format:
 ###JSON_START###
@@ -226,7 +226,7 @@ Antworte AUSSCHLIESSLICH in diesem Format:
 }
 ###JSON_END###`
 
-      const raw = await callMistral(apiKey, model, prompt)
+      const raw = await callMistral(apiKey, model, prompt, 16000)
       kiResult = parseJsonBlock(raw)
 
       const tokIn = Math.round(prompt.length / 4)
@@ -265,10 +265,10 @@ Antworte AUSSCHLIESSLICH in diesem Format:
 
     if (quelltyp === 'C') {
       // Future-Raster: {strang_name, block_nummer, beat_text}
-      prompt = `Du bist ein Story-Analyst für eine deutsche TV-Soap. Extrahiere aus diesem Future-Raster alle Beat-Kurztext-Einträge nach Strang und Blocknummer.
+      prompt = `Du bist ein Story-Analyst für eine deutsche TV-Soap. Extrahiere aus diesem Future-Raster ALLE Beat-Kurztext-Einträge nach Strang und Blocknummer. Das Dokument kann viele Blöcke enthalten – erfasse lückenlos jeden Eintrag.
 
 Dokument:
-${text.slice(0, 8000)}
+${text.slice(0, 80000)}
 
 Antworte AUSSCHLIESSLICH in diesem Format:
 ###JSON_START###
@@ -283,7 +283,7 @@ Antworte AUSSCHLIESSLICH in diesem Format:
 }
 ###JSON_END###`
 
-      const raw = await callMistral(apiKey, model, prompt)
+      const raw = await callMistral(apiKey, model, prompt, 16000)
       kiResult = parseJsonBlock(raw)
 
       const tokIn = Math.round(prompt.length / 4)
