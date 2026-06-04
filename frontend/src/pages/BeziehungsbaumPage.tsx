@@ -8,12 +8,16 @@ import {
   MarkerType,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
-import { GitFork, Diff, BookUser, ArrowLeft } from 'lucide-react'
+import { GitFork, Diff, BookUser, ArrowLeft, SlidersHorizontal, HelpCircle } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import FigurNode, { type FigurNodeType } from '../components/beziehungsbaum/FigurNode'
 import BeziehungEdge, { type BeziehungEdgeType } from '../components/beziehungsbaum/BeziehungEdge'
 import KanteFormDrawer from '../components/beziehungsbaum/KanteFormDrawer'
 import SeedReviewPanel from '../components/beziehungsbaum/SeedReviewPanel'
+import FilterPanel, {
+  type FilterState, DEFAULT_FILTER, isFilterActive, applyFilter,
+} from '../components/beziehungsbaum/FilterPanel'
+import BeziehungsbaumHilfePanel from '../components/beziehungsbaum/BeziehungsbaumHilfePanel'
 import type {
   BaumNodeData, BaumEdgeData, Beziehungstyp, Reihe, Staffel,
 } from '../components/beziehungsbaum/types'
@@ -90,7 +94,8 @@ function BeziehungsbaumInner() {
   const [reihen, setReihen] = useState<Reihe[]>([])
   const [selectedReihe, setSelectedReihe] = useState<string>('')
   const [staffeln, setStaffeln] = useState<Staffel[]>([])
-  const [selectedStaffelIdx, setSelectedStaffelIdx] = useState<number>(0)
+  // null = "Alle Staffeln", number = Index in staffeln[]
+  const [selectedStaffelIdx, setSelectedStaffelIdx] = useState<number | null>(null)
   const [beziehungstypen, setBeziehungstypen] = useState<Beziehungstyp[]>([])
 
   const [nodes, setNodes, onNodesChange] = useNodesState<BaumNode>([])
@@ -98,6 +103,9 @@ function BeziehungsbaumInner() {
 
   const [loading, setLoading] = useState(false)
   const [diffMode, setDiffMode] = useState(false)
+  const [filterOpen, setFilterOpen] = useState(false)
+  const [filterState, setFilterState] = useState<FilterState>(DEFAULT_FILTER)
+  const [hilfeOpen, setHilfeOpen] = useState(false)
   const [drawerState, setDrawerState] = useState<
     | { mode: 'none' }
     | { mode: 'create'; sourceId: string; targetId: string }
@@ -106,7 +114,8 @@ function BeziehungsbaumInner() {
   const [seedPanelOpen, setSeedPanelOpen] = useState(false)
   const layoutTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const currentStaffel = staffeln[selectedStaffelIdx]
+  // null = Alle Staffeln
+  const currentStaffel = selectedStaffelIdx !== null ? staffeln[selectedStaffelIdx] : null
 
   // ── Auth-Check ────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -138,16 +147,20 @@ function BeziehungsbaumInner() {
       .then((rows: Staffel[]) => {
         const list = Array.isArray(rows) ? rows : []
         setStaffeln(list)
-        setSelectedStaffelIdx(list.length > 0 ? list.length - 1 : 0)
+        setSelectedStaffelIdx(list.length > 0 ? list.length - 1 : null)
       })
       .catch(() => setStaffeln([]))
   }, [selectedReihe])
 
   // ── Graph laden wenn Staffel wechselt ───────────────────────────────────
   useEffect(() => {
-    if (!selectedReihe || !currentStaffel) return
+    if (!selectedReihe) return
+    // Wenn Index gesetzt aber Staffel noch nicht geladen: warten
+    if (selectedStaffelIdx !== null && !currentStaffel) return
     setLoading(true)
-    const url = `/api/beziehungen?reihe=${encodeURIComponent(selectedReihe)}&staffel=${currentStaffel.staffelnummer}&produktion_id=${encodeURIComponent(currentStaffel.id)}`
+    const url = currentStaffel
+      ? `/api/beziehungen?reihe=${encodeURIComponent(selectedReihe)}&staffel=${currentStaffel.staffelnummer}&produktion_id=${encodeURIComponent(currentStaffel.id)}`
+      : `/api/beziehungen?reihe=${encodeURIComponent(selectedReihe)}&staffel=alle`
     Promise.all([
       fetch(url, { credentials: 'include' }).then(r => r.json()),
       fetch(`/api/beziehungen/layout?reihe=${encodeURIComponent(selectedReihe)}`, { credentials: 'include' }).then(r => r.json()),
@@ -168,11 +181,11 @@ function BeziehungsbaumInner() {
 
       setTimeout(() => fitView({ padding: 0.15, duration: 300 }), 50)
     }).catch(console.error).finally(() => setLoading(false))
-  }, [selectedReihe, currentStaffel?.id])
+  }, [selectedReihe, selectedStaffelIdx, currentStaffel?.id])
 
-  // ── Diff-Modus ───────────────────────────────────────────────────────────
+  // ── Diff-Modus (nur für Einzelstaffel, nicht für Alle) ───────────────────
   useEffect(() => {
-    if (!diffMode || !selectedReihe || !currentStaffel || selectedStaffelIdx === 0) return
+    if (!diffMode || !selectedReihe || !currentStaffel || selectedStaffelIdx === null || selectedStaffelIdx === 0) return
 
     const prevStaffel = staffeln[selectedStaffelIdx - 1]
     if (!prevStaffel) return
@@ -203,6 +216,12 @@ function BeziehungsbaumInner() {
       ])
     }).catch(console.error)
   }, [diffMode, selectedReihe, currentStaffel?.staffelnummer, selectedStaffelIdx])
+
+  // ── Gefilterte Nodes + Edges (client-seitig) ─────────────────────────────
+  const { edges: visibleEdges, nodes: visibleNodes } = useMemo(
+    () => applyFilter(edges, nodes, filterState),
+    [edges, nodes, filterState],
+  )
 
   // Diff-Farben zurücksetzen wenn Modus aus
   useEffect(() => {
@@ -379,12 +398,27 @@ function BeziehungsbaumInner() {
           {reihen.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
         </select>
 
-        {/* Staffel-Selector */}
+        {/* Staffel-Selector: "Alle" + einzelne Staffeln */}
         {staffeln.length > 0 && (
           <div style={{
             display: 'flex', border: '1px solid #E0E0E0',
             borderRadius: 6, overflow: 'hidden', flexShrink: 0,
           }}>
+            <button
+              className="bb-seg-btn"
+              onClick={() => { setSelectedStaffelIdx(null); setDiffMode(false) }}
+              style={{
+                padding: '6px 10px', border: 'none',
+                borderRight: '1px solid #E0E0E0',
+                background: selectedStaffelIdx === null ? '#000' : '#fff',
+                color: selectedStaffelIdx === null ? '#fff' : '#000',
+                fontSize: 12, fontFamily: 'Inter, sans-serif', cursor: 'pointer',
+                fontWeight: selectedStaffelIdx === null ? 600 : 400,
+                minHeight: 32,
+              }}
+            >
+              Alle
+            </button>
             {staffeln.map((s, i) => (
               <button
                 key={s.id}
@@ -408,8 +442,8 @@ function BeziehungsbaumInner() {
 
         <div style={{ flex: 1 }} />
 
-        {/* Diff-Toggle */}
-        {staffeln.length > 1 && selectedStaffelIdx > 0 && (
+        {/* Diff-Toggle (nur Einzelstaffel, nicht Alle) */}
+        {staffeln.length > 1 && selectedStaffelIdx !== null && selectedStaffelIdx > 0 && (
           <button
             className="bb-btn"
             style={btnStyle(diffMode)}
@@ -420,17 +454,52 @@ function BeziehungsbaumInner() {
           </button>
         )}
 
+        {/* Filter-Button */}
+        <button
+          className="bb-btn"
+          style={btnStyle(filterOpen || isFilterActive(filterState))}
+          onClick={() => {
+            setFilterOpen(p => !p)
+            setSeedPanelOpen(false)
+            setHilfeOpen(false)
+            setDrawerState({ mode: 'none' })
+          }}
+        >
+          <SlidersHorizontal size={14} />
+          Filter{isFilterActive(filterState) ? ' ●' : ''}
+        </button>
+
         {/* Seed-Review-Button (nur für schreiben) */}
         {zugriff.schreiben && (
           <button
             className="bb-btn"
             style={btnStyle(seedPanelOpen)}
-            onClick={() => { setSeedPanelOpen(p => !p); setDrawerState({ mode: 'none' }) }}
+            onClick={() => {
+              setSeedPanelOpen(p => !p)
+              setFilterOpen(false)
+              setHilfeOpen(false)
+              setDrawerState({ mode: 'none' })
+            }}
           >
             <BookUser size={14} />
             Wiki-Seeds
           </button>
         )}
+
+        {/* Hilfe-Button */}
+        <button
+          className="bb-btn"
+          style={btnStyle(hilfeOpen)}
+          onClick={() => {
+            setHilfeOpen(p => !p)
+            setFilterOpen(false)
+            setSeedPanelOpen(false)
+            setDrawerState({ mode: 'none' })
+          }}
+          title="Hilfe"
+        >
+          <HelpCircle size={14} />
+        </button>
       </div>
 
       {/* ── Canvas-Bereich ── */}
@@ -446,8 +515,8 @@ function BeziehungsbaumInner() {
         )}
 
         <ReactFlow
-          nodes={nodes}
-          edges={edges}
+          nodes={visibleNodes}
+          edges={visibleEdges}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           onNodesChange={onNodesChange}
@@ -468,6 +537,18 @@ function BeziehungsbaumInner() {
         </ReactFlow>
 
         {/* Drawer + Panel rechts — schließen Stück für Stück */}
+        {filterOpen && (
+          <FilterPanel
+            filter={filterState}
+            onChange={setFilterState}
+            onReset={() => setFilterState(DEFAULT_FILTER)}
+          />
+        )}
+
+        {hilfeOpen && (
+          <BeziehungsbaumHilfePanel onClose={() => setHilfeOpen(false)} />
+        )}
+
         {drawerOpen && (
           <KanteFormDrawer
             mode={drawerState.mode as 'create' | 'edit'}
@@ -492,9 +573,10 @@ function BeziehungsbaumInner() {
             beziehungstypen={beziehungstypen}
             onClose={() => setSeedPanelOpen(false)}
             onKanteFreigegeben={() => {
-              // Reload graph
-              if (!selectedReihe || !currentStaffel) return
-              const url = `/api/beziehungen?reihe=${encodeURIComponent(selectedReihe)}&staffel=${currentStaffel.staffelnummer}&produktion_id=${encodeURIComponent(currentStaffel.id)}`
+              if (!selectedReihe) return
+              const url = currentStaffel
+                ? `/api/beziehungen?reihe=${encodeURIComponent(selectedReihe)}&staffel=${currentStaffel.staffelnummer}&produktion_id=${encodeURIComponent(currentStaffel.id)}`
+                : `/api/beziehungen?reihe=${encodeURIComponent(selectedReihe)}&staffel=alle`
               fetch(url, { credentials: 'include' })
                 .then(r => r.json())
                 .then(graph => {
@@ -532,7 +614,7 @@ function BeziehungsbaumInner() {
             </div>
           ))}
           <span style={{ color: '#757575', marginLeft: 4 }}>
-            vs. S{staffeln[selectedStaffelIdx - 1]?.staffelnummer}
+            vs. S{selectedStaffelIdx !== null ? staffeln[selectedStaffelIdx - 1]?.staffelnummer : ''}
           </span>
         </div>
       )}

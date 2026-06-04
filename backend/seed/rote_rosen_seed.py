@@ -203,12 +203,14 @@ def _parse_beziehungen_section(figur_name: str, wikitext: str) -> list[dict]:
         m = re.match(r'^===\s*(.+?)\s*===', line)
         if m:
             header = m.group(1).lower()
-            if any(k in header for k in ('partner', 'liebe', 'beziehung', 'freund', 'ehe')):
+            if any(k in header for k in ('liebschaft', 'partner', 'beziehung', 'ehe')):
                 current_subsection_typ = 'liebe'
             elif any(k in header for k in ('verwandt', 'familie', 'eltern', 'geschwister', 'kinder')):
                 current_subsection_typ = 'familie_sonstige'
-            elif 'freunde' in header:
+            elif any(k in header for k in ('freunde', 'freund')):
                 current_subsection_typ = 'freundschaft'
+            elif any(k in header for k in ('bekannt', 'sonstige', 'weitere')):
+                current_subsection_typ = 'bekanntschaft'
             elif any(k in header for k in ('beruf', 'kollege', 'arbeit')):
                 current_subsection_typ = 'beruflich'
             elif any(k in header for k in ('feind', 'rivale', 'konflikt')):
@@ -238,7 +240,7 @@ def _parse_beziehungen_section(figur_name: str, wikitext: str) -> list[dict]:
                     typ_key = _ROLLE_TYP[key]
                     break
         if typ_key is None:
-            typ_key = current_subsection_typ or 'familie_sonstige'
+            typ_key = current_subsection_typ or 'bekanntschaft'
 
         results.append({
             'roh_quelle_name': figur_name,
@@ -306,8 +308,8 @@ def _parse_body_text(figur_name: str, wikitext: str) -> list[dict]:
 
     for pattern, typ_key in _BODY_PATTERNS:
         for m in re.finditer(pattern, text, re.IGNORECASE):
-            # Find the next wiki link after the match position in the ORIGINAL wikitext
-            after = wikitext[m.start():]
+            # Find the next wiki link after the match position within the same text
+            after = text[m.start():]
             links = extract_wikilinks(after[:200])
             if not links:
                 # Try plain text: find capitalized name
@@ -331,10 +333,23 @@ def _parse_body_text(figur_name: str, wikitext: str) -> list[dict]:
 
 
 # ── Main Wiki Relationship Parser ─────────────────────────────────────────────
+# Templates used by roterosen.fandom.com for character pages
+_CHARAKTER_TEMPLATES = {'charakter', 'protagonistin', 'protagonist', 'hauptfigur', 'antagonist', 'antagonistin'}
+
+
+def _is_charakter_page(wikitext: str) -> bool:
+    """Returns True when the page uses any known character template."""
+    return bool(re.search(
+        r'\{\{(?:Charakter|Protagonistin|Protagonist|Hauptfigur|Antagonist|Antagonistin)',
+        wikitext, re.IGNORECASE,
+    ))
+
+
 def parse_infobox_relationships(figur_name: str, wikitext: str) -> list[dict]:
     """
-    Parse both {{Infobox Figur}} (test fixtures) and {{Charakter}}
-    (roterosen.fandom.com) templates, plus body text and ==Beziehungen== section.
+    Parse both {{Infobox Figur}} (test fixtures) and real-wiki character templates
+    ({{Charakter}}, {{Protagonistin}}, {{Protagonist}}, …) plus body text and
+    ==Beziehungen== section.
     """
     try:
         parsed = mwparserfromhell.parse(wikitext)
@@ -347,7 +362,7 @@ def parse_infobox_relationships(figur_name: str, wikitext: str) -> list[dict]:
     for template in parsed.filter_templates():
         tname = str(template.name).strip().lower()
         is_infobox = 'infobox' in tname
-        is_charakter = tname == 'charakter'
+        is_charakter = tname in _CHARAKTER_TEMPLATES
         if not is_infobox and not is_charakter:
             continue
 
@@ -374,7 +389,7 @@ def parse_infobox_relationships(figur_name: str, wikitext: str) -> list[dict]:
                     })
 
         elif is_charakter:
-            # Real wiki: {{Charakter}} — Beziehungsstatus field
+            # Real wiki: {{Charakter}} / {{Protagonistin}} — Beziehungsstatus field
             for param in template.params:
                 fname = str(param.name).strip()
                 if fname != 'Beziehungsstatus':
@@ -396,7 +411,7 @@ def parse_infobox_relationships(figur_name: str, wikitext: str) -> list[dict]:
                     })
 
     # For real wiki pages: also parse ==Beziehungen== section and body text
-    if '{{Charakter' in wikitext or '{{charakter' in wikitext:
+    if _is_charakter_page(wikitext):
         kandidaten.extend(_parse_beziehungen_section(figur_name, wikitext))
         kandidaten.extend(_parse_body_text(figur_name, wikitext))
 

@@ -52,9 +52,7 @@ function requireBeziehungenAccess(mode: 'lesen' | 'schreiben') {
 }
 
 // ── Snapshot-Helper ──────────────────────────────────────────────────────────
-// Gibt alle Kanten für Reihe+Staffel zurück (inkl. Typ-Styling-Felder).
-async function snapshotEdges(reihenId: string, staffelN: number): Promise<any[]> {
-  return query(`
+const EDGE_SELECT = `
     SELECT cb.id, cb.character_id, cb.related_character_id, cb.beziehungstyp,
            cb.label, cb.status, cb.seit_block, cb.bis_block, cb.notiz,
            cb.reihen_id, cb.gueltig_ab_staffel, cb.gueltig_bis_staffel,
@@ -65,12 +63,24 @@ async function snapshotEdges(reihenId: string, staffelN: number): Promise<any[]>
            bt.farbe,
            bt.linienstil
     FROM charakter_beziehungen cb
-    LEFT JOIN beziehungstypen bt ON bt.key = cb.beziehungstyp
+    LEFT JOIN beziehungstypen bt ON bt.key = cb.beziehungstyp`
+
+// Einzelne Staffel: Kanten die im Staffel-Fenster gültig sind
+async function snapshotEdges(reihenId: string, staffelN: number): Promise<any[]> {
+  return query(`${EDGE_SELECT}
     WHERE cb.reihen_id = $1
       AND cb.gueltig_ab_staffel <= $2
       AND (cb.gueltig_bis_staffel IS NULL OR cb.gueltig_bis_staffel >= $2)
     ORDER BY cb.id
   `, [reihenId, staffelN])
+}
+
+// Alle Staffeln: alle Kanten der Reihe ohne Range-Filter
+async function snapshotEdgesAll(reihenId: string): Promise<any[]> {
+  return query(`${EDGE_SELECT}
+    WHERE cb.reihen_id = $1
+    ORDER BY cb.id
+  `, [reihenId])
 }
 
 // Paar-Typ-Schlüssel für Diff-Vergleich (ungerichtet: kleinere UUID zuerst)
@@ -132,23 +142,30 @@ export const beziehungenRouter = Router()
 beziehungenRouter.use(authMiddleware)
 
 // ─────────────────────────────────────────────────────────────────────────────
-// GET /api/beziehungen?reihe=<uuid>&staffel=<N>[&produktion_id=<TEXT>]
-// Momentaufnahme für Staffel N: Nodes + Edges.
-// produktion_id optional — falls angegeben, werden Nodes mit darsteller_name +
-// kategorie aus character_productions angereichert.
+// GET /api/beziehungen?reihe=<uuid>&staffel=<N|alle>[&produktion_id=<TEXT>]
+// Momentaufnahme: staffel=<N> → nur Kanten dieser Staffel;
+//                 staffel=alle (oder weggelassen) → alle Kanten der Reihe.
+// produktion_id optional — enrichiert Nodes mit darsteller_name + kategorie.
 // ─────────────────────────────────────────────────────────────────────────────
 beziehungenRouter.get('/', requireBeziehungenAccess('lesen'), async (req, res) => {
   const { reihe, staffel, produktion_id } = req.query as Record<string, string>
-  if (!reihe || !staffel) {
-    return res.status(400).json({ error: 'reihe und staffel sind erforderlich' })
+  if (!reihe) {
+    return res.status(400).json({ error: 'reihe ist erforderlich' })
   }
-  const staffelN = parseInt(staffel, 10)
-  if (isNaN(staffelN)) {
-    return res.status(400).json({ error: 'staffel muss eine Ganzzahl sein' })
+
+  const alleStaffeln = !staffel || staffel === 'alle'
+  let staffelN: number | null = null
+  if (!alleStaffeln) {
+    staffelN = parseInt(staffel, 10)
+    if (isNaN(staffelN)) {
+      return res.status(400).json({ error: 'staffel muss eine Ganzzahl oder "alle" sein' })
+    }
   }
 
   try {
-    const edges = await snapshotEdges(reihe, staffelN)
+    const edges = alleStaffeln
+      ? await snapshotEdgesAll(reihe)
+      : await snapshotEdges(reihe, staffelN!)
 
     const characterIds = [
       ...new Set([
@@ -162,7 +179,8 @@ beziehungenRouter.get('/', requireBeziehungenAccess('lesen'), async (req, res) =
     }
 
     let nodes: any[]
-    if (produktion_id) {
+    if (!alleStaffeln && produktion_id) {
+      // Einzelstaffel mit Produktion: Darsteller + Kategorie aus dieser Produktion
       nodes = await query(`
         SELECT c.id, c.name, c.meta_json,
                cp.darsteller_name, cp.kategorie_id,
@@ -177,8 +195,12 @@ beziehungenRouter.get('/', requireBeziehungenAccess('lesen'), async (req, res) =
         WHERE c.id = ANY($1::uuid[])
       `, [characterIds, produktion_id])
     } else {
+      // Alle Staffeln: erster verfügbarer Darsteller aus irgendeiner Produktion
       nodes = await query(`
         SELECT c.id, c.name, c.meta_json,
+               (SELECT cp.darsteller_name FROM character_productions cp
+                WHERE cp.character_id = c.id AND cp.darsteller_name IS NOT NULL
+                ORDER BY cp.id LIMIT 1) AS darsteller_name,
                (SELECT dateiname FROM charakter_fotos
                 WHERE character_id = c.id AND ist_primaer = TRUE LIMIT 1) AS foto_dateiname
         FROM characters c
