@@ -456,9 +456,24 @@ router.post('/:id/copy-settings', async (req, res) => {
           if (exists.rows.length) continue
         }
         await client.query(
-          `INSERT INTO dokument_vorlagen (produktion_id, name, typ, sektionen, meta_fields, created_by)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
-          [targetId, row.name, row.typ, JSON.stringify(row.sektionen), JSON.stringify(row.meta_fields), row.created_by]
+          `INSERT INTO dokument_vorlagen
+             (produktion_id, name, typ, sektionen, meta_fields, created_by,
+              body_content, kopfzeile_content, fusszeile_content,
+              kopfzeile_aktiv, fusszeile_aktiv, erste_seite_kein_header,
+              seiten_layout, is_aktiv, zeilennummerierung_unterbinden, ist_titelseite)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
+          [targetId, row.name, row.typ,
+            row.sektionen ? JSON.stringify(row.sektionen) : null,
+            row.meta_fields ? JSON.stringify(row.meta_fields) : null,
+            row.created_by,
+            row.body_content ? JSON.stringify(row.body_content) : null,
+            row.kopfzeile_content ? JSON.stringify(row.kopfzeile_content) : null,
+            row.fusszeile_content ? JSON.stringify(row.fusszeile_content) : null,
+            row.kopfzeile_aktiv ?? false, row.fusszeile_aktiv ?? false,
+            row.erste_seite_kein_header ?? false,
+            row.seiten_layout ? JSON.stringify(row.seiten_layout) : null,
+            row.is_aktiv ?? true, row.zeilennummerierung_unterbinden ?? false,
+            row.ist_titelseite ?? false]
         )
       }
     }
