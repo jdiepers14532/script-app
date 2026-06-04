@@ -102,8 +102,11 @@ function parseJsonBlock(text: string): any | null {
 const BLOCKS_PER_CHUNK = 4
 
 function splitIntoBlockSections(text: string): Array<{ blockNr: number; raw: string }> {
-  // Tolerant gegenüber OCR-Leerzeichen: "Block 845", "Block  845", "Block\t845"
-  const pattern = /(?:^|\n)[ \t]*Block[ \t]+(\d{3,4})[ \t]*(?:\r?\n|$)/gim
+  // Tolerant gegenüber OCR-Formatierung: "Block 845", "**Block 845**", "## Block 845",
+  // "Block  845" (Doppel-Leerzeichen), auch mitten in der Zeile erlaubt (kein ^-Anker),
+  // da Mistral OCR-Markdown keine garantierte Zeilenstruktur hat.
+  // Wichtig: Nur 3-4-stellige Zahlen → keine Verwechslung mit Paragraphen-Nummern.
+  const pattern = /(?:^|\n)[^\n]*Block\s+(\d{3,4})[^\n]*(?:\r?\n|$)/gim
   const positions: Array<{ pos: number; blockNr: number }> = []
   let m: RegExpExecArray | null
   while ((m = pattern.exec(text)) !== null) {
@@ -129,21 +132,26 @@ async function extractItemsChunked(
   buildPrompt: (chunkText: string) => string,
 ): Promise<{ items: any[]; totalTokIn: number; totalTokOut: number }> {
   const sections = splitIntoBlockSections(fullText)
+  console.log(`[konzept-import] text=${fullText.length} Zeichen, sections=${sections.length}, text[0..300]=${JSON.stringify(fullText.slice(0, 300))}`)
   let totalTokIn = 0
   let totalTokOut = 0
   const allItems: any[] = []
 
   if (sections.length === 0) {
     // Fallback: kein Block-Format erkannt → single call mit höherem Limit
+    console.log('[konzept-import] Fallback: kein Block-Format erkannt, single call 80k')
     const prompt = buildPrompt(fullText.slice(0, 80000))
     const raw = await callMistral(apiKey, model, prompt, 16000)
     totalTokIn = Math.round(prompt.length / 4)
     totalTokOut = Math.round(raw.length / 4)
+    console.log(`[konzept-import] Fallback raw[0..400]=${JSON.stringify(raw.slice(0, 400))}`)
     const result = parseJsonBlock(raw)
+    console.log(`[konzept-import] Fallback items=${result?.items?.length ?? 'null'}`)
     return { items: result?.items ?? [], totalTokIn, totalTokOut }
   }
 
   const chunks = toChunks(sections, BLOCKS_PER_CHUNK)
+  console.log(`[konzept-import] ${chunks.length} Chunks à max ${BLOCKS_PER_CHUNK} Blöcke`)
   for (const chunk of chunks) {
     const chunkText = chunk.map(s => s.raw).join('\n\n')
     const prompt = buildPrompt(chunkText)
@@ -152,6 +160,8 @@ async function extractItemsChunked(
       totalTokIn += Math.round(prompt.length / 4)
       totalTokOut += Math.round(raw.length / 4)
       const result = parseJsonBlock(raw)
+      const count = result?.items?.length ?? 0
+      console.log(`[konzept-import] Chunk ${chunk[0]?.blockNr}–${chunk[chunk.length - 1]?.blockNr}: ${count} items`)
       if (result?.items) allItems.push(...result.items)
     } catch (err) {
       console.warn(
