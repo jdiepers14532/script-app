@@ -345,7 +345,8 @@ beziehungenRouter.get('/staffeln', requireBeziehungenAccess('lesen'), async (req
   const { reihen_id } = req.query as Record<string, string>
   if (!reihen_id) return res.status(400).json({ error: 'reihen_id ist erforderlich' })
   try {
-    const rows = await prodQuery(`
+    // (a) Staffeln aus Produktions-DB (mit id + title)
+    const prodRows: any[] = await prodQuery(`
       SELECT id, title, staffelnummer
       FROM productions
       WHERE reihen_id = $1
@@ -353,7 +354,27 @@ beziehungenRouter.get('/staffeln', requireBeziehungenAccess('lesen'), async (req
         AND is_active = TRUE
       ORDER BY staffelnummer
     `, [reihen_id])
-    res.json(rows)
+
+    // (b) Distinct staffelnummern aus charakter_beziehungen (geseedete historische Staffeln
+    //     ohne Produktionszeile — z.B. S22 wenn die Produktion nicht in produktion.DB ist)
+    const bezRows: any[] = await query(`
+      SELECT DISTINCT gueltig_ab_staffel AS staffelnummer
+      FROM charakter_beziehungen
+      WHERE reihen_id = $1
+        AND gueltig_ab_staffel > 0
+      ORDER BY staffelnummer
+    `, [reihen_id])
+
+    // Merge: Prod-Staffeln haben Vorrang; Kanten-Staffeln ohne Produktionszeile ergänzen
+    const prodNummern = new Set(prodRows.map((r: any) => r.staffelnummer))
+    const extra: any[] = bezRows
+      .filter((r: any) => !prodNummern.has(r.staffelnummer))
+      .map((r: any) => ({ id: null, title: null, staffelnummer: r.staffelnummer }))
+
+    const merged = [...prodRows, ...extra]
+      .sort((a: any, b: any) => a.staffelnummer - b.staffelnummer)
+
+    res.json(merged)
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }

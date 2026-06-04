@@ -41,9 +41,9 @@ export interface BaumEdgeData extends Record<string, unknown> {
 }
 
 export interface Staffel {
-  id: string
+  id: string | null  // null für historische Staffeln ohne Produktionszeile in produktion.DB
   staffelnummer: number
-  title: string
+  title: string | null
   slug?: string
 }
 

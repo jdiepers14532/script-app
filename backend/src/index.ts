@@ -496,6 +496,8 @@ async function runMigrations() {
     'v191_glossar_sl_db.sql',
     // Seed-Staging: ziel_verstorben-Flag (†-Markierung aus Wiki)
     'v192_seed_verstorben.sql',
+    // Kanten: normalisierter Unique-Index LEAST/GREATEST für symmetrische Typen
+    'v193_kante_sym_unique.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

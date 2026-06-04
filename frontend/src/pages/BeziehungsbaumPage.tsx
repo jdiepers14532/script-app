@@ -159,7 +159,8 @@ function BeziehungsbaumInner() {
     if (selectedStaffelIdx !== null && !currentStaffel) return
     setLoading(true)
     const url = currentStaffel
-      ? `/api/beziehungen?reihe=${encodeURIComponent(selectedReihe)}&staffel=${currentStaffel.staffelnummer}&produktion_id=${encodeURIComponent(currentStaffel.id)}`
+      ? `/api/beziehungen?reihe=${encodeURIComponent(selectedReihe)}&staffel=${currentStaffel.staffelnummer}`
+        + (currentStaffel.id ? `&produktion_id=${encodeURIComponent(currentStaffel.id)}` : '')
       : `/api/beziehungen?reihe=${encodeURIComponent(selectedReihe)}&staffel=alle`
     Promise.all([
       fetch(url, { credentials: 'include' }).then(r => r.json()),
@@ -421,7 +422,7 @@ function BeziehungsbaumInner() {
             </button>
             {staffeln.map((s, i) => (
               <button
-                key={s.id}
+                key={s.staffelnummer}
                 className="bb-seg-btn"
                 onClick={() => setSelectedStaffelIdx(i)}
                 style={{

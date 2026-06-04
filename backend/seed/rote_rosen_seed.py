@@ -646,19 +646,49 @@ def login(session: requests.Session) -> bool:
 
 
 # ── De-duplication ────────────────────────────────────────────────────────────
+# Typen mit gerichtet=false — inverse Paare (A→B / B→A) sind identisch
+SYMMETRIC_TYPEN: frozenset[str] = frozenset({
+    'beruflich', 'familie_geschwister', 'familie_sonstige',
+    'affaere', 'ehe', 'ex', 'liebe', 'bekanntschaft', 'freundschaft',
+})
+
+
 def dedup_kandidaten(kandidaten: list[dict]) -> list[dict]:
-    """Remove (quelle, ziel, typ) duplicates — keep first (higher-confidence infobox first)."""
-    seen: set[tuple] = set()
+    """Remove exact duplicates and collapse symmetric inverse pairs (A→B / B→A)
+    into one canonical entry. evidenz_zitat becomes 'Perspektive A / Perspektive B'."""
+    seen_directed: set[tuple] = set()
+    sym_pairs: dict[tuple, dict] = {}  # (canonical_a, canonical_b, typ) → entry
     result: list[dict] = []
+
     for k in kandidaten:
-        key = (
-            k['roh_quelle_name'].lower(),
-            k['roh_ziel_name'].lower(),
-            k.get('typ_key', ''),
-        )
-        if key not in seen:
-            seen.add(key)
+        typ = k.get('typ_key', '')
+        q   = k['roh_quelle_name'].lower()
+        z   = k['roh_ziel_name'].lower()
+
+        if typ in SYMMETRIC_TYPEN:
+            # Canonical pair: alphabetically smaller name first
+            a, b = (q, z) if q <= z else (z, q)
+            sym_key = (a, b, typ)
+
+            if sym_key in sym_pairs:
+                # Merge evidenz from the other direction (only if genuinely different)
+                existing  = sym_pairs[sym_key]
+                new_ev    = (k.get('evidenz_zitat') or '').strip()
+                old_ev    = (existing.get('evidenz_zitat') or '').strip()
+                if new_ev and new_ev not in old_ev:
+                    combined = f'{old_ev} / {new_ev}' if old_ev else new_ev
+                    existing['evidenz_zitat'] = combined[:200]
+                continue  # Inverse already represented
+
+            sym_pairs[sym_key] = k
             result.append(k)
+        else:
+            # Directed (familie_eltern_kind, antagonismus, einseitige_liebe): keep as-is
+            key = (q, z, typ)
+            if key not in seen_directed:
+                seen_directed.add(key)
+                result.append(k)
+
     return result
 
 
