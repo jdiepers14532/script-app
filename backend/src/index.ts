@@ -494,6 +494,8 @@ async function runMigrations() {
     'v190_bereich_access_seed.sql',
     // Glossar: SL (Storyline/Treatment) + DB (Drehbuch/Dialogbuch) Abkürzungen
     'v191_glossar_sl_db.sql',
+    // Seed-Staging: ziel_verstorben-Flag (†-Markierung aus Wiki)
+    'v192_seed_verstorben.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

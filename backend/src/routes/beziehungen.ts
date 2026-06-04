@@ -603,9 +603,9 @@ beziehungenRouter.post('/seed/import', requireBeziehungenAccess('schreiben'), as
           roh_quelle_name, roh_ziel_name,
           match_quelle_id, match_ziel_id, match_konfidenz,
           typ_key, staffel_hinweis, gueltig_ab_staffel, gueltig_bis_staffel,
-          evidenz_zitat, ki_konfidenz, status
+          evidenz_zitat, ki_konfidenz, status, ziel_verstorben
         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,
-                  COALESCE($15,'neu'))
+                  COALESCE($15,'neu'), COALESCE($16, false))
         RETURNING *
       `, [
         batch_id,
@@ -623,6 +623,7 @@ beziehungenRouter.post('/seed/import', requireBeziehungenAccess('schreiben'), as
         k.evidenz_zitat ?? null,
         k.ki_konfidenz ?? null,
         k.status ?? null,
+        k.ziel_verstorben ?? null,
       ])
       inserted.push(row.rows[0])
     }
@@ -728,6 +729,7 @@ beziehungenRouter.post('/seed/:id/freigeben', requireBeziehungenAccess('schreibe
           seed_quell_url: kandidat.quell_url,
           seed_batch_id: kandidat.batch_id,
           dedup_geprueft: false,
+          verstorben: kandidat.ziel_verstorben === true,
         }),
       ])
       zielId = newChar.rows[0].id

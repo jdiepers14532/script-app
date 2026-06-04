@@ -110,17 +110,28 @@ def split_names(raw: str) -> list[str]:
 
 
 # ── Wiki-Link-Extraktion ──────────────────────────────────────────────────────
-def extract_wikilinks(text: str) -> list[str]:
-    """Extract display names from [[Target|Display]] and [[Target]] links."""
-    results = []
+def _is_person_name(name: str) -> bool:
+    return bool(name) and not name.startswith('Staffel') and not name.startswith('Folge') \
+        and not name.startswith('Kategorie') and not re.match(r'^\d', name)
+
+
+def extract_wikilinks_v(text: str) -> list[tuple[str, bool]]:
+    """Extract (clean_name, verstorben) from [[Target|Display]] and [[Target]] links.
+    verstorben=True when † appears in either the target or the display text."""
+    results: list[tuple[str, bool]] = []
     for m in re.finditer(r'\[\[([^\]|]+)(?:\|([^\]]+))?\]\]', text):
+        target  = m.group(1)
         display = m.group(2) if m.group(2) else m.group(1)
-        name = display.strip()
-        # Skip non-person links (categories, years, episodes, etc.)
-        if name and not name.startswith('Staffel') and not name.startswith('Folge') \
-                and not name.startswith('Kategorie') and not re.match(r'^\d', name):
-            results.append(name)
+        verstorben = '†' in target or '†' in (m.group(2) or '')
+        name = display.replace('†', '').strip()
+        if _is_person_name(name):
+            results.append((name, verstorben))
     return results
+
+
+def extract_wikilinks(text: str) -> list[str]:
+    """Extract display names from wiki links († stripped from names)."""
+    return [name for name, _ in extract_wikilinks_v(text)]
 
 
 # ── Beziehungsstatus-Feld → typ_key ──────────────────────────────────────────
@@ -223,10 +234,10 @@ def _parse_beziehungen_section(figur_name: str, wikitext: str) -> list[dict]:
         if not line.startswith('*'):
             continue
         item = line.lstrip('*').strip()
-        links = extract_wikilinks(item)
-        if not links:
+        links_v = extract_wikilinks_v(item)
+        if not links_v:
             continue
-        ziel_name = links[0]
+        ziel_name, ziel_verstorben = links_v[0]
         if ziel_name.lower() == figur_name.lower():
             continue
 
@@ -249,6 +260,7 @@ def _parse_beziehungen_section(figur_name: str, wikitext: str) -> list[dict]:
             'staffel_hinweis': None,
             'evidenz_zitat':   strip_wiki_markup(item)[:80],
             'ki_konfidenz':    0.80,
+            'ziel_verstorben': ziel_verstorben,
         })
     return results
 
@@ -310,13 +322,14 @@ def _parse_body_text(figur_name: str, wikitext: str) -> list[dict]:
         for m in re.finditer(pattern, text, re.IGNORECASE):
             # Find the next wiki link after the match position within the same text
             after = text[m.start():]
-            links = extract_wikilinks(after[:200])
-            if not links:
-                # Try plain text: find capitalized name
+            links_v = extract_wikilinks_v(after[:200])
+            if not links_v:
+                # Fallback: bare [[Target]] without display text
                 name_m = re.search(r'\[\[([^\]|]+?)(?:\|[^\]]+)?\]\]', after[:200])
                 if name_m:
-                    links = [name_m.group(1).strip()]
-            for ziel in links[:3]:  # max 3 names after each pattern
+                    raw = name_m.group(1).strip()
+                    links_v = [(raw.replace('†', '').strip(), '†' in raw)]
+            for ziel, ziel_verstorben in links_v[:3]:
                 if ziel.lower() == figur_name.lower():
                     continue
                 zitat = re.sub(r'\s+', ' ', m.group(0) + ziel)[:80]
@@ -327,6 +340,7 @@ def _parse_body_text(figur_name: str, wikitext: str) -> list[dict]:
                     'staffel_hinweis': None,
                     'evidenz_zitat':   zitat,
                     'ki_konfidenz':    0.70,
+                    'ziel_verstorben': ziel_verstorben,
                 })
                 break  # one name per pattern match
     return results
@@ -398,7 +412,7 @@ def parse_infobox_relationships(figur_name: str, wikitext: str) -> list[dict]:
                 typ_key = _beziehungsstatus_typ(val)
                 if not typ_key:
                     continue
-                for ziel in extract_wikilinks(val):
+                for ziel, ziel_verstorben in extract_wikilinks_v(val):
                     if ziel.lower() == figur_name.lower():
                         continue
                     kandidaten.append({
@@ -408,6 +422,7 @@ def parse_infobox_relationships(figur_name: str, wikitext: str) -> list[dict]:
                         'staffel_hinweis': None,
                         'evidenz_zitat':   f'Beziehungsstatus: {val[:80]}',
                         'ki_konfidenz':    0.80,
+                        'ziel_verstorben': ziel_verstorben,
                     })
 
     # For real wiki pages: also parse ==Beziehungen== section and body text
