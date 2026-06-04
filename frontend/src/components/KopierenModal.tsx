@@ -322,7 +322,7 @@ export default function KopierenModal({
   const [confirm, setConfirm] = useState(false)
   const [copying, setCopying] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set(SECTION_GROUPS.map(g => g.id)))
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set())
 
   // Produktions-Dropdown
   const label = (p: any) => {
