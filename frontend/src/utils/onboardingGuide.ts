@@ -1,18 +1,8 @@
-// onboardingGuide.ts — Interaktiver Onboarding-Guide (Driver.js)
-// Startet automatisch beim ersten Login; jederzeit unter /hilfe neu startbar.
+// onboardingGuide.ts — Interaktiver Onboarding-Guide (Driver.js npm)
+import { driver } from 'driver.js'
+import 'driver.js/dist/driver.css'
 
 const STORAGE_KEY = 'serienwerft_guide_seen'
-
-declare const window: Window & {
-  // Driver.js IIFE-Build: window.driver.driver(config)
-  driver?: {
-    driver: (config: unknown) => {
-      setSteps: (steps: unknown[]) => void
-      drive: () => void
-      destroy: () => void
-    }
-  }
-}
 
 // ── findButton-Hilfsfunktion ───────────────────────────────────────────────
 function findButton(strategy: {
@@ -55,62 +45,61 @@ function getSteps() {
       element: 'header',
       popover: {
         title: 'Willkommen in der Script App',
-        description: `Du schreibst hier Drehbücher für Rote Rosen — direkt im Browser, ohne Installation.
+        description: `Du schreibst hier Drehbücher direkt im Browser, ohne Installation.
         <br><br>Die App hat drei Bereiche: <b>Links</b> die Szenenübersicht,
         <b>Mitte</b> dein Drehbuch, <b>Rechts</b> Verlauf &amp; Einstellungen.
         <br><br>Diese Tour dauert ca. 10 Minuten. Du kannst sie jederzeit unter <b>/hilfe</b> wiederholen.`,
-        side: 'bottom',
-        align: 'start',
+        side: 'bottom' as const,
+        align: 'start' as const,
       },
     },
     {
-      element: () => Array.from(document.querySelectorAll('button')).find(b => b.textContent?.trim().startsWith('↓')) ?? null,
+      element: () => Array.from(document.querySelectorAll('button')).find(b => b.textContent?.trim().startsWith('↓')) ?? undefined,
       popover: {
         title: 'Deine Folge auswählen',
         description: `Hier siehst du die aktuelle Folge. Klick drauf — es öffnet sich eine Liste
         aller Folgen der Staffel. Folgen mit ↓ haben bereits eine Fassung
         (z.B. <i>DB v1 · Edit 2</i> = Drehbuch Version 1, Label "Edit 2").
         <br><br><b>Tipp:</b> Du kannst nach Folgennummern suchen.`,
-        side: 'bottom',
+        side: 'bottom' as const,
       },
     },
     {
-      element: () => document.querySelector("input[placeholder='Szene suchen…']") ?? document.querySelector("input[placeholder*='Szene']") ?? null,
+      element: () => document.querySelector("input[placeholder='Szene suchen…']") ?? document.querySelector("input[placeholder*='Szene']") ?? undefined,
       popover: {
         title: 'Die Szenenübersicht',
         description: `Die linke Leiste ist deine Karte durch die Folge. Jede Zeile = eine Szene.
         <br><br>Du siehst: Szenennummer, Motiv (Drehort), Innen/Außen + Tag/Nacht,
-        und kleine Icons für Warnhinweise (⚠️) oder Rolleninfos.
+        und kleine Icons für Warnhinweise oder Rolleninfos.
         <br><br>Dieses <b>Suchfeld</b> filtert Szenen nach Motiv oder Inhalt.`,
-        side: 'right',
+        side: 'right' as const,
       },
     },
     {
-      element: () => findButton({ title: 'Aktionen' }) ?? findButton({ svgClassContains: 'lucide-ellipsis' }),
+      element: () => findButton({ title: 'Aktionen' }) ?? findButton({ svgClassContains: 'lucide-ellipsis' }) ?? undefined,
       popover: {
         title: 'Aktionen für die ganze Folge',
         description: `Das <b>Drei-Punkte-Menü</b> oben in der Sidebar öffnet Funktionen
         für die gesamte Folge: Suchen &amp; Ersetzen (Strg+H), Stränge verwalten,
         Story-Radar, Statistiken, Stoppzeiten und mehr.
         <br><br>Das <b>+ Symbol</b> daneben fügt eine neue Szene am Ende ein.`,
-        side: 'right',
+        side: 'right' as const,
       },
     },
     {
-      element: () => document.querySelector('.detail-head') ?? document.querySelector('[class*="detail-head"]') ?? null,
+      element: () => document.querySelector('.detail-head') ?? document.querySelector('[class*="detail-head"]') ?? undefined,
       popover: {
         title: 'Szenen-Metadaten',
         description: `Jede Szene hat einen Kopfbereich mit allem, was Regie und Produktion brauchen:
         <br><br>
         <b>Motiv</b> = Drehort &nbsp;|&nbsp; <b>R-</b> = Rollen &nbsp;|&nbsp; <b>K-</b> = Kostüm &nbsp;|&nbsp; <b>S-</b> = Set
         <br><b>Oneliner</b> = Kurzbeschreibung &nbsp;|&nbsp; <b>Szeneninfo</b> = ausführliche Notiz
-        <br><b>A/t/SP</b> = Akt, Tag, Seitenposition (automatisch)
         <br><br>Klicke in ein Feld um es zu bearbeiten.`,
-        side: 'bottom',
+        side: 'bottom' as const,
       },
     },
     {
-      element: () => findButton({ text: 'Drehbuch' }),
+      element: () => findButton({ text: 'Drehbuch' }) ?? undefined,
       popover: {
         title: 'Fassungen — dein Herzstück',
         description: `Hier wählst du <b>Dokumenttyp</b> und <b>Version</b> deiner Fassung.
@@ -118,39 +107,37 @@ function getSteps() {
         <br>• <b>Drehbuch</b> — das eigentliche Skript mit Szenen, Dialogen, Regieanweisungen
         <br>• <b>Storyline</b> — Kurzstruktur ohne strenge Formatierung
         <br>• <b>Dokument</b> — freier Text, z.B. für Exposés oder Notizen
-        <br><br>Klicke hier für das Dropdown — <b>+ Neue Drehbuch-Version</b> erstellt eine Kopie der aktuellen Fassung.`,
-        side: 'bottom',
+        <br><br>Klicke hier für das Dropdown — <b>+ Neue Drehbuch-Version</b> erstellt eine Kopie.`,
+        side: 'bottom' as const,
       },
     },
     {
-      element: () => findButton({ title: 'Fassungs-Label zuweisen' }),
+      element: () => findButton({ title: 'Fassungs-Label zuweisen' }) ?? undefined,
       popover: {
         title: 'Fassungs-Label — wo stehst du?',
-        description: `Das Label zeigt den Status deiner Fassung und steuert die Sichtbarkeit:
+        description: `Das Label zeigt den Status deiner Fassung:
         <br><br>
         <b>Autorenfassung</b> — dein erster Entwurf<br>
         <b>Edit 1 / Edit 2</b> — Überarbeitungen<br>
         <b>Endfassung</b> — Abgabe an Produktion<br>
-        <b>Drehfassung</b> 🔒 — von Produktion gesperrt<br>
-        <br>Als Autor kannst du Autorenfassung, Edit 1, Edit 2 und Endfassung selbst vergeben.`,
-        side: 'bottom',
+        <b>Drehfassung</b> 🔒 — von Produktion gesperrt<br>`,
+        side: 'bottom' as const,
       },
     },
     {
-      element: () => findButton({ svgClassContains: 'lucide-clock' }),
+      element: () => findButton({ svgClassContains: 'lucide-clock' }) ?? undefined,
       popover: {
         title: 'Autospeichern &amp; Verlauf',
         description: `Du musst <b>nie manuell speichern</b>. Der grüne Punkt <b>✓ Gespeichert</b>
         bestätigt dir jederzeit, dass deine Arbeit sicher ist.
         <br><br>Klicke auf das <b>Uhr-Symbol</b> für den Verlauf:
-        <br>• <b>Diese Szene</b> — alle Snapshots der aktuellen Szene (alle 5 Min., max. 50)
-        <br>• <b>Dokument</b> — Sicherungen der ganzen Folge (bei Fassungswechsel, max. 30)
-        <br><br>Klicke auf einen Snapshot → Vorschau → Wiederherstellen wenn nötig.`,
-        side: 'bottom',
+        <br>• <b>Diese Szene</b> — alle Snapshots (alle 5 Min., max. 50)
+        <br>• <b>Dokument</b> — Sicherungen der ganzen Folge (max. 30)`,
+        side: 'bottom' as const,
       },
     },
     {
-      element: () => findButton({ text: 'TXT' }),
+      element: () => findButton({ text: 'TXT' }) ?? undefined,
       popover: {
         title: 'Drehbuch-Elemente',
         description: `Diese Buttons setzen den Typ des aktuellen Absatzes:
@@ -160,13 +147,12 @@ function getSteps() {
         <b>DIA</b> (Alt+4) Dialogzeile<br>
         <b>PAR</b> (Alt+5) Spielhinweis in (Klammern)<br>
         <b>TRANS</b> (Alt+6) Übergang (z.B. SCHNITT:)<br>
-        <b>SHOT</b> (Alt+7) Kameraanweisung — Großbuchstaben<br>
         <br><b>Tipp:</b> Die App erkennt den Typ meist automatisch beim Tippen!`,
-        side: 'bottom',
+        side: 'bottom' as const,
       },
     },
     {
-      element: () => document.querySelector('button.focus-toggle') ?? findButton({ svgClassContains: 'lucide-maximize' }) ?? findButton({ svgClassContains: 'lucide-minimize' }),
+      element: () => document.querySelector('button.focus-toggle') ?? findButton({ svgClassContains: 'lucide-maximize' }) ?? findButton({ svgClassContains: 'lucide-minimize' }) ?? undefined,
       popover: {
         title: 'Deine persönliche Ansicht',
         description: `Dieses Symbol schaltet in den <b>Vollbild-Modus</b> — die Sidebar verschwindet,
@@ -175,9 +161,9 @@ function getSteps() {
         <br>• <b>Hell/Dunkel</b>-Modus
         <br>• <b>Hintergrundfarbe</b> (12 Voreinstellungen + eigene Farbe)
         <br>• <b>Panelmodus</b> (beide / nur Szenenübersicht / nur Drehbuch)
-        <br><br>Die Tour ist abgeschlossen! Weiter Infos findest du im <b>Handbuch unter /hilfe</b>.`,
-        side: 'bottom',
-        align: 'end',
+        <br><br>Tour abgeschlossen! Alle Infos findest du im <b>Handbuch unter /hilfe</b>.`,
+        side: 'bottom' as const,
+        align: 'end' as const,
       },
     },
   ]
@@ -185,14 +171,18 @@ function getSteps() {
 
 // ── Guide starten ──────────────────────────────────────────────────────────
 export function startGuide() {
-  // Driver.js IIFE-Build: window.driver.driver(config)
-  const driverFn = (window as any)?.driver?.driver
-  if (typeof driverFn !== 'function') {
-    console.warn('[Onboarding] Driver.js nicht geladen — CDN-Script fehlt?', (window as any)?.driver)
-    return
-  }
+  const steps = getSteps()
 
-  const driverObj = driverFn({
+  // Nur Schritte mit vorhandenem DOM-Element einbeziehen
+  const validSteps = steps.filter(step => {
+    if (typeof step.element === 'string') return !!document.querySelector(step.element)
+    if (typeof step.element === 'function') return !!(step.element as () => Element | undefined)()
+    return true
+  })
+
+  if (validSteps.length === 0) return
+
+  const driverObj = driver({
     showProgress: true,
     allowClose: true,
     overlayOpacity: 0.6,
@@ -200,48 +190,30 @@ export function startGuide() {
     nextBtnText: 'Weiter →',
     prevBtnText: '← Zurück',
     doneBtnText: 'Fertig',
+    steps: validSteps as any,
     onDestroyStarted: () => {
       localStorage.setItem(STORAGE_KEY, 'true')
       driverObj.destroy()
     },
   })
 
-  const steps = getSteps()
-  // Nur Schritte einbeziehen, bei denen das Element im DOM vorhanden ist
-  const validSteps = steps.filter(step => {
-    if (typeof step.element === 'string') return !!document.querySelector(step.element)
-    if (typeof step.element === 'function') return !!step.element()
-    return true
-  })
-
-  if (validSteps.length === 0) {
-    console.warn('[Onboarding] Keine Guide-Elemente im DOM gefunden — bitte zuerst eine Folge öffnen.')
-    return
-  }
-
-  driverObj.setSteps(validSteps)
   driverObj.drive()
   localStorage.setItem(STORAGE_KEY, 'true')
 }
 
 // ── Automatischer Erst-Start ───────────────────────────────────────────────
-// Startet nur wenn der Editor sichtbar ist (Folge geöffnet), sonst still ignorieren.
 export function checkAndStartGuide() {
   if (localStorage.getItem(STORAGE_KEY)) return
-  // Auf der Startseite ohne geöffnete Folge gibt es keinen Editor → nicht starten.
-  // Stattdessen einmalig auf das Öffnen einer Folge warten (CustomEvent 'app-settings-changed'
-  // feuert sobald eine Produktion geladen wird).
+
   const tryOnce = () => {
     const hasEditor = !!document.querySelector('.tiptap, .detail-head, [class*="detail-head"]')
     if (hasEditor) {
       setTimeout(startGuide, 800)
     }
   }
-  // Sofort prüfen (falls bereits eine Folge offen ist)
+
   setTimeout(tryOnce, 1500)
-  // Und noch einmal wenn sich Produktionskontext ändert
-  const handler = () => {
+  window.addEventListener('app-settings-changed', () => {
     if (!localStorage.getItem(STORAGE_KEY)) tryOnce()
-  }
-  window.addEventListener('app-settings-changed', handler, { once: true })
+  }, { once: true })
 }
