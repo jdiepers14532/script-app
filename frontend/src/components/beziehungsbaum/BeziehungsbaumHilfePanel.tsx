@@ -95,17 +95,11 @@ export default function BeziehungsbaumHilfePanel({ onClose }: Props) {
               die offizielle Wiki-Schnittstelle (MediaWiki-API). Nur öffentlicher Text.
             </li>
             <li style={{ marginBottom: 8 }}>
-              <strong>Auslesen, zwei Verfahren parallel:</strong>
-              <ul style={{ marginTop: 4, paddingLeft: 18 }}>
-                <li style={{ marginBottom: 4 }}>
-                  Ein Regel-Parser liest die strukturierten Abschnitte (Verwandte,
-                  Liebschaften …) — keine KI, feste Regeln.
-                </li>
-                <li>
-                  Eine KI (Mistral, Cloud) liest den Fließtext und schlägt daraus
-                  Beziehungen vor. Sie übersetzt nur Sätze in strukturierte Vorschläge.
-                </li>
-              </ul>
+              <strong>Auslesen:</strong> Die strukturierten Abschnitte der Wikiseite
+              (Verwandte, Liebschaften, Bekannte …) werden von einem Regel-Parser
+              gelesen — keine KI, feste Regeln. Das ist in v1 der einzige aktive Weg.
+              Optional kann zusätzlich eine KI den Fließtext auswerten; dieser Modus
+              ist in v1 per Default ausgeschaltet.
             </li>
             <li style={{ marginBottom: 8 }}>
               <strong>Namensabgleich:</strong> Eine Ähnlichkeitssuche schlägt vor, welche bestehende Figur
@@ -122,13 +116,18 @@ export default function BeziehungsbaumHilfePanel({ onClose }: Props) {
         </section>
 
         <section style={sectionStyle}>
-          <h2 style={h2}>Welche KI, und was macht sie?</h2>
+          <h2 style={h2}>Wird hier eine KI eingesetzt?</h2>
           <p style={p}>
-            Die einzige echte KI ist Mistral (großes Sprachmodell, über Cloud). Aufgabe:
-            Fließtext → Beziehungs-Vorschläge mit Beleg-Satz und Sicherheits-Wert. Sie
-            schreibt nichts in die Datenbank, legt keine Figuren an, ordnet keine Namen zu
-            und entscheidet nichts über den Baum. An die Cloud geht nur öffentlicher
-            Wiki-Text; interne Daten bleiben lokal.
+            In v1: nein. Der Import läuft rein regelbasiert — ein lokaler Parser liest
+            die strukturierten Wiki-Abschnitte, keine Cloud, keine KI.
+          </p>
+          <p style={p}>
+            Optional (per Default aus) gibt es einen KI-Modus, bei dem Mistral (Cloud)
+            zusätzlich den Fließtext auswertet und Beziehungs-Vorschläge mit Beleg-Satz
+            und Konfidenzwert liefert. Auch dann schreibt die KI nichts in die Datenbank,
+            legt keine Figuren an und entscheidet nichts — sie liefert nur Vorschläge für
+            deinen Review. An die Cloud geht ausschließlich öffentlicher Wiki-Text;
+            interne Daten bleiben lokal.
           </p>
         </section>
 
@@ -151,13 +150,14 @@ export default function BeziehungsbaumHilfePanel({ onClose }: Props) {
             background: '#F5F5F5', borderRadius: 8, padding: '12px 16px',
             fontSize: 12, fontFamily: 'monospace', lineHeight: 1.8, color: '#444',
           }}>
-            Öffentlicher Wiki-Text<br />
-            → (lokal) Parser + (Cloud) KI<br />
+            Strukturierter Wiki-Text<br />
+            → (lokal) Regel-Parser<br />
             → Vorschläge<br />
             → (lokal) Namensabgleich<br />
             → Warteraum / Staging<br />
             → deine Freigabe<br />
-            → Baum
+            → Baum<br />
+            <span style={{ color: '#888' }}>(KI nur optional bei Fließtext — in v1 aus.)</span>
           </div>
         </section>
 
