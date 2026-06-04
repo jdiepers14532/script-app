@@ -4,13 +4,12 @@
 const STORAGE_KEY = 'serienwerft_guide_seen'
 
 declare const window: Window & {
+  // Driver.js IIFE-Build: window.driver.driver(config)
   driver?: {
-    js: {
-      driver: (config: unknown) => {
-        setSteps: (steps: unknown[]) => void
-        drive: () => void
-        destroy: () => void
-      }
+    driver: (config: unknown) => {
+      setSteps: (steps: unknown[]) => void
+      drive: () => void
+      destroy: () => void
     }
   }
 }
@@ -186,10 +185,10 @@ function getSteps() {
 
 // ── Guide starten ──────────────────────────────────────────────────────────
 export function startGuide() {
-  // Driver.js muss über CDN geladen sein (IIFE → window.driver.js.driver)
-  const driverFn = (window as any)?.driver?.js?.driver
+  // Driver.js IIFE-Build: window.driver.driver(config)
+  const driverFn = (window as any)?.driver?.driver
   if (typeof driverFn !== 'function') {
-    console.warn('[Onboarding] Driver.js nicht geladen — CDN-Script fehlt?')
+    console.warn('[Onboarding] Driver.js nicht geladen — CDN-Script fehlt?', (window as any)?.driver)
     return
   }
 
