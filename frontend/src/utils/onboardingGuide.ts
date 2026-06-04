@@ -89,7 +89,7 @@ function buildSteps() {
       element: 'input[placeholder="Szene suchen…"]',
       popover: {
         title: '🎬 Szenenübersicht',
-        description: 'In der linken Sidebar siehst du alle Szenen der Folge. Nutze die Suche, um schnell zur richtigen Szene zu springen. Szenen lassen sich per <strong>Drag &amp; Drop</strong> umsortieren. Rechtsklick auf eine Szene öffnet Schnellaktionen (Einfügen, Kopieren, Löschen). Über den <strong>⚙ Aktionen</strong>-Button lassen sich Szenenleiste und Ansicht neu konfigurieren.',
+        description: 'In der linken Sidebar siehst du alle Szenen der Folge. Nutze die Suche, um schnell zur richtigen Szene zu springen. Szenen lassen sich per <strong>Drag &amp; Drop</strong> umsortieren. Rechtsklick auf eine Szene öffnet Schnellaktionen (Einfügen, Kopieren, Löschen).',
         side: 'right' as const,
         align: 'start' as const,
       },
@@ -98,7 +98,7 @@ function buildSteps() {
     {
       element: '[title="Aktionen"]',
       popover: {
-        title: '⚙️ Aktionen',
+        title: '··· Aktionen',
         description: 'Erweiterte Funktionen für die aktuelle Folge: <strong>Suchen &amp; Ersetzen</strong> im gesamten Dokument, <strong>Stränge verwalten</strong>, Platzhalter-Szenen anlegen, Story-Radar und Neu nummerieren.',
         side: 'bottom' as const,
         align: 'start' as const,
@@ -176,7 +176,7 @@ function buildSteps() {
       },
       popover: {
         title: '👥 Sichtbarkeit der Fassung',
-        description: 'Hier steuerst du, wer deine Fassung sehen kann:<br><br>🔒 <strong>Privat</strong> — nur du<br>👤 <strong>Alle Autoren</strong> — alle Autoren der Produktion<br>🌐 <strong>Gesamte Produktion</strong> — alle Mitglieder<br>👥 <strong>Team</strong> — eine selbst angelegte Gruppe (Mitglieder im Team-Work-Menü einsehbar)<br><br>Tipp: Neue Fassungen sind standardmäßig <em>Privat</em> — erst freigeben, wenn du fertig bist.',
+        description: 'Hier steuerst du, wer deine Fassung sehen kann:<br><br>🔒 <strong>Privat</strong> — nur du<br>👤 <strong>Alle Autoren</strong> — alle Autoren der Produktion<br>🌐 <strong>Gesamte Produktion</strong> — alle Mitglieder<br>👥 <strong>Team</strong> — eine selbst angelegte Gruppe (Mitglieder im Team-Work-Menü einsehbar)<br><br>Tipp: Neue Fassungen sind standardmäßig auf <em>Team</em> gestellt.',
         side: 'bottom' as const,
         align: 'end' as const,
       },
@@ -186,7 +186,7 @@ function buildSteps() {
       element: () => document.querySelector('select') ?? undefined,
       popover: {
         title: '📐 Szenen-Format',
-        description: 'Das Format bestimmt den Editor-Typ:<br><br>📄 <strong>Drehbuch</strong> — klassisches Skriptformat mit allen Absatztypen<br>📝 <strong>Notiz</strong> (= Dokument) — freier Fließtext für Anmerkungen<br><br>💡 Über <strong>Fassungs-Vorlagen</strong> in der Drehbuchkoordination lassen sich Kopf-/Fußzeilen und Seitenformat für den PDF-Export konfigurieren.',
+        description: 'Das Format bestimmt den Editor-Typ:<br><br>📄 <strong>Drehbuch</strong> — klassisches Skriptformat mit allen Absatztypen<br>📝 <strong>Dokument</strong> — freier Fließtext für Anmerkungen<br><br>💡 Über <strong>Fassungs-Vorlagen</strong> in der Drehbuchkoordination lassen sich Vordrucke wie Titelseiten konfigurieren.',
         side: 'bottom' as const,
         align: 'end' as const,
       },
