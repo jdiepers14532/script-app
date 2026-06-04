@@ -135,6 +135,10 @@ export const api = {
     request<any>('POST', `/dokument-szenen/${szeneId}/snapshots`, payload),
   restoreSnapshot: (szeneId: string, snapId: number) => request<any>('POST', `/dokument-szenen/${szeneId}/snapshots/${snapId}/restore`),
   // Werkstufen-Dokument-Snapshots
+  getEditIntentCheck: (werkId: string, currentSceneNummer?: number | null) =>
+    request<{ risiko: string; faktoren: { key: string; label: string; richtung: 'weitermachen' | 'neufassung' }[]; score: { weitermachen: number; neueFassung: number } }>(
+      'GET', `/werkstufen/${werkId}/edit-intent-check${currentSceneNummer != null ? `?current_scene_nummer=${currentSceneNummer}` : ''}`
+    ),
   getWerkstufenSnapshots: (werkId: string) => request<any[]>('GET', `/werkstufen/${werkId}/snapshots`),
   createWerkstufenSnapshot: (werkId: string, typ: 'auto' | 'manual' | 'restore') =>
     request<any>('POST', `/werkstufen/${werkId}/snapshots`, { typ }),

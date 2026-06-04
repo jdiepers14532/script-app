@@ -500,6 +500,7 @@ async function runMigrations() {
     'v193_kante_sym_unique.sql',
     // Seed: rolle (Rollenbez. → label beim Promote) + methode (regel_parser|fliesstext|llm)
     'v194_seed_rolle_methode.sql',
+    'v195_fassungen_ueberschreibschutz.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

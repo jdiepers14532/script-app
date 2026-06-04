@@ -21,6 +21,7 @@ import SynopsenGenerierungModal from './SynopsenGenerierungModal'
 import NeueWerkstufeModal, { type NeueWerkstufeParams } from '../NeueWerkstufeModal'
 import PlatzhalterSzenenDialog from '../PlatzhalterSzenenDialog'
 import ExportDrawer from './ExportDrawer'
+import UeberschreibWarnungModal from '../UeberschreibWarnungModal'
 
 interface Props {
   produktionId: string
@@ -75,6 +76,16 @@ export default function EditorPanel({
   const [formatConfirmOpen, setFormatConfirmOpen] = useState(false)
   const [pendingFmt, setPendingFmt] = useState<string | null>(null)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // ── Überschreibschutz ─────────────────────────────────────────────────────
+  const [ueberschreibWarnungOpen, setUeberschreibWarnungOpen] = useState(false)
+  const [ueberschreibFaktoren, setUeberschreibFaktoren] = useState<{ key: string; label: string; richtung: 'weitermachen' | 'neufassung' }[]>([])
+  const [ueberschreibRisiko, setUeberschreibRisiko] = useState<'medium' | 'high'>('medium')
+  const [pendingSaveContent, setPendingSaveContent] = useState<any>(null)
+  // Refs für Closures (kein Re-Render nötig)
+  const intentCheckRef = useRef<{ risiko: string; faktoren: any[] } | null>(null)
+  const ueberschreibWarnungOpenRef = useRef(false)
+  const editIntentConfirmedRef = useRef<Set<string>>(new Set())
 
   // ── Magic-Funktionen ──────────────────────────────────────────────────────
   const [magicOpen, setMagicOpen] = useState(false)
@@ -260,6 +271,34 @@ export default function EditorPanel({
     }
   }, [folgeId, selectedWerkId, onReloadWerkstufen, onNewWerkCreated])
 
+  // ── Überschreibschutz-Handler ─────────────────────────────────────────────
+  const handleUeberschreibWeitermachen = useCallback(() => {
+    if (selectedWerkId) editIntentConfirmedRef.current.add(selectedWerkId)
+    intentCheckRef.current = null
+    ueberschreibWarnungOpenRef.current = false
+    setUeberschreibWarnungOpen(false)
+    const content = pendingSaveContent
+    setPendingSaveContent(null)
+    if (content) scheduleSave(content)
+  }, [selectedWerkId, pendingSaveContent, scheduleSave])
+
+  const handleUeberschreibNeuereFassung = useCallback(() => {
+    if (selectedWerkId) editIntentConfirmedRef.current.add(selectedWerkId)
+    intentCheckRef.current = null
+    ueberschreibWarnungOpenRef.current = false
+    setUeberschreibWarnungOpen(false)
+    setPendingSaveContent(null)
+    if (selectedWerk?.typ) setNeueFassungModal(selectedWerk.typ as 'drehbuch' | 'storyline' | 'notiz')
+  }, [selectedWerkId, selectedWerk])
+
+  const handleUeberschreibAbbrechen = useCallback(() => {
+    if (selectedWerkId) editIntentConfirmedRef.current.add(selectedWerkId)
+    intentCheckRef.current = null
+    ueberschreibWarnungOpenRef.current = false
+    setUeberschreibWarnungOpen(false)
+    setPendingSaveContent(null)
+  }, [selectedWerkId])
+
   // Load content for the SELECTED scene only (per-scene editing)
   useEffect(() => {
     if (!selectedWerkId) { setCurrentSzene(null); setSceneContent(null); return }
@@ -423,11 +462,44 @@ export default function EditorPanel({
     }
   }, [selectedWerkId]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // ── Intent-Check: bei Werkstufen-Wechsel im Hintergrund abfragen ────────────
+  useEffect(() => {
+    if (!selectedWerkId) { intentCheckRef.current = null; return }
+    if (editIntentConfirmedRef.current.has(selectedWerkId)) return
+    api.getEditIntentCheck(selectedWerkId)
+      .then(result => {
+        if (!editIntentConfirmedRef.current.has(selectedWerkId)) {
+          intentCheckRef.current = result
+        }
+      })
+      .catch(() => { intentCheckRef.current = null })
+  }, [selectedWerkId])
+
   // Save: write content to the RESOLVED scene for this panel's werkstufe
   // Uses currentSzene.id (set by the loading effect via resolveDokumentSzene) so that
   // each panel saves to its own werkstufe's scene, not the primary SceneList scene.
   const latestSaveContentRef = useRef<any>(null)
   const scheduleSave = useCallback((editorContent: any) => {
+    // ── Überschreibschutz-Guard ────────────────────────────────────────────
+    if (ueberschreibWarnungOpenRef.current) {
+      setPendingSaveContent(editorContent)
+      return
+    }
+    if (
+      selectedWerkId &&
+      intentCheckRef.current &&
+      ['medium', 'high'].includes(intentCheckRef.current.risiko) &&
+      !editIntentConfirmedRef.current.has(selectedWerkId)
+    ) {
+      const result = intentCheckRef.current
+      setUeberschreibFaktoren(result.faktoren ?? [])
+      setUeberschreibRisiko(result.risiko as 'medium' | 'high')
+      setPendingSaveContent(editorContent)
+      ueberschreibWarnungOpenRef.current = true
+      setUeberschreibWarnungOpen(true)
+      return
+    }
+    // ── /Überschreibschutz-Guard ───────────────────────────────────────────
     latestSaveContentRef.current = editorContent  // synchron vor Debounce — für req-content-flush
     const effectiveSzeneId = currentSzene?.id ?? selectedSzeneId
     if (!editorContent || !effectiveSzeneId) return
@@ -466,7 +538,7 @@ export default function EditorPanel({
         }
       }
     }, 1500)
-  }, [selectedSzeneId, useDokumentSzenen, currentSzene, enqueue, scheduleSnapshot])
+  }, [selectedSzeneId, useDokumentSzenen, currentSzene, enqueue, scheduleSnapshot, selectedWerkId])
 
   // req-content-flush: SceneEditor fordert sofortigen Content-Save vor dem Leave-Check.
   // Debounce abbrechen, sofort speichern, dann 'editor-content-flushed' feuern.
@@ -1125,6 +1197,18 @@ export default function EditorPanel({
           </Suspense>
         )}
       </div>
+
+      {/* Überschreibschutz-Warnung */}
+      {ueberschreibWarnungOpen && selectedWerk && (
+        <UeberschreibWarnungModal
+          risiko={ueberschreibRisiko}
+          faktoren={ueberschreibFaktoren}
+          werkstufTyp={selectedWerk.typ}
+          onNeuereFassung={handleUeberschreibNeuereFassung}
+          onWeitermachen={handleUeberschreibWeitermachen}
+          onAbbrechen={handleUeberschreibAbbrechen}
+        />
+      )}
 
       {/* Neue Werkstufe Modal */}
       {neueFassungModal && folgeId && (

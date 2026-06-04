@@ -421,15 +421,18 @@ werkstufenRouter.put('/:id', async (req, res) => {
 
     const effectiveBearbeitungStatus = autoBearbeitungStatus ?? bearbeitung_status ?? null
 
+    const putUserId = req.user!.user_id
     const row = await client.query(
       `UPDATE werkstufen SET
         label = CASE WHEN $1 THEN $2 ELSE label END,
         sichtbarkeit = COALESCE($3, sichtbarkeit),
         abgegeben = COALESCE($4, abgegeben),
         bearbeitung_status = COALESCE($5, bearbeitung_status),
-        revision_color_id = CASE WHEN $6 THEN $7 ELSE revision_color_id END
+        revision_color_id = CASE WHEN $6 THEN $7 ELSE revision_color_id END,
+        sichtbarkeit_geaendert_am = CASE WHEN $3 IS NOT NULL AND sichtbarkeit IS DISTINCT FROM $3 THEN NOW() ELSE sichtbarkeit_geaendert_am END,
+        sichtbarkeit_geaendert_von = CASE WHEN $3 IS NOT NULL AND sichtbarkeit IS DISTINCT FROM $3 THEN $9::uuid ELSE sichtbarkeit_geaendert_von END
        WHERE id = $8 RETURNING *`,
-      [hasLabel, labelVal, sichtbarkeit, abgegeben, effectiveBearbeitungStatus, hasRevColor, revColorVal, req.params.id]
+      [hasLabel, labelVal, sichtbarkeit, abgegeben, effectiveBearbeitungStatus, hasRevColor, revColorVal, req.params.id, putUserId]
     )
     if (row.rowCount === 0) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Werkstufe nicht gefunden' }) }
 
@@ -1618,5 +1621,192 @@ werkstufenRouter.post('/:id/snapshots/:snapId/restore', async (req, res) => {
     res.json({ ok: true, restored_count: updated.length, szenen: updated })
   } catch (err) {
     res.status(500).json({ error: String(err) })
+  }
+})
+
+// ══════════════════════════════════════════════════════════════════════════════
+// GET /api/werkstufen/:id/edit-intent-check
+// Berechnet Score: "Weitermachen in Fassung" vs. "Neue Fassung anlegen"
+// Wird vom Frontend vor dem ersten Tippen abgefragt.
+// ══════════════════════════════════════════════════════════════════════════════
+
+async function getArbeitsfensterStart(): Promise<Date> {
+  // Letzten Arbeitstag ermitteln (Niedersachsen Feiertage + Wochenenden)
+  // UTC+2 (CEST) als Näherung für Europa/Berlin
+  const now = new Date()
+  let checkMs = now.getTime() + (2 * 60 * 60 * 1000) - (24 * 60 * 60 * 1000) // gestern, Berlin-approx
+
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(checkMs)
+    const dow = d.getUTCDay() // 0=So, 6=Sa
+    if (dow === 0 || dow === 6) { checkMs -= 86400000; continue }
+    const datumStr = d.toISOString().split('T')[0]
+    const { rows } = await pool.query('SELECT 1 FROM feiertage WHERE datum = $1', [datumStr])
+    if (rows.length > 0) { checkMs -= 86400000; continue }
+    // Gefunden: Start dieses Tages 00:00 UTC zurückgeben
+    return new Date(datumStr + 'T00:00:00Z')
+  }
+  return new Date(now.getTime() - 48 * 3600000) // Fallback: 48h
+}
+
+function formatRelativeDE(date: Date): string {
+  const diff = Date.now() - date.getTime()
+  const h = Math.floor(diff / 3600000)
+  const d = Math.floor(diff / 86400000)
+  if (h < 1) return 'vor wenigen Minuten'
+  if (h < 24) return `vor ${h} Stunde${h > 1 ? 'n' : ''}`
+  if (d < 7) return `vor ${d} Tag${d > 1 ? 'en' : ''}`
+  return date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })
+}
+
+werkstufenRouter.get('/:id/edit-intent-check', async (req, res) => {
+  const werkId = req.params.id
+  const userId = req.user!.user_id
+  const currentSceneNummer = req.query.current_scene_nummer
+    ? parseInt(req.query.current_scene_nummer as string, 10)
+    : null
+
+  try {
+    const werk = await queryOne(
+      `SELECT id, sichtbarkeit, sichtbarkeit_geaendert_am, sichtbarkeit_geaendert_von, erstellt_von
+       FROM werkstufen WHERE id = $1`,
+      [werkId]
+    )
+    if (!werk) return res.status(404).json({ error: 'Werkstufe nicht gefunden' })
+
+    // Letzte Szenenbearbeitung in dieser Werkstufe
+    const lastEdit = await queryOne(
+      `SELECT updated_at, updated_by, scene_nummer FROM dokument_szenen
+       WHERE werkstufe_id = $1 AND geloescht = false
+       ORDER BY updated_at DESC NULLS LAST LIMIT 1`,
+      [werkId]
+    )
+
+    // Letzte Session des aktuellen Users in dieser Werkstufe
+    const userSession = await queryOne(
+      `SELECT last_active_at FROM werkstufen_sessions
+       WHERE werkstufe_id = $1 AND user_id = $2
+       ORDER BY last_active_at DESC LIMIT 1`,
+      [werkId, userId]
+    )
+
+    // Hat User jemals in dieser Werkstufe bearbeitet?
+    const userEditExists = await queryOne(
+      `SELECT 1 FROM dokument_szenen
+       WHERE werkstufe_id = $1 AND updated_by = $2 AND geloescht = false LIMIT 1`,
+      [werkId, userId]
+    )
+
+    // Ist User Mitglied einer Team/Colab-Gruppe dieser Werkstufe?
+    let userInGroup = false
+    const sichtb: string = werk.sichtbarkeit ?? ''
+    if (sichtb.startsWith('team:') || sichtb.startsWith('colab:')) {
+      const groupId = sichtb.split(':')[1]
+      if (groupId) {
+        const memberCheck = await queryOne(
+          `SELECT 1 FROM colab_gruppen_mitglieder WHERE gruppe_id = $1::uuid AND user_id = $2 LIMIT 1`,
+          [groupId, userId]
+        )
+        userInGroup = !!memberCheck
+      }
+    }
+
+    const arbeitsfensterStart = await getArbeitsfensterStart()
+
+    type Richtung = 'weitermachen' | 'neufassung'
+    const faktoren: { key: string; label: string; richtung: Richtung }[] = []
+    let weitermachen = 0
+    let neueFassung = 0
+
+    // ── Indizien: Weitermachen ────────────────────────────────────────────────
+    if (lastEdit?.updated_at) {
+      const lastEditDate = new Date(lastEdit.updated_at)
+      const isOwnEdit = lastEdit.updated_by === userId
+      const isWithinWindow = lastEditDate >= arbeitsfensterStart
+
+      if (isOwnEdit && isWithinWindow) {
+        weitermachen += 3
+        faktoren.push({
+          key: 'eigene_bearbeitung_aktuell',
+          label: `Zuletzt von dir bearbeitet (${formatRelativeDE(lastEditDate)})`,
+          richtung: 'weitermachen',
+        })
+      }
+
+      if (currentSceneNummer !== null && lastEdit.scene_nummer !== null
+          && currentSceneNummer > lastEdit.scene_nummer) {
+        weitermachen += 2
+        faktoren.push({
+          key: 'szenen_fortschritt',
+          label: `Szenen-Fortschritt (Sz. ${lastEdit.scene_nummer} → ${currentSceneNummer})`,
+          richtung: 'weitermachen',
+        })
+      }
+    }
+
+    // Sichtbarkeit seit letzter Session nicht geändert → schwaches Weitermachen-Signal
+    const sichtbarkeitGeaendertNachSession =
+      werk.sichtbarkeit_geaendert_am && userSession?.last_active_at
+        ? new Date(werk.sichtbarkeit_geaendert_am) > new Date(userSession.last_active_at)
+        : false
+    if (!sichtbarkeitGeaendertNachSession) {
+      weitermachen += 1
+    }
+
+    // ── Indizien: Neue Fassung ─────────────────────────────────────────────────
+    if (!userEditExists) {
+      neueFassung += 2
+      faktoren.push({
+        key: 'nie_bearbeitet',
+        label: 'Du hast noch nicht in dieser Fassung gearbeitet',
+        richtung: 'neufassung',
+      })
+    }
+
+    if (lastEdit?.updated_at && lastEdit.updated_by !== userId) {
+      const lastEditDate = new Date(lastEdit.updated_at)
+      const nachSession =
+        !userSession?.last_active_at ||
+        lastEditDate > new Date(userSession.last_active_at)
+
+      if (nachSession) {
+        neueFassung += 3
+        faktoren.push({
+          key: 'fremde_bearbeitung_nach_session',
+          label: `Fremde Änderungen seit deiner letzten Sitzung`,
+          richtung: 'neufassung',
+        })
+      } else if (!userInGroup) {
+        neueFassung += 2
+        faktoren.push({
+          key: 'anderer_bearbeiter',
+          label: `Zuletzt von jemand anderem bearbeitet`,
+          richtung: 'neufassung',
+        })
+      }
+    }
+
+    // Fassung wurde kürzlich (< 1h) von aktuellem User auf Privat gesetzt
+    if (
+      werk.sichtbarkeit === 'privat' &&
+      werk.sichtbarkeit_geaendert_von === userId &&
+      werk.sichtbarkeit_geaendert_am &&
+      Date.now() - new Date(werk.sichtbarkeit_geaendert_am).getTime() < 3600000
+    ) {
+      neueFassung += 1
+      faktoren.push({
+        key: 'auf_privat_gesetzt',
+        label: 'Fassung gerade auf Privat gesetzt',
+        richtung: 'neufassung',
+      })
+    }
+
+    const diff = neueFassung - weitermachen
+    const risiko = diff >= 4 ? 'high' : diff >= 2 ? 'medium' : 'none'
+
+    res.json({ risiko, faktoren, score: { weitermachen, neueFassung } })
+  } catch (err) {
+    console.error('GET edit-intent-check:', err)
+    res.status(500).json({ error: 'Interner Fehler' })
   }
 })
