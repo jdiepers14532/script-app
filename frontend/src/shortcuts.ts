@@ -150,22 +150,27 @@ export const SHORTCUT_DEFS: Record<string, ShortcutDef> = {
     label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+G`,
   },
 
-  // ── Bereichs-Switcher (Alt+1/2/3) ────────────────────────────────────────
+  // ── Bereichs-Switcher (Strg+Shift+1/2/3) ────────────────────────────────
+  // Alt+1–3 war belegt durch ScreenplayExtension + AbsatzExtension im Editor.
+  // Ctrl+Shift+1–3 ist in Chrome/Edge/Firefox/Safari nicht belegt.
   // Digit1–3 sind auf allen Tastatur-Layouts identisch — kein Layout-Mapping nötig.
   bereichScript: {
     codes: ['Digit1'],
-    altKey: true,
-    label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+1`,
+    ctrlKey: true,
+    shiftKey: true,
+    label: (_layout, isMac) => `${isMac ? '⌘' : 'Strg'}+Shift+1`,
   },
   bereichKonzept: {
     codes: ['Digit2'],
-    altKey: true,
-    label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+2`,
+    ctrlKey: true,
+    shiftKey: true,
+    label: (_layout, isMac) => `${isMac ? '⌘' : 'Strg'}+Shift+2`,
   },
   bereichAnalyse: {
     codes: ['Digit3'],
-    altKey: true,
-    label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+3`,
+    ctrlKey: true,
+    shiftKey: true,
+    label: (_layout, isMac) => `${isMac ? '⌘' : 'Strg'}+Shift+3`,
   },
 
   // ── Editor: Cursor Anfang/Ende der Szene ─────────────────────────────────
