@@ -371,25 +371,42 @@ router.post('/:id/copy-settings', async (req, res) => {
     }
 
     // ── Absatzformate ───────────────────────────────────────────────────────
+    // enter_next_format / tab_next_format sind FK-Selbstreferenzen (UUID):
+    // Erst alle Formate ohne FK einfügen, dann FK-Spalten mit gemappten IDs updaten.
     if (sections.includes('absatzformate')) {
       const src = await client.query('SELECT * FROM absatzformate WHERE produktion_id = $1 ORDER BY sort_order', [source_produktion_id])
       if (!merge) await client.query('DELETE FROM absatzformate WHERE produktion_id = $1', [targetId])
+      const idMap: Record<string, string> = {}
+      // Pass 1: einfügen ohne FK-Spalten
       for (const row of src.rows) {
         if (merge) {
           const exists = await client.query('SELECT id FROM absatzformate WHERE produktion_id=$1 AND name=$2', [targetId, row.name])
-          if (exists.rows.length) continue
+          if (exists.rows.length) { idMap[row.id] = exists.rows[0].id; continue }
         }
-        await client.query(
+        const ins = await client.query(
           `INSERT INTO absatzformate (produktion_id, name, kuerzel, kategorie, font_family, font_size,
             bold, italic, underline, uppercase, text_align, margin_left, margin_right,
-            space_before, space_after, line_height, sort_order, ist_standard, textbaustein,
-            enter_next, tab_next, shortcut)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)`,
+            space_before, space_after, line_height, sort_order, ist_standard, textbaustein, shortcut)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
+           RETURNING id`,
           [targetId, row.name, row.kuerzel, row.kategorie, row.font_family, row.font_size,
             row.bold, row.italic, row.underline, row.uppercase, row.text_align,
             row.margin_left, row.margin_right, row.space_before, row.space_after,
-            row.line_height, row.sort_order, row.ist_standard, row.textbaustein,
-            row.enter_next, row.tab_next, row.shortcut]
+            row.line_height, row.sort_order, row.ist_standard, row.textbaustein, row.shortcut]
+        )
+        idMap[row.id] = ins.rows[0].id
+      }
+      // Pass 2: FK-Spalten mit gemappten IDs aktualisieren
+      for (const row of src.rows) {
+        const newId = idMap[row.id]
+        if (!newId || (!row.enter_next_format && !row.tab_next_format)) continue
+        await client.query(
+          `UPDATE absatzformate SET enter_next_format = $1, tab_next_format = $2 WHERE id = $3`,
+          [
+            row.enter_next_format ? (idMap[row.enter_next_format] ?? null) : null,
+            row.tab_next_format   ? (idMap[row.tab_next_format]   ?? null) : null,
+            newId,
+          ]
         )
       }
     }
