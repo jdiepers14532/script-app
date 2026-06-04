@@ -68,9 +68,9 @@ async function extractText(
 
 // ── KI-Extraktion ────────────────────────────────────────────────────────────
 
-async function callMistral(apiKey: string, model: string, prompt: string, maxTokens = 8000): Promise<string> {
+async function callMistral(apiKey: string, model: string, prompt: string, maxTokens = 8000, timeoutMs = 120000): Promise<string> {
   const ctrl = new AbortController()
-  const t = setTimeout(() => ctrl.abort(), 120000)
+  const t = setTimeout(() => ctrl.abort(), timeoutMs)
   try {
     const res = await fetch('https://api.mistral.ai/v1/chat/completions', {
       method: 'POST',
@@ -95,6 +95,83 @@ function parseJsonBlock(text: string): any | null {
   const m = text.match(/###JSON_START###([\s\S]*?)###JSON_END###/)
   if (!m) return null
   try { return JSON.parse(m[1].trim()) } catch { return null }
+}
+
+// ── Block-Chunking ───────────────────────────────────────────────────────────
+
+const BLOCKS_PER_CHUNK = 4
+
+function splitIntoBlockSections(text: string): Array<{ blockNr: number; raw: string }> {
+  // Tolerant gegenüber OCR-Leerzeichen: "Block 845", "Block  845", "Block\t845"
+  const pattern = /(?:^|\n)[ \t]*Block[ \t]+(\d{3,4})[ \t]*(?:\r?\n|$)/gim
+  const positions: Array<{ pos: number; blockNr: number }> = []
+  let m: RegExpExecArray | null
+  while ((m = pattern.exec(text)) !== null) {
+    positions.push({ pos: m.index, blockNr: parseInt(m[1], 10) })
+  }
+  if (positions.length === 0) return []
+  return positions.map((p, i) => ({
+    blockNr: p.blockNr,
+    raw: text.slice(p.pos, i + 1 < positions.length ? positions[i + 1].pos : undefined).trim(),
+  }))
+}
+
+function toChunks<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = []
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
+  return out
+}
+
+async function extractItemsChunked(
+  apiKey: string,
+  model: string,
+  fullText: string,
+  buildPrompt: (chunkText: string) => string,
+): Promise<{ items: any[]; totalTokIn: number; totalTokOut: number }> {
+  const sections = splitIntoBlockSections(fullText)
+  let totalTokIn = 0
+  let totalTokOut = 0
+  const allItems: any[] = []
+
+  if (sections.length === 0) {
+    // Fallback: kein Block-Format erkannt → single call mit höherem Limit
+    const prompt = buildPrompt(fullText.slice(0, 80000))
+    const raw = await callMistral(apiKey, model, prompt, 16000)
+    totalTokIn = Math.round(prompt.length / 4)
+    totalTokOut = Math.round(raw.length / 4)
+    const result = parseJsonBlock(raw)
+    return { items: result?.items ?? [], totalTokIn, totalTokOut }
+  }
+
+  const chunks = toChunks(sections, BLOCKS_PER_CHUNK)
+  for (const chunk of chunks) {
+    const chunkText = chunk.map(s => s.raw).join('\n\n')
+    const prompt = buildPrompt(chunkText)
+    try {
+      const raw = await callMistral(apiKey, model, prompt, 8000, 60000)
+      totalTokIn += Math.round(prompt.length / 4)
+      totalTokOut += Math.round(raw.length / 4)
+      const result = parseJsonBlock(raw)
+      if (result?.items) allItems.push(...result.items)
+    } catch (err) {
+      console.warn(
+        `[konzept-import] Chunk Blöcke ${chunk[0]?.blockNr}–${chunk[chunk.length - 1]?.blockNr} fehlgeschlagen:`,
+        err,
+      )
+      // Loop läuft weiter — kein throw
+    }
+  }
+
+  // Deduplizieren: gleicher Strangname + Blocknummer → erster Treffer gewinnt
+  const seen = new Set<string>()
+  const items = allItems.filter(it => {
+    const key = `${String(it.strang_name ?? '').toLowerCase().trim()}__${it.block_nummer}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+
+  return { items, totalTokIn, totalTokOut }
 }
 
 async function getMistralSettings() {
@@ -207,11 +284,12 @@ Antworte AUSSCHLIESSLICH in diesem Format:
     }
 
     if (quelltyp === 'B') {
-      // Future-Prosa: {strang_name, block_nummer, prosa_text}
-      prompt = `Du bist ein Story-Analyst für eine deutsche TV-Soap. Extrahiere aus diesem Future-Prosa-Dokument ALLE Strangentwicklungen nach Blocknummer. Das Dokument kann viele Blöcke enthalten – erfasse lückenlos jeden Block und jeden Strang.
+      // Future-Prosa: {strang_name, block_nummer, prosa_text} — chunked by block
+      const buildBPrompt = (chunk: string) =>
+        `Du bist ein Story-Analyst für eine deutsche TV-Soap. Extrahiere aus diesem Future-Prosa-Dokument ALLE Strangentwicklungen nach Blocknummer. Erfasse lückenlos jeden Block und jeden Strang.
 
 Dokument:
-${text.slice(0, 80000)}
+${chunk}
 
 Antworte AUSSCHLIESSLICH in diesem Format:
 ###JSON_START###
@@ -226,28 +304,25 @@ Antworte AUSSCHLIESSLICH in diesem Format:
 }
 ###JSON_END###`
 
-      const raw = await callMistral(apiKey, model, prompt, 16000)
-      kiResult = parseJsonBlock(raw)
+      const { items: rawItems, totalTokIn, totalTokOut } =
+        await extractItemsChunked(apiKey, model, text, buildBPrompt)
 
-      const tokIn = Math.round(prompt.length / 4)
-      const tokOut = Math.round(raw.length / 4)
-      await recordUsage('mistral', model, tokIn, tokOut)
+      await recordUsage('mistral', model, totalTokIn, totalTokOut)
       await query(
         `INSERT INTO ki_audit_log (funktion, input_summary, output_summary, item_count, provider, model, tokens_in, tokens_out, user_id)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-        ['konzept_import_b', prompt.slice(0, 200), raw.slice(0, 200),
-          kiResult ? (kiResult.items || []).length : 0,
-          'mistral', model, tokIn, tokOut, (req as any).user?.user_id ?? null]
+        ['konzept_import_b', text.slice(0, 200), `${rawItems.length} items`,
+          rawItems.length, 'mistral', model, totalTokIn, totalTokOut,
+          (req as any).user?.user_id ?? null]
       ).catch(() => {})
 
-      if (!kiResult) return res.status(422).json({ error: 'KI hat kein gültiges JSON geliefert' })
+      if (rawItems.length === 0) return res.status(422).json({ error: 'KI hat keine Einträge extrahiert' })
 
-      // Strang-IDs aus DB anreichern
       const bestehendeRows = await query(
         `SELECT id, name FROM straenge WHERE produktion_id = $1`,
         [produktion_id]
       )
-      const itemsWithMatch = (kiResult.items || []).map((it: any) => {
+      const itemsWithMatch = rawItems.map((it: any) => {
         const match = bestehendeRows.find((r: any) =>
           r.name.toLowerCase() === (it.strang_name || '').toLowerCase()
         )
@@ -264,11 +339,12 @@ Antworte AUSSCHLIESSLICH in diesem Format:
     }
 
     if (quelltyp === 'C') {
-      // Future-Raster: {strang_name, block_nummer, beat_text}
-      prompt = `Du bist ein Story-Analyst für eine deutsche TV-Soap. Extrahiere aus diesem Future-Raster ALLE Beat-Kurztext-Einträge nach Strang und Blocknummer. Das Dokument kann viele Blöcke enthalten – erfasse lückenlos jeden Eintrag.
+      // Future-Raster: {strang_name, block_nummer, beat_text} — chunked by block
+      const buildCPrompt = (chunk: string) =>
+        `Du bist ein Story-Analyst für eine deutsche TV-Soap. Extrahiere aus diesem Future-Raster ALLE Beat-Kurztext-Einträge nach Strang und Blocknummer. Erfasse lückenlos jeden Eintrag.
 
 Dokument:
-${text.slice(0, 80000)}
+${chunk}
 
 Antworte AUSSCHLIESSLICH in diesem Format:
 ###JSON_START###
@@ -283,27 +359,25 @@ Antworte AUSSCHLIESSLICH in diesem Format:
 }
 ###JSON_END###`
 
-      const raw = await callMistral(apiKey, model, prompt, 16000)
-      kiResult = parseJsonBlock(raw)
+      const { items: rawItems, totalTokIn, totalTokOut } =
+        await extractItemsChunked(apiKey, model, text, buildCPrompt)
 
-      const tokIn = Math.round(prompt.length / 4)
-      const tokOut = Math.round(raw.length / 4)
-      await recordUsage('mistral', model, tokIn, tokOut)
+      await recordUsage('mistral', model, totalTokIn, totalTokOut)
       await query(
         `INSERT INTO ki_audit_log (funktion, input_summary, output_summary, item_count, provider, model, tokens_in, tokens_out, user_id)
          VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
-        ['konzept_import_c', prompt.slice(0, 200), raw.slice(0, 200),
-          kiResult ? (kiResult.items || []).length : 0,
-          'mistral', model, tokIn, tokOut, (req as any).user?.user_id ?? null]
+        ['konzept_import_c', text.slice(0, 200), `${rawItems.length} items`,
+          rawItems.length, 'mistral', model, totalTokIn, totalTokOut,
+          (req as any).user?.user_id ?? null]
       ).catch(() => {})
 
-      if (!kiResult) return res.status(422).json({ error: 'KI hat kein gültiges JSON geliefert' })
+      if (rawItems.length === 0) return res.status(422).json({ error: 'KI hat keine Einträge extrahiert' })
 
       const bestehendeRows = await query(
         `SELECT id, name FROM straenge WHERE produktion_id = $1`,
         [produktion_id]
       )
-      const itemsWithMatch = (kiResult.items || []).map((it: any) => {
+      const itemsWithMatch = rawItems.map((it: any) => {
         const match = bestehendeRows.find((r: any) =>
           r.name.toLowerCase() === (it.strang_name || '').toLowerCase()
         )
