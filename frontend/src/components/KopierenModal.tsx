@@ -531,13 +531,28 @@ export default function KopierenModal({
               <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Modus für Listen</div>
               <div style={{ display: 'flex', gap: 8 }}>
                 {([
-                  { val: false, label: 'Ersetzen', sub: 'Bestehende Einträge werden gelöscht' },
-                  { val: true,  label: 'Dazufügen', sub: 'Duplikate werden übersprungen' },
+                  {
+                    val: false,
+                    label: 'Ersetzen',
+                    sub: 'Bestehende Einträge werden gelöscht',
+                    tooltip: 'Alle vorhandenen Einträge der Ziel-Produktion werden zuerst gelöscht, dann werden die Einträge aus der Quelle eingefügt.\n\nIdeal für einen kompletten Neustart oder wenn die Ziel-Produktion noch keine eigenen Einträge hat.',
+                  },
+                  {
+                    val: true,
+                    label: 'Dazufügen',
+                    sub: 'Duplikate werden übersprungen',
+                    tooltip: 'Bestehende Einträge der Ziel-Produktion bleiben erhalten. Nur Einträge, die noch nicht vorhanden sind, werden hinzugefügt.\n\nDuplikate werden per Name/Kürzel erkannt und übersprungen.\n\nIdeal wenn du eigene Einträge bereits angelegt hast und nur ergänzen möchtest.',
+                  },
                 ] as const).map(opt => (
                   <label key={String(opt.val)} style={{ flex: 1, cursor: 'pointer', display: 'flex', alignItems: 'flex-start', gap: 8, padding: '8px 10px', borderRadius: 7, border: `1px solid ${mergeMode === opt.val ? 'var(--text-primary)' : 'var(--border)'}`, background: mergeMode === opt.val ? 'var(--bg-surface)' : 'transparent' }}>
                     <input type="radio" name="mergeMode" checked={mergeMode === opt.val} onChange={() => setMergeMode(opt.val)} style={{ marginTop: 2, accentColor: 'var(--text-primary)' }} />
-                    <div>
-                      <div style={{ fontSize: 12, fontWeight: 600 }}>{opt.label}</div>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
+                        {opt.label}
+                        <Tooltip text={opt.tooltip}>
+                          <span style={{ fontSize: 10, color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: 99, padding: '1px 5px', cursor: 'default', lineHeight: 1.4 }}>?</span>
+                        </Tooltip>
+                      </div>
                       <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 1 }}>{opt.sub}</div>
                     </div>
                   </label>
