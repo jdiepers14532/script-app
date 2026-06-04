@@ -226,10 +226,23 @@ export function startGuide() {
 }
 
 // ── Automatischer Erst-Start ───────────────────────────────────────────────
+// Startet nur wenn der Editor sichtbar ist (Folge geöffnet), sonst still ignorieren.
 export function checkAndStartGuide() {
   if (localStorage.getItem(STORAGE_KEY)) return
-  // Warten bis App vollständig gerendert ist
-  setTimeout(() => {
-    startGuide()
-  }, 1500)
+  // Auf der Startseite ohne geöffnete Folge gibt es keinen Editor → nicht starten.
+  // Stattdessen einmalig auf das Öffnen einer Folge warten (CustomEvent 'app-settings-changed'
+  // feuert sobald eine Produktion geladen wird).
+  const tryOnce = () => {
+    const hasEditor = !!document.querySelector('.tiptap, .detail-head, [class*="detail-head"]')
+    if (hasEditor) {
+      setTimeout(startGuide, 800)
+    }
+  }
+  // Sofort prüfen (falls bereits eine Folge offen ist)
+  setTimeout(tryOnce, 1500)
+  // Und noch einmal wenn sich Produktionskontext ändert
+  const handler = () => {
+    if (!localStorage.getItem(STORAGE_KEY)) tryOnce()
+  }
+  window.addEventListener('app-settings-changed', handler, { once: true })
 }

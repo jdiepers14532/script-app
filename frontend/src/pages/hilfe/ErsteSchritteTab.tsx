@@ -53,15 +53,26 @@ function ErsteSchritteTab() {
       }}>
         <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 8 }}>Willkommen in der Script-App</div>
         <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.7 }}>
-          Die Script-App ist das zentrale Werkzeug für Autorinnen und Autoren von Rote Rosen —
-          vom ersten Storyline-Entwurf bis zur abgegebenen Produktionsfassung.
+          Die Script-App ist das zentrale Werkzeug für Autorinnen und Autoren.
           Diese Seite zeigt, wie man in wenigen Schritten startet.
         </div>
         <div style={{ marginTop: 20, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
           <button
             onClick={() => {
+              // Zuerst zur Startseite navigieren, damit der Editor geladen wird
               navigate('/')
-              setTimeout(() => startGuide(), 600)
+              // Tour erst starten wenn der Editor im DOM ist (max. 5s warten)
+              let attempts = 0
+              const tryStart = () => {
+                attempts++
+                const editorReady = !!(document.querySelector('header') && document.querySelector('button'))
+                if (editorReady) {
+                  startGuide()
+                } else if (attempts < 10) {
+                  setTimeout(tryStart, 500)
+                }
+              }
+              setTimeout(tryStart, 400)
             }}
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 8,
@@ -76,7 +87,7 @@ function ErsteSchritteTab() {
             Interaktive Tour starten (ca. 10 Min.)
           </button>
           <span style={{ fontSize: 11, color: C.muted }}>
-            Zeigt dir alle wichtigen Bedienelemente direkt im Editor
+            Öffnet den Editor und zeigt alle wichtigen Bedienelemente
           </span>
         </div>
       </div>
