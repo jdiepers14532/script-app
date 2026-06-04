@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { Lock, Search, Plus, MoreHorizontal, MoreVertical, Info, MessageCircle, Image, History, ChevronDown, AlertTriangle } from 'lucide-react'
+import { Lock, Search, Plus, MoreHorizontal, MoreVertical, Info, MessageCircle, Image, History, ChevronDown, AlertTriangle, X } from 'lucide-react'
 import CheckHinweisModal from './CheckHinweisModal'
 import { ENV_COLORS, ENV_COLORS_DARK } from '../data/scenes'
 import { api, ApiError, clearCacheByPrefix } from '../api/client'
@@ -96,6 +96,9 @@ export default function SceneList({
   const [bulkDeleting, setBulkDeleting] = useState(false)
   const [straenge, setStraenge] = useState<any[]>([])
   const [werkstufeStraenge, setWerkstufeStraenge] = useState<Record<string, any[]>>({})
+  const [strangZuordnenSzene, setStrangZuordnenSzene] = useState<{ id: string | number; nr: number | null } | null>(null)
+  const [szeneAssignedIds, setSzeneAssignedIds] = useState<Set<string>>(new Set())
+  const [szeneStrangLoading, setSzeneStrangLoading] = useState(false)
   const [stimmungWarnings, setStimmungWarnings] = useState<Record<string, string>>({})
   const [checkBadges, setCheckBadges] = useState<Record<string, { count: number; has_fehler: boolean }>>({})
   const [checkModal, setCheckModal] = useState<{ szeneId: string | number; checks: any[]; anchorRect: DOMRect; sceneNummer?: number | null } | null>(null)
@@ -294,6 +297,46 @@ export default function SceneList({
       clearSelection()
       if (werkstufId) api.getWerkstufeStraenge(werkstufId).then(setWerkstufeStraenge).catch(() => {})
     } catch (e) { console.error(e) }
+  }
+
+  const openStrangZuordnen = async (scene: any) => {
+    setMenuOpenId(null)
+    setSzeneAssignedIds(new Set())
+    setSzeneStrangLoading(true)
+    setStrangZuordnenSzene({ id: scene.id, nr: scene.scene_nummer ?? null })
+    try {
+      const assigned = await api.getSzeneStaenge(String(scene.id))
+      setSzeneAssignedIds(new Set(assigned.map((s: any) => String(s.strang_id))))
+    } catch { /* ignore */ } finally {
+      setSzeneStrangLoading(false)
+    }
+  }
+
+  const toggleStrang = async (strangId: string) => {
+    if (!strangZuordnenSzene) return
+    const szeneId = String(strangZuordnenSzene.id)
+    const isAssigned = szeneAssignedIds.has(strangId)
+    // Optimistic update
+    setSzeneAssignedIds(prev => {
+      const n = new Set(prev)
+      isAssigned ? n.delete(strangId) : n.add(strangId)
+      return n
+    })
+    try {
+      if (isAssigned) {
+        await api.removeSzeneStrang(szeneId, strangId)
+      } else {
+        await api.addSzeneStrang(szeneId, strangId)
+      }
+      if (werkstufId) api.getWerkstufeStraenge(werkstufId).then(setWerkstufeStraenge).catch(() => {})
+    } catch {
+      // Rollback on error
+      setSzeneAssignedIds(prev => {
+        const n = new Set(prev)
+        isAssigned ? n.add(strangId) : n.delete(strangId)
+        return n
+      })
+    }
   }
 
   const clearSelection = useCallback(() => {
@@ -1066,6 +1109,9 @@ export default function SceneList({
                       ))}
                       <button className="scene-ctx-item" onClick={e => handleInsertAfter(e, scene.id, 'notiz')} disabled={creating}>Dokument</button>
                       <CategoryDivider label="Verwalten" />
+                      <button className="scene-ctx-item" onClick={() => openStrangZuordnen(scene)}>
+                        Strang zuordnen
+                      </button>
                       <button className="scene-ctx-item" onClick={async e => {
                         e.stopPropagation()
                         setMenuOpenId(null)
@@ -1542,6 +1588,69 @@ export default function SceneList({
             }))
           }}
         />
+      )}
+
+      {/* ── Strang-Zuordnen Modal ── */}
+      {strangZuordnenSzene && createPortal(
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 10001, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+          onClick={() => setStrangZuordnenSzene(null)}
+        >
+          <div
+            style={{ background: 'var(--bg-surface)', borderRadius: 12, width: '100%', maxWidth: 340, boxShadow: '0 8px 32px rgba(0,0,0,0.3)', border: '1px solid var(--border)', overflow: 'hidden' }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '13px 16px', borderBottom: '1px solid var(--border)' }}>
+              <span style={{ fontWeight: 700, fontSize: 14 }}>
+                Strang zuordnen{strangZuordnenSzene.nr != null ? ` — Szene ${strangZuordnenSzene.nr}` : ''}
+              </span>
+              <button
+                onClick={() => setStrangZuordnenSzene(null)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 4, display: 'flex', borderRadius: 6, minWidth: 28, minHeight: 28, alignItems: 'center', justifyContent: 'center' }}
+              >
+                <X size={14} />
+              </button>
+            </div>
+            <div style={{ maxHeight: 360, overflowY: 'auto' }}>
+              {szeneStrangLoading ? (
+                <div style={{ padding: '20px 16px', fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>Lade…</div>
+              ) : straenge.filter(s => s.status === 'aktiv').length === 0 ? (
+                <div style={{ padding: '20px 16px', fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>Keine aktiven Stränge vorhanden.</div>
+              ) : (
+                straenge.filter(s => s.status === 'aktiv').map(s => {
+                  const checked = szeneAssignedIds.has(String(s.id))
+                  return (
+                    <button
+                      key={s.id}
+                      onClick={() => toggleStrang(String(s.id))}
+                      style={{
+                        width: '100%', display: 'flex', alignItems: 'center', gap: 10,
+                        padding: '9px 16px',
+                        background: checked ? 'rgba(0,122,255,0.06)' : 'transparent',
+                        border: 'none', borderBottom: '1px solid var(--border-subtle, var(--border))',
+                        cursor: 'pointer', textAlign: 'left', color: 'var(--text-primary)',
+                        fontFamily: 'inherit', fontSize: 13, minHeight: 44,
+                      }}
+                    >
+                      <span style={{
+                        width: 16, height: 16, borderRadius: 4,
+                        border: `1.5px solid ${checked ? '#007AFF' : 'var(--border)'}`,
+                        background: checked ? '#007AFF' : 'transparent', flexShrink: 0,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}>
+                        {checked && <span style={{ width: 8, height: 5, borderLeft: '1.5px solid #fff', borderBottom: '1.5px solid #fff', transform: 'rotate(-45deg) translate(1px,-1px)', display: 'block' }} />}
+                      </span>
+                      <span style={{ width: 10, height: 10, borderRadius: '50%', background: s.farbe ?? '#999', flexShrink: 0 }} />
+                      <span style={{ flex: 1 }}>{s.name}</span>
+                      {s.label && <span style={{ fontSize: 10, color: 'var(--text-muted)', flexShrink: 0 }}>{s.label}</span>}
+                    </button>
+                  )
+                })
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   )
