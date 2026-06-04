@@ -5,6 +5,12 @@ import 'driver.js/dist/driver.css'
 // ── Persistenz-Keys ───────────────────────────────────────────────────────
 const LS_KEY = 'serienwerft_tour_completed'
 
+// ── Dynamische Konfiguration (wird von App.tsx gesetzt) ───────────────────
+let _treatmentLabel = 'Treatment'
+export function setTreatmentLabel(label: string) {
+  if (label) _treatmentLabel = label
+}
+
 // ── findButton-Hilfsfunktion (spec-konform) ───────────────────────────────
 function findButton(opts: {
   text?: string
@@ -55,7 +61,7 @@ export function markTourCompleted() {
   }).catch(() => {/* localStorage-Fallback genügt */})
 }
 
-// ── 13 Guide-Schritte ─────────────────────────────────────────────────────
+// ── 15 Guide-Schritte ─────────────────────────────────────────────────────
 function buildSteps() {
   return [
     // 1 — Willkommen
@@ -83,7 +89,7 @@ function buildSteps() {
       element: 'input[placeholder="Szene suchen…"]',
       popover: {
         title: '🎬 Szenenübersicht',
-        description: 'In der linken Sidebar siehst du alle Szenen der Folge. Nutze die Suche, um schnell zu einer bestimmten Szene zu springen. Ein Klick auf eine Szene öffnet sie im Editor.',
+        description: 'In der linken Sidebar siehst du alle Szenen der Folge. Nutze die Suche, um schnell zur richtigen Szene zu springen. Szenen lassen sich per <strong>Drag &amp; Drop</strong> umsortieren. Rechtsklick auf eine Szene öffnet Schnellaktionen (Einfügen, Kopieren, Löschen). Über den <strong>⚙ Aktionen</strong>-Button lassen sich Szenenleiste und Ansicht neu konfigurieren.',
         side: 'right' as const,
         align: 'start' as const,
       },
@@ -93,17 +99,17 @@ function buildSteps() {
       element: '[title="Aktionen"]',
       popover: {
         title: '⚙️ Aktionen',
-        description: 'Hier findest du erweiterte Funktionen: Suchen &amp; Ersetzen im gesamten Dokument, Strang-Zuordnung, Platzhalter, Story-Radar und die Neunummerierung von Szenen.',
+        description: 'Erweiterte Funktionen für die aktuelle Folge: <strong>Suchen &amp; Ersetzen</strong> im gesamten Dokument, <strong>Stränge verwalten</strong>, Platzhalter-Szenen anlegen, Story-Radar und Neu nummerieren.',
         side: 'bottom' as const,
         align: 'start' as const,
       },
     },
-    // 5 — Szenen-Metadaten
+    // 5 — Scene-Editor / Szenenkopf
     {
       element: '.detail-head',
       popover: {
-        title: '📋 Szenen-Metadaten',
-        description: 'Jede Szene hat einen Kopfbereich mit Ort, Tageszeit und Strang. Diese Informationen sind die Basis für spätere Auswertungen und den Drehplan — also sorgfältig ausfüllen!',
+        title: '📋 Scene-Editor',
+        description: `Jede Szene hat einen <strong>Szenenkopf</strong> mit Motivname, INT/EXT, Tageszeit, Zusammenfassung und beteiligten Rollen — ein Klick zum Bearbeiten. Darunter der Schreibbereich mit zwei Tabs: <strong>${_treatmentLabel}</strong> (freier Text) und <strong>Drehbuch</strong> (formatiertes Skript). Beide Tabs lassen sich nebeneinander öffnen.`,
         side: 'bottom' as const,
         align: 'start' as const,
       },
@@ -112,8 +118,8 @@ function buildSteps() {
     {
       element: () => findButton({ text: 'Drehbuch' }),
       popover: {
-        title: '📄 Fassungen erstellen',
-        description: 'Jede Szene kann mehrere Fassungen haben. Klicke hier, um zwischen Fassungen zu wechseln oder eine neue Fassung zu erstellen. So bleibt die Entwicklung deines Textes nachvollziehbar.',
+        title: '📄 Fassungen',
+        description: 'Fassungen gelten immer für die <strong>gesamte Folge</strong>, nicht für einzelne Szenen. Klicke hier, um zwischen Fassungen zu wechseln oder eine neue zu erstellen — so bleibt die Textentwicklung von der ersten Idee bis zur Endfassung nachvollziehbar.',
         side: 'bottom' as const,
         align: 'start' as const,
       },
@@ -123,7 +129,7 @@ function buildSteps() {
       element: '[title="Fassungs-Label zuweisen"]',
       popover: {
         title: '🏷️ Fassungs-Labels',
-        description: 'Labels wie „Autorenfassung", „Edit 1" oder „Endfassung" helfen dem Team zu verstehen, in welchem Stadium sich ein Text befindet. Manche Labels (z.B. Drehfassung) sind schreibgeschützt.',
+        description: 'Labels wie „Autorenfassung", „Edit 1" oder „Endfassung" zeigen, in welchem Arbeitsschritt sich ein Text befindet. Manche Labels (z.B. Drehfassung) sind schreibgeschützt. Verfügbare Labels werden im Bereich <strong>Drehbuchkoordination</strong> konfiguriert.',
         side: 'bottom' as const,
         align: 'start' as const,
       },
@@ -133,17 +139,17 @@ function buildSteps() {
       element: () => findButton({ svgClassContains: 'lucide-clock' }),
       popover: {
         title: '🕐 Autospeichern &amp; Verlauf',
-        description: 'Die App speichert deinen Text automatisch. Im Verlauf siehst du alle gespeicherten Versionen — automatische (grau) und manuelle (orange). Du kannst jederzeit zu einer früheren Version zurückkehren.',
+        description: 'Die App speichert automatisch. <strong>Strg+Z</strong> macht die letzten Tipp-Schritte rückgängig. Der Verlauf zeigt alle <strong>Szenen-Snapshots</strong> — automatische (grau) und manuelle (blau) — sowie die Option, die gesamte <strong>Folge wiederherzustellen</strong>.',
         side: 'left' as const,
         align: 'start' as const,
       },
     },
-    // 9 — Drehbuch-Elemente
+    // 9 — Absatzformatierungen
     {
       element: () => findButton({ text: 'TXT' }),
       popover: {
-        title: '✍️ Drehbuch-Elemente',
-        description: 'Die Formatleiste gibt dir schnellen Zugriff auf alle Absatztypen: TXT (Text), ANM (Anmerkung), DIA (Dialog), REG (Regieanweisung) und mehr. Shortcuts: Alt+1 bis Alt+0.',
+        title: '✍️ Absatzformatierungen',
+        description: 'Die Formatleiste gibt schnellen Zugriff auf alle Absatztypen: <strong>TXT</strong> (Szenenüberschrift), <strong>ACTI</strong> (Action), <strong>CHAR</strong> (Character), <strong>DIAL</strong> (Dialogue), <strong>PAR</strong> (Parenthetical), <strong>TRAN</strong> (Transition), <strong>SHOT</strong> (Shot). Tastenkürzel: <kbd>Alt+1</kbd> bis <kbd>Alt+7</kbd>.',
         side: 'top' as const,
         align: 'start' as const,
       },
@@ -170,7 +176,7 @@ function buildSteps() {
       },
       popover: {
         title: '👥 Sichtbarkeit der Fassung',
-        description: 'Hier steuerst du, wer deine Fassung sehen kann:<br><br>🔒 <strong>Privat</strong> — nur du<br>👤 <strong>Alle Autoren</strong> — alle Autoren der Produktion<br>🌐 <strong>Gesamte Produktion</strong> — alle Mitglieder inkl. Produktion<br>👥 <strong>Team / Colab</strong> — ausgewählte Gruppen<br><br>Tipp: Neue Fassungen sind standardmäßig Privat — erst wenn du fertig bist, auf „Alle Autoren" stellen.',
+        description: 'Hier steuerst du, wer deine Fassung sehen kann:<br><br>🔒 <strong>Privat</strong> — nur du<br>👤 <strong>Alle Autoren</strong> — alle Autoren der Produktion<br>🌐 <strong>Gesamte Produktion</strong> — alle Mitglieder<br>👥 <strong>Team</strong> — eine selbst angelegte Gruppe (Mitglieder im Team-Work-Menü einsehbar)<br><br>Tipp: Neue Fassungen sind standardmäßig <em>Privat</em> — erst freigeben, wenn du fertig bist.',
         side: 'bottom' as const,
         align: 'end' as const,
       },
@@ -180,18 +186,38 @@ function buildSteps() {
       element: () => document.querySelector('select') ?? undefined,
       popover: {
         title: '📐 Szenen-Format',
-        description: 'Das Format bestimmt Editor-Typ und verfügbare Absatzformate:<br><br>📄 <strong>Drehbuch</strong> — klassisches Format mit allen Drehbuch-Elementen<br>📊 <strong>Storyline</strong> — vereinfachtes Format für Handlungsbögen<br>📝 <strong>Notiz</strong> — freies Textformat für Anmerkungen<br><br>⚠️ Das Format kann geändert werden, aber Absatzformate werden dabei umgewandelt.',
+        description: 'Das Format bestimmt den Editor-Typ:<br><br>📄 <strong>Drehbuch</strong> — klassisches Skriptformat mit allen Absatztypen<br>📝 <strong>Notiz</strong> (= Dokument) — freier Fließtext für Anmerkungen<br><br>💡 Über <strong>Fassungs-Vorlagen</strong> in der Drehbuchkoordination lassen sich Kopf-/Fußzeilen und Seitenformat für den PDF-Export konfigurieren.',
         side: 'bottom' as const,
         align: 'end' as const,
       },
     },
-    // C — Ansichts-Einstellungen (via Avatar-Button)
+    // C — Ansichts-Einstellungen (via Avatar-Button → Ansicht)
     {
       element: 'button.avatar',
       popover: {
         title: '🎨 Ansichts-Einstellungen',
-        description: 'Hier passt du die Oberfläche persönlich an (erreichbar über Avatar-Menü → „Ansicht"):<br><br>🌓 <strong>Theme</strong> — Hell / Dunkel<br>🎨 <strong>Hintergrundfarbe</strong> — 12 Farben oder individueller Farbton<br>📐 <strong>Panelmodus</strong> — Anzahl sichtbarer Panels<br>🔢 <strong>Zeilennummern</strong> — ein/aus<br>🔤 <strong>Schriftarten &amp; -größen</strong> — Interface und Drehbuch-Text separat<br><br>Diese Einstellungen sind persönlich und gelten nur für dich.',
+        description: 'Über <strong>Avatar → Ansicht</strong> (oder <kbd>Alt+A</kbd>) erreichst du alle persönlichen Darstellungsoptionen:<br><br>🌓 <strong>Theme</strong> — Hell / Dunkel<br>🎨 <strong>Hintergrundfarbe</strong> — Farbpalette oder eigener Ton<br>📐 <strong>Panelmodus</strong> — Dual-View oder Einzelansicht<br>🔢 <strong>Zeilen- &amp; Repliken-Nummern</strong><br>🔤 <strong>Schriftarten &amp; -größen</strong><br>✓ <strong>Rechtschreibung &amp; Autokorrektur</strong><br><br>Diese Einstellungen sind persönlich und gelten nur für dich.',
         side: 'left' as const,
+        align: 'start' as const,
+      },
+    },
+    // D — Benutzer-Menü (Avatar)
+    {
+      element: 'button.avatar',
+      popover: {
+        title: '👤 Dein Benutzer-Menü',
+        description: 'Ein Klick auf den Avatar öffnet dein persönliches Menü:<br><br>👁 <strong>Ansicht</strong> — persönliche Darstellungsoptionen<br>📶 <strong>Offline-Modus</strong> — Datensicherung &amp; ausstehende Änderungen<br>📖 <strong>Handbuch</strong> — diese Hilfe-Seite<br>✨ <strong>Wünsche</strong> — Feedback &amp; Feature-Requests<br>🌙 <strong>Theme wechseln</strong><br>📲 <strong>App installieren / deinstallieren</strong><br>🚪 <strong>Ausloggen</strong>',
+        side: 'left' as const,
+        align: 'start' as const,
+      },
+    },
+    // E — Script-Menü (App-Navigation)
+    {
+      element: 'button.brand-label-btn',
+      popover: {
+        title: '📂 Script-Menü',
+        description: 'Ein Klick auf <strong>script</strong> oben links öffnet die App-Navigation:<br><br>📋 Episoden · Rollen · Komparsen · Motive<br>📊 Statistik · Besetzungsmatrix<br>📤 Export (PDF, Fountain, FDX)<br>📂 Freie Dokumente · NT-Liste · Beziehungsbaum<br><br>Admins sehen zusätzlich die <strong>Drehbuchkoordination</strong>.',
+        side: 'bottom' as const,
         align: 'start' as const,
       },
     },
@@ -229,9 +255,6 @@ export function startGuide(ignoreCompleted = false) {
   })
 
   driverObj.drive()
-  if (!ignoreCompleted) {
-    markTourCompleted()
-  }
 }
 
 // ── Auto-Start beim ersten Login ───────────────────────────────────────────

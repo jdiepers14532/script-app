@@ -42,7 +42,7 @@ import {
 import { setEnvColors, setEnvColorsDark, resetEnvColors } from './data/scenes'
 import { TerminologieProvider, TERM_DEFAULTS, OfflineQueueProvider } from './sw-ui'
 import type { TerminologieConfig } from './sw-ui'
-import { checkAndStartTour } from './utils/onboardingGuide'
+import { checkAndStartTour, setTreatmentLabel as setTourTreatmentLabel } from './utils/onboardingGuide'
 
 export default function App() {
   const { focus, toggle, hoverOpen, setHoverOpen, toolbarOpen, setToolbarOpen, toolbarPos, setToolbarPos, toolbarOpenedVia, setToolbarOpenedVia } = useFocusMode()
@@ -90,7 +90,7 @@ export default function App() {
       fetch(url, { credentials: 'include' })
         .then(r => r.ok ? r.json() : null)
         .then((data: any) => {
-          if (data?.treatment_label) setTreatmentLabel(data.treatment_label)
+          if (data?.treatment_label) { setTreatmentLabel(data.treatment_label); setTourTreatmentLabel(data.treatment_label) }
           if (data?.figuren_label) setFigurenLabel(data.figuren_label)
           if (data?.scene_kuerzel) {
             try { setSceneKuerzel({ ...DEFAULT_KUERZEL, ...JSON.parse(data.scene_kuerzel) }) } catch {}
