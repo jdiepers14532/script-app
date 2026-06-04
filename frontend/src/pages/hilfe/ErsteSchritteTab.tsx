@@ -4,6 +4,25 @@ import { startGuide } from '../../utils/onboardingGuide'
 
 function ErsteSchritteTab() {
   const navigate = useNavigate()
+
+  function handleStartTour() {
+    // Zur Hauptseite navigieren, dann Tour starten sobald Editor-Elemente vorhanden
+    navigate('/')
+    let attempts = 0
+    const tryStart = () => {
+      attempts++
+      const ready = !!(
+        document.querySelector('header.topbar') &&
+        document.querySelector('.tiptap, .detail-head')
+      )
+      if (ready) {
+        startGuide(true) // ignoreCompleted=true: Tour immer starten
+      } else if (attempts < 20) {
+        setTimeout(tryStart, 500)
+      }
+    }
+    setTimeout(tryStart, 400)
+  }
   const Step = ({ num, title, children }: { num: number; title: string; children: React.ReactNode }) => (
     <div style={{
       display: 'flex', gap: 20, marginBottom: 28,
@@ -58,22 +77,7 @@ function ErsteSchritteTab() {
         </div>
         <div style={{ marginTop: 20, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
           <button
-            onClick={() => {
-              // Zuerst zur Startseite navigieren, damit der Editor geladen wird
-              navigate('/')
-              // Tour erst starten wenn der Editor im DOM ist (max. 5s warten)
-              let attempts = 0
-              const tryStart = () => {
-                attempts++
-                const editorReady = !!(document.querySelector('header') && document.querySelector('button'))
-                if (editorReady) {
-                  startGuide()
-                } else if (attempts < 10) {
-                  setTimeout(tryStart, 500)
-                }
-              }
-              setTimeout(tryStart, 400)
-            }}
+            onClick={handleStartTour}
             style={{
               display: 'inline-flex', alignItems: 'center', gap: 8,
               background: C.blue, color: '#fff',
