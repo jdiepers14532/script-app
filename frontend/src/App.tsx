@@ -42,6 +42,7 @@ import {
 import { setEnvColors, setEnvColorsDark, resetEnvColors } from './data/scenes'
 import { TerminologieProvider, TERM_DEFAULTS, OfflineQueueProvider } from './sw-ui'
 import type { TerminologieConfig } from './sw-ui'
+import { checkAndStartGuide } from './utils/onboardingGuide'
 
 export default function App() {
   const { focus, toggle, hoverOpen, setHoverOpen, toolbarOpen, setToolbarOpen, toolbarPos, setToolbarPos, toolbarOpenedVia, setToolbarOpenedVia } = useFocusMode()
@@ -179,6 +180,11 @@ export default function App() {
       window.removeEventListener('app-settings-changed', loadSettings)
       window.removeEventListener('stimmungen-changed', onStimmungenChanged)
     }
+  }, [])
+
+  // Onboarding-Guide beim ersten Login automatisch starten
+  useEffect(() => {
+    checkAndStartGuide()
   }, [])
 
   return (

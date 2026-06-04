@@ -1,6 +1,9 @@
+import { useNavigate } from 'react-router-dom'
 import { C, Section, InfoBox, WarnBox } from './_shared'
+import { startGuide } from '../../utils/onboardingGuide'
 
 function ErsteSchritteTab() {
+  const navigate = useNavigate()
   const Step = ({ num, title, children }: { num: number; title: string; children: React.ReactNode }) => (
     <div style={{
       display: 'flex', gap: 20, marginBottom: 28,
@@ -53,6 +56,28 @@ function ErsteSchritteTab() {
           Die Script-App ist das zentrale Werkzeug für Autorinnen und Autoren von Rote Rosen —
           vom ersten Storyline-Entwurf bis zur abgegebenen Produktionsfassung.
           Diese Seite zeigt, wie man in wenigen Schritten startet.
+        </div>
+        <div style={{ marginTop: 20, display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+          <button
+            onClick={() => {
+              navigate('/')
+              setTimeout(() => startGuide(), 600)
+            }}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              background: C.blue, color: '#fff',
+              border: 'none', borderRadius: 8,
+              padding: '10px 20px', fontSize: 13, fontWeight: 600,
+              cursor: 'pointer', transition: 'opacity 0.15s',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
+            onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
+          >
+            Interaktive Tour starten (ca. 10 Min.)
+          </button>
+          <span style={{ fontSize: 11, color: C.muted }}>
+            Zeigt dir alle wichtigen Bedienelemente direkt im Editor
+          </span>
         </div>
       </div>
 
