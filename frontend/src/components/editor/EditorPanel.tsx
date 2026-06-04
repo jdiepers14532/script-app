@@ -86,6 +86,8 @@ export default function EditorPanel({
   const intentCheckRef = useRef<{ risiko: string; faktoren: any[] } | null>(null)
   const ueberschreibWarnungOpenRef = useRef(false)
   const editIntentConfirmedRef = useRef<Set<string>>(new Set())
+  // Ref auf scheduleSave — vermeidet TDZ, da Handler vor scheduleSave definiert werden
+  const scheduleSaveRef = useRef<((c: any) => void) | null>(null)
 
   // ── Magic-Funktionen ──────────────────────────────────────────────────────
   const [magicOpen, setMagicOpen] = useState(false)
@@ -279,8 +281,8 @@ export default function EditorPanel({
     setUeberschreibWarnungOpen(false)
     const content = pendingSaveContent
     setPendingSaveContent(null)
-    if (content) scheduleSave(content)
-  }, [selectedWerkId, pendingSaveContent, scheduleSave])
+    if (content) scheduleSaveRef.current?.(content)
+  }, [selectedWerkId, pendingSaveContent])
 
   const handleUeberschreibNeuereFassung = useCallback(() => {
     if (selectedWerkId) editIntentConfirmedRef.current.add(selectedWerkId)
@@ -539,6 +541,7 @@ export default function EditorPanel({
       }
     }, 1500)
   }, [selectedSzeneId, useDokumentSzenen, currentSzene, enqueue, scheduleSnapshot, selectedWerkId])
+  scheduleSaveRef.current = scheduleSave
 
   // req-content-flush: SceneEditor fordert sofortigen Content-Save vor dem Leave-Check.
   // Debounce abbrechen, sofort speichern, dann 'editor-content-flushed' feuern.
