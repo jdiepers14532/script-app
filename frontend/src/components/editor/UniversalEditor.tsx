@@ -833,7 +833,7 @@ export default function UniversalEditor({
   }, [processedContent, hasAbsatzFormate, kategorie])
 
   useEffect(() => {
-    editor?.setEditable(!readOnly)
+    editor?.setEditable(!readOnly, false) // false = kein update-Event — verhindert spuriösen onUpdate/scheduleSave-Aufruf beim Editor-Mount
   }, [editor, readOnly])
 
   // Expose editor instance to parent via editorRef (for template apply, snapshot, etc.)
