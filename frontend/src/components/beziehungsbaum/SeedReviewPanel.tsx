@@ -185,13 +185,25 @@ export default function SeedReviewPanel({
                 {k.roh_ziel_name}
               </div>
 
-              {/* Typ + Staffel-Hinweis */}
+              {/* Typ + Rolle + Staffel-Hinweis + Methode */}
               <div style={{ fontSize: 11, color: '#757575', marginBottom: 6 }}>
                 {k.typ_key
                   ? beziehungstypen.find(t => t.key === k.typ_key)?.label ?? k.typ_key
                   : '— kein Typ —'}
+                {k.rolle && (
+                  <span style={{
+                    marginLeft: 6, background: '#F0F0F0', borderRadius: 3,
+                    padding: '1px 5px', color: '#333',
+                  }}>
+                    {k.rolle}
+                  </span>
+                )}
                 {k.staffel_hinweis != null && ` · Staffel ${k.staffel_hinweis}`}
-                {k.ki_konfidenz != null && ` · KI: ${Math.round(k.ki_konfidenz * 100)}%`}
+                {k.methode === 'llm'
+                  ? k.ki_konfidenz != null && ` · KI: ${Math.round(k.ki_konfidenz * 100)}%`
+                  : k.methode === 'fliesstext'
+                    ? ' · Fließtext'
+                    : null}
               </div>
 
               {/* Zitat */}

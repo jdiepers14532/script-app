@@ -256,6 +256,13 @@ def _parse_beziehungen_section(figur_name: str, wikitext: str) -> list[dict]:
         if typ_key is None:
             typ_key = current_subsection_typ or 'bekanntschaft'
 
+        # Rolle: Text nach dem ersten Komma, bereinigt
+        rolle = ''
+        if ',' in item:
+            rolle_raw = strip_wiki_markup(item.split(',', 1)[1]).strip()
+            # Klammerzusätze entfernen, auf ersten Teil kürzen
+            rolle = rolle_raw.split('(')[0].strip()[:60]
+
         results.append({
             'roh_quelle_name': figur_name,
             'roh_ziel_name':   ziel_name,
@@ -264,6 +271,8 @@ def _parse_beziehungen_section(figur_name: str, wikitext: str) -> list[dict]:
             'evidenz_zitat':   strip_wiki_markup(item)[:80],
             'ki_konfidenz':    0.80,
             'ziel_verstorben': ziel_verstorben,
+            'rolle':           rolle,
+            'methode':         'regel_parser',
         })
     return results
 
@@ -344,6 +353,8 @@ def _parse_body_text(figur_name: str, wikitext: str) -> list[dict]:
                     'evidenz_zitat':   zitat,
                     'ki_konfidenz':    0.70,
                     'ziel_verstorben': ziel_verstorben,
+                    'rolle':           '',
+                    'methode':         'fliesstext',
                 })
                 break  # one name per pattern match
     return results
@@ -426,6 +437,8 @@ def parse_infobox_relationships(figur_name: str, wikitext: str) -> list[dict]:
                         'evidenz_zitat':   f'Beziehungsstatus: {val[:80]}',
                         'ki_konfidenz':    0.80,
                         'ziel_verstorben': ziel_verstorben,
+                        'rolle':           '',
+                        'methode':         'regel_parser',
                     })
 
     # For real wiki pages: also parse ==Beziehungen== section and body text
@@ -526,6 +539,8 @@ def extract_with_mistral(figur_name: str, wikitext: str) -> list[dict]:
                 'staffel_hinweis': item.get('staffel_hinweis'),
                 'evidenz_zitat':   str(item.get('evidenz_zitat', ''))[:200],
                 'ki_konfidenz':    0.60,
+                'rolle':           '',
+                'methode':         'llm',
             })
         return result
 

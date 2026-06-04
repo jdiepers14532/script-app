@@ -346,12 +346,13 @@ beziehungenRouter.get('/staffeln', requireBeziehungenAccess('lesen'), async (req
   if (!reihen_id) return res.status(400).json({ error: 'reihen_id ist erforderlich' })
   try {
     // (a) Staffeln aus Produktions-DB (mit id + title)
+    //     is_active-Filter absichtlich weggelassen — historische Staffeln (is_active=false)
+    //     sind für den Beziehungsbaum genauso relevant wie aktive.
     const prodRows: any[] = await prodQuery(`
       SELECT id, title, staffelnummer
       FROM productions
       WHERE reihen_id = $1
         AND staffelnummer IS NOT NULL
-        AND is_active = TRUE
       ORDER BY staffelnummer
     `, [reihen_id])
 
@@ -624,9 +625,11 @@ beziehungenRouter.post('/seed/import', requireBeziehungenAccess('schreiben'), as
           roh_quelle_name, roh_ziel_name,
           match_quelle_id, match_ziel_id, match_konfidenz,
           typ_key, staffel_hinweis, gueltig_ab_staffel, gueltig_bis_staffel,
-          evidenz_zitat, ki_konfidenz, status, ziel_verstorben
+          evidenz_zitat, ki_konfidenz, status, ziel_verstorben,
+          rolle, methode
         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,
-                  COALESCE($15,'neu'), COALESCE($16, false))
+                  COALESCE($15,'neu'), COALESCE($16, false),
+                  COALESCE($17,''), COALESCE($18,'regel_parser'))
         RETURNING *
       `, [
         batch_id,
@@ -645,6 +648,8 @@ beziehungenRouter.post('/seed/import', requireBeziehungenAccess('schreiben'), as
         k.ki_konfidenz ?? null,
         k.status ?? null,
         k.ziel_verstorben ?? null,
+        k.rolle ?? null,
+        k.methode ?? null,
       ])
       inserted.push(row.rows[0])
     }
@@ -759,24 +764,27 @@ beziehungenRouter.post('/seed/:id/freigeben', requireBeziehungenAccess('schreibe
 
     // Kante in charakter_beziehungen schreiben
     const bisVal = gueltig_bis_staffel ?? null
+    const rolleVal = (kandidat.rolle ?? '').trim() || null  // rolle → label; leer → NULL
     const edgeRow = await client.query(`
       INSERT INTO charakter_beziehungen
         (reihen_id, character_id, related_character_id, beziehungstyp,
          gueltig_ab_staffel, gueltig_bis_staffel,
-         status, herkunft, quell_url, quell_abruf_am)
-      VALUES ($1,$2,$3,$4,$5,$6,'aktiv','wiki_seed',$7,$8)
+         status, herkunft, quell_url, quell_abruf_am, label)
+      VALUES ($1,$2,$3,$4,$5,$6,'aktiv','wiki_seed',$7,$8,$9)
       ON CONFLICT (character_id, related_character_id, beziehungstyp, gueltig_ab_staffel)
         DO UPDATE SET
           reihen_id = EXCLUDED.reihen_id,
           gueltig_bis_staffel = EXCLUDED.gueltig_bis_staffel,
           herkunft = EXCLUDED.herkunft,
           quell_url = EXCLUDED.quell_url,
-          quell_abruf_am = EXCLUDED.quell_abruf_am
+          quell_abruf_am = EXCLUDED.quell_abruf_am,
+          label = COALESCE(EXCLUDED.label, charakter_beziehungen.label)
       RETURNING id
     `, [
       reihen_id, quelleId, zielId, kandidat.typ_key,
       gueltig_ab_staffel, bisVal,
       kandidat.quell_url, kandidat.quell_abruf_am,
+      rolleVal,
     ])
 
     // Kandidat auf bestätigt setzen

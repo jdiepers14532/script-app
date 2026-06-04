@@ -75,4 +75,7 @@ export interface SeedKandidat {
   reviewer?: string | null
   reviewed_am?: string | null
   erstellt_am: string
+  rolle?: string | null
+  methode?: 'regel_parser' | 'fliesstext' | 'llm' | null
+  ziel_verstorben?: boolean
 }

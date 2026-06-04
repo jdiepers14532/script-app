@@ -498,6 +498,8 @@ async function runMigrations() {
     'v192_seed_verstorben.sql',
     // Kanten: normalisierter Unique-Index LEAST/GREATEST für symmetrische Typen
     'v193_kante_sym_unique.sql',
+    // Seed: rolle (Rollenbez. → label beim Promote) + methode (regel_parser|fliesstext|llm)
+    'v194_seed_rolle_methode.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
