@@ -115,6 +115,45 @@ def _is_person_name(name: str) -> bool:
         and not name.startswith('Kategorie') and not re.match(r'^\d', name)
 
 
+def extract_debut_staffel(wikitext: str) -> Optional[int]:
+    """Extract the earliest/debut season number from wiki categories or Charakter template.
+
+    Looks for:
+      - [[Kategorie:Charaktere Staffel 21]] (or similar category link patterns)
+      - | Staffel = 21– / | Staffeln = 21–24  (template parameter)
+    Returns the minimum (debut) staffel found, or None.
+    """
+    staffeln: list[int] = []
+
+    # 1. Category links: [[Kategorie:...<Staffel|staffel> <N>...]]
+    for m in re.finditer(r'\[\[Kategorie:[^\]]*[Ss]taffel[_ ](\d+)', wikitext):
+        try:
+            staffeln.append(int(m.group(1)))
+        except ValueError:
+            pass
+
+    # 2. Template field: | Staffel = 21– or | Staffeln = 21–24
+    for m in re.finditer(r'\|\s*[Ss]taffeln?\s*=\s*([^\n|{}]+)', wikitext):
+        raw = m.group(1).strip()
+        num_m = re.search(r'(\d+)', raw)
+        if num_m:
+            try:
+                staffeln.append(int(num_m.group(1)))
+            except ValueError:
+                pass
+
+    return min(staffeln) if staffeln else None
+
+
+# Rollen die einen Elternteil beschreiben (Ziel = Elternteil des Subjekts → Richtung umkehren)
+_ELTERN_ROLLEN: frozenset[str] = frozenset({
+    'vater', 'mutter', 'papa', 'mama',
+    'adoptivvater', 'adoptivmutter',
+    'stiefvater', 'stiefmutter',
+    'pflegevater', 'pflegemutter',
+})
+
+
 def extract_wikilinks_v(text: str) -> list[tuple[str, bool]]:
     """Extract (clean_name, verstorben) from [[Target|Display]] and [[Target]] links.
     verstorben=True when † appears in either the target or the display text."""
@@ -192,7 +231,9 @@ _ROLLE_TYP: dict[str, str] = {
 }
 
 
-def _parse_beziehungen_section(figur_name: str, wikitext: str) -> list[dict]:
+def _parse_beziehungen_section(
+    figur_name: str, wikitext: str, debut_staffel: Optional[int] = None
+) -> list[dict]:
     """Parse the ==Beziehungen== section bullet list."""
     results: list[dict] = []
     in_section = False
@@ -216,7 +257,13 @@ def _parse_beziehungen_section(figur_name: str, wikitext: str) -> list[dict]:
             header = m.group(1).lower()
             if any(k in header for k in ('liebschaft', 'partner', 'beziehung', 'ehe')):
                 current_subsection_typ = 'liebe'
-            elif any(k in header for k in ('verwandt', 'familie', 'eltern', 'geschwister', 'kinder')):
+            elif 'geschwister' in header:
+                current_subsection_typ = 'familie_geschwister'
+            elif 'eltern' in header:
+                current_subsection_typ = 'familie_eltern_kind'
+            elif 'kinder' in header:
+                current_subsection_typ = 'familie_eltern_kind'
+            elif any(k in header for k in ('verwandt', 'familie')):
                 current_subsection_typ = 'familie_sonstige'
             elif any(k in header for k in ('freunde', 'freund')):
                 current_subsection_typ = 'freundschaft'
@@ -244,33 +291,42 @@ def _parse_beziehungen_section(figur_name: str, wikitext: str) -> list[dict]:
         if ziel_name.lower() == figur_name.lower():
             continue
 
-        # Determine typ_key from comma-separated role description
-        typ_key: Optional[str] = None
+        # Rolle: Text nach dem ersten Komma, bereinigt (Original-Schreibweise)
+        rolle = ''
         if ',' in item:
-            rolle = strip_wiki_markup(item.split(',', 1)[1]).strip().lower()
-            # Try longest match first
+            rolle_raw = strip_wiki_markup(item.split(',', 1)[1]).strip()
+            rolle = rolle_raw.split('(')[0].strip()[:60]
+
+        # Determine typ_key from rolle (lowercase)
+        typ_key: Optional[str] = None
+        if rolle:
+            rolle_lower = rolle.lower()
             for key in sorted(_ROLLE_TYP.keys(), key=len, reverse=True):
-                if key in rolle:
+                if key in rolle_lower:
                     typ_key = _ROLLE_TYP[key]
                     break
         if typ_key is None:
             typ_key = current_subsection_typ or 'bekanntschaft'
 
-        # Rolle: Text nach dem ersten Komma, bereinigt
-        rolle = ''
-        if ',' in item:
-            rolle_raw = strip_wiki_markup(item.split(',', 1)[1]).strip()
-            # Klammerzusätze entfernen, auf ersten Teil kürzen
-            rolle = rolle_raw.split('(')[0].strip()[:60]
+        # Richtungskorrektur: Eltern-Rollen → Ziel ist Elternteil → quelle/ziel tauschen
+        # "Mo → Hamza, Vater" bedeutet Hamza ist Mos Vater → kanonisch: Hamza → Mo
+        is_elternteil = (typ_key == 'familie_eltern_kind' and
+                         any(er in (rolle.lower() if rolle else '') for er in _ELTERN_ROLLEN))
+        if is_elternteil:
+            quelle_n, ziel_n = ziel_name, figur_name
+            ev_verstorben = False  # figur_name (jetzt ziel) lebt typischerweise
+        else:
+            quelle_n, ziel_n = figur_name, ziel_name
+            ev_verstorben = ziel_verstorben
 
         results.append({
-            'roh_quelle_name': figur_name,
-            'roh_ziel_name':   ziel_name,
+            'roh_quelle_name': quelle_n,
+            'roh_ziel_name':   ziel_n,
             'typ_key':         typ_key,
-            'staffel_hinweis': None,
+            'staffel_hinweis': debut_staffel,
             'evidenz_zitat':   strip_wiki_markup(item)[:80],
             'ki_konfidenz':    0.80,
-            'ziel_verstorben': ziel_verstorben,
+            'ziel_verstorben': ev_verstorben,
             'rolle':           rolle,
             'methode':         'regel_parser',
         })
@@ -278,40 +334,45 @@ def _parse_beziehungen_section(figur_name: str, wikitext: str) -> list[dict]:
 
 
 # ── Body-Text Pattern Extractor ───────────────────────────────────────────────
-# Each tuple: (regex, typ_key)
-_BODY_PATTERNS: list[tuple[str, str]] = [
-    # Familie — Eltern/Kinder
-    (r'(?:ist\s+die?\s+)?(?:Mutter|Mama|Vater|Papa)\s+von\s+', 'familie_eltern_kind'),
-    (r'(?:ist\s+die?\s+)?(?:Tochter|Sohn)\s+von\s+', 'familie_eltern_kind'),
-    # Familie — Geschwister
-    (r'(?:ist\s+die?\s+)?(?:Schwester|Bruder)\s+von\s+', 'familie_geschwister'),
-    # Familie — sonstige Verwandte
-    (r'(?:ist\s+die?\s+)?(?:Großmutter|Oma|Großvater|Opa)\s+von\s+', 'familie_sonstige'),
-    (r'(?:ist\s+die?\s+)?(?:Enkelin|Enkel)\s+von\s+', 'familie_sonstige'),
-    (r'(?:ist\s+die?\s+)?(?:Nichte|Neffe)\s+von\s+', 'familie_sonstige'),
-    (r'(?:ist\s+die?\s+)?(?:Tante|Onkel)\s+von\s+', 'familie_sonstige'),
-    (r'(?:ist\s+die?\s+)?(?:Cousine|Cousin)\s+von\s+', 'familie_sonstige'),
-    (r'(?:ist\s+die?\s+)?(?:Großtante|Großonkel)\s+von\s+', 'familie_sonstige'),
-    (r'(?:ist\s+die?\s+)?(?:Schwiegermutter|Schwiegervater|Schwiegertochter|Schwiegersohn)\s+von\s+', 'familie_sonstige'),
-    # Ehe
-    (r'(?:ist\s+die?\s+)?(?:Ehefrau|Ehemann)\s+von\s+', 'ehe'),
-    (r'verheiratet\s+mit\s+', 'ehe'),
-    # Ex / Witwe
-    (r'(?:ist\s+die?\s+)?(?:Witwe|Witwer|Ex-Ehefrau|Ex-Ehemann|Ex-Frau|Ex-Mann)\s+von\s+', 'ex'),
-    (r'(?:ist\s+die?\s+)?(?:Ex-Verlobte|Ex-Verlobter)\s+von\s+', 'ex'),
-    # Romantik
-    (r'(?:ist\s+die?\s+)?(?:Verlobte|Verlobter)\s+von\s+', 'liebe'),
-    # Freundschaft (explizit "beste")
-    (r'(?:ist\s+die?\s+)?(?:beste\s+Freundin|bester\s+Freund|Schulfreundin|Schulfreund)\s+von\s+', 'freundschaft'),
-    # Beruflich
-    (r'(?:ist\s+die?\s+)?(?:Kollegin|Kollege|Vorgesetzte|Vorgesetzter)\s+von\s+', 'beruflich'),
+# Each tuple: (regex, typ_key, swap)
+# swap=True: der gefundene Name ist der Elternteil, figur_name das Kind → quelle/ziel tauschen
+# Beispiel: "Dilay ist die Tochter von [[Mo Kilic]]" → swap → quelle=Mo, ziel=Dilay
+_BODY_PATTERNS: list[tuple[str, str, bool]] = [
+    # Familie — Eltern/Kinder: figur ist Elternteil → kein Swap
+    (r'(?:ist\s+die?\s+)?(?:Mutter|Mama|Vater|Papa)\s+von\s+', 'familie_eltern_kind', False),
+    # Familie — Eltern/Kinder: figur ist Kind → Swap (gefundener Name = Elternteil)
+    (r'(?:ist\s+die?\s+)?(?:Tochter|Sohn)\s+von\s+', 'familie_eltern_kind', True),
+    # Familie — Geschwister (symmetrisch, swap irrelevant)
+    (r'(?:ist\s+die?\s+)?(?:Schwester|Bruder)\s+von\s+', 'familie_geschwister', False),
+    # Familie — sonstige Verwandte (symmetrisch, swap irrelevant)
+    (r'(?:ist\s+die?\s+)?(?:Großmutter|Oma|Großvater|Opa)\s+von\s+', 'familie_sonstige', False),
+    (r'(?:ist\s+die?\s+)?(?:Enkelin|Enkel)\s+von\s+', 'familie_sonstige', False),
+    (r'(?:ist\s+die?\s+)?(?:Nichte|Neffe)\s+von\s+', 'familie_sonstige', False),
+    (r'(?:ist\s+die?\s+)?(?:Tante|Onkel)\s+von\s+', 'familie_sonstige', False),
+    (r'(?:ist\s+die?\s+)?(?:Cousine|Cousin)\s+von\s+', 'familie_sonstige', False),
+    (r'(?:ist\s+die?\s+)?(?:Großtante|Großonkel)\s+von\s+', 'familie_sonstige', False),
+    (r'(?:ist\s+die?\s+)?(?:Schwiegermutter|Schwiegervater|Schwiegertochter|Schwiegersohn)\s+von\s+', 'familie_sonstige', False),
+    # Ehe (symmetrisch)
+    (r'(?:ist\s+die?\s+)?(?:Ehefrau|Ehemann)\s+von\s+', 'ehe', False),
+    (r'verheiratet\s+mit\s+', 'ehe', False),
+    # Ex / Witwe (symmetrisch)
+    (r'(?:ist\s+die?\s+)?(?:Witwe|Witwer|Ex-Ehefrau|Ex-Ehemann|Ex-Frau|Ex-Mann)\s+von\s+', 'ex', False),
+    (r'(?:ist\s+die?\s+)?(?:Ex-Verlobte|Ex-Verlobter)\s+von\s+', 'ex', False),
+    # Romantik (symmetrisch)
+    (r'(?:ist\s+die?\s+)?(?:Verlobte|Verlobter)\s+von\s+', 'liebe', False),
+    # Freundschaft (symmetrisch)
+    (r'(?:ist\s+die?\s+)?(?:beste\s+Freundin|bester\s+Freund|Schulfreundin|Schulfreund)\s+von\s+', 'freundschaft', False),
+    # Beruflich (symmetrisch)
+    (r'(?:ist\s+die?\s+)?(?:Kollegin|Kollege|Vorgesetzte|Vorgesetzter)\s+von\s+', 'beruflich', False),
     # Konflikt
-    (r'(?:ist\s+die?\s+)?(?:Feindin|Feind|Rivalin|Rivale)\s+von\s+', 'antagonismus'),
+    (r'(?:ist\s+die?\s+)?(?:Feindin|Feind|Rivalin|Rivale)\s+von\s+', 'antagonismus', False),
 ]
 
 
-def _parse_body_text(figur_name: str, wikitext: str) -> list[dict]:
-    """Extract relationships from the first 2 paragraphs of body text."""
+def _parse_body_text(
+    figur_name: str, wikitext: str, debut_staffel: Optional[int] = None
+) -> list[dict]:
+    """Extract relationships from the first 3 paragraphs of body text."""
     results: list[dict] = []
 
     # Strip template blocks, get plain text
@@ -330,7 +391,7 @@ def _parse_body_text(figur_name: str, wikitext: str) -> list[dict]:
     paragraphs = [p.strip() for p in plain.split('\n\n') if p.strip()]
     text = '\n'.join(paragraphs[:3])
 
-    for pattern, typ_key in _BODY_PATTERNS:
+    for pattern, typ_key, swap in _BODY_PATTERNS:
         for m in re.finditer(pattern, text, re.IGNORECASE):
             # Find the next wiki link after the match position within the same text
             after = text[m.start():]
@@ -341,18 +402,25 @@ def _parse_body_text(figur_name: str, wikitext: str) -> list[dict]:
                 if name_m:
                     raw = name_m.group(1).strip()
                     links_v = [(raw.replace('†', '').strip(), '†' in raw)]
-            for ziel, ziel_verstorben in links_v[:3]:
-                if ziel.lower() == figur_name.lower():
+            for gefunden, gefunden_verstorben in links_v[:3]:
+                if gefunden.lower() == figur_name.lower():
                     continue
-                zitat = re.sub(r'\s+', ' ', m.group(0) + ziel)[:80]
+                zitat = re.sub(r'\s+', ' ', m.group(0) + gefunden)[:80]
+                # swap=True: figur_name ist das Kind, gefunden der Elternteil → Richtung umkehren
+                if swap:
+                    quelle_n, ziel_n = gefunden, figur_name
+                    ev_verstorben = False  # figur_name (jetzt ziel) ist typischerweise lebendig
+                else:
+                    quelle_n, ziel_n = figur_name, gefunden
+                    ev_verstorben = gefunden_verstorben
                 results.append({
-                    'roh_quelle_name': figur_name,
-                    'roh_ziel_name':   ziel,
+                    'roh_quelle_name': quelle_n,
+                    'roh_ziel_name':   ziel_n,
                     'typ_key':         typ_key,
-                    'staffel_hinweis': None,
+                    'staffel_hinweis': debut_staffel,
                     'evidenz_zitat':   zitat,
                     'ki_konfidenz':    0.70,
-                    'ziel_verstorben': ziel_verstorben,
+                    'ziel_verstorben': ev_verstorben,
                     'rolle':           '',
                     'methode':         'fliesstext',
                 })
@@ -385,6 +453,11 @@ def parse_infobox_relationships(figur_name: str, wikitext: str) -> list[dict]:
         log.warning(f'mwparserfromhell error: {e}')
         return []
 
+    # Debut-Staffel aus Kategorien / Template-Feldern ableiten
+    debut_staffel = extract_debut_staffel(wikitext)
+    if debut_staffel:
+        log.debug(f'  Debut-Staffel für "{figur_name}": {debut_staffel}')
+
     kandidaten: list[dict] = []
 
     for template in parsed.filter_templates():
@@ -398,22 +471,32 @@ def parse_infobox_relationships(figur_name: str, wikitext: str) -> list[dict]:
             # Legacy: test fixtures with {{Infobox Figur}} — structured fields
             for param in template.params:
                 field = str(param.name).strip()
+                field_lower = field.lower()
                 typ_key = INFOBOX_TYP.get(field)
                 if not typ_key:
                     continue
                 raw_value = str(param.value).strip()
                 if not raw_value:
                     continue
+                # Richtung: Vater/Mutter-Felder → gefundener Name ist Elternteil → tauschen
+                is_eltern_field = field_lower in ('vater', 'mutter')
                 for partner_name in split_names(raw_value):
                     if not partner_name or partner_name.lower() == figur_name.lower():
                         continue
+                    if is_eltern_field:
+                        quelle_n, ziel_n = partner_name, figur_name
+                    else:
+                        quelle_n, ziel_n = figur_name, partner_name
                     kandidaten.append({
-                        'roh_quelle_name': figur_name,
-                        'roh_ziel_name':   partner_name,
+                        'roh_quelle_name': quelle_n,
+                        'roh_ziel_name':   ziel_n,
                         'typ_key':         typ_key,
-                        'staffel_hinweis': None,
+                        'staffel_hinweis': debut_staffel,
                         'evidenz_zitat':   f'Infobox: {field} = {partner_name}',
                         'ki_konfidenz':    0.85,
+                        'ziel_verstorben': False,
+                        'rolle':           '',
+                        'methode':         'regel_parser',
                     })
 
         elif is_charakter:
@@ -433,7 +516,7 @@ def parse_infobox_relationships(figur_name: str, wikitext: str) -> list[dict]:
                         'roh_quelle_name': figur_name,
                         'roh_ziel_name':   ziel,
                         'typ_key':         typ_key,
-                        'staffel_hinweis': None,
+                        'staffel_hinweis': debut_staffel,
                         'evidenz_zitat':   f'Beziehungsstatus: {val[:80]}',
                         'ki_konfidenz':    0.80,
                         'ziel_verstorben': ziel_verstorben,
@@ -443,8 +526,8 @@ def parse_infobox_relationships(figur_name: str, wikitext: str) -> list[dict]:
 
     # For real wiki pages: also parse ==Beziehungen== section and body text
     if _is_charakter_page(wikitext):
-        kandidaten.extend(_parse_beziehungen_section(figur_name, wikitext))
-        kandidaten.extend(_parse_body_text(figur_name, wikitext))
+        kandidaten.extend(_parse_beziehungen_section(figur_name, wikitext, debut_staffel))
+        kandidaten.extend(_parse_body_text(figur_name, wikitext, debut_staffel))
 
     return kandidaten
 
