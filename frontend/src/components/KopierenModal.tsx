@@ -415,7 +415,8 @@ export default function KopierenModal({
         </div>
 
         {/* Scrollbarer Body */}
-        <div style={{ overflowY: 'auto', maxHeight: 'calc(90vh - 220px)', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ overflowY: 'auto', maxHeight: 'calc(90vh - 220px)', padding: '16px 20px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
           {/* Quelle */}
           <div>
@@ -560,7 +561,8 @@ export default function KopierenModal({
             </div>
           )}
 
-        </div>
+        </div>{/* end flex-wrapper */}
+        </div>{/* end scroll-container */}
 
         {/* Footer */}
         <div style={{ padding: '14px 20px', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 10 }}>
