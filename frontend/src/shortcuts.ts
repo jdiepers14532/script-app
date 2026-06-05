@@ -161,16 +161,16 @@ export const SHORTCUT_DEFS: Record<string, ShortcutDef> = {
     label: (_layout, isMac) => `${isMac ? '⌘' : 'Strg'}+Shift+1`,
   },
   bereichKonzept: {
-    codes: ['Digit2'],
+    codes: ['KeyK'],
     ctrlKey: true,
     shiftKey: true,
-    label: (_layout, isMac) => `${isMac ? '⌘' : 'Strg'}+Shift+2`,
+    label: (_layout, isMac) => `${isMac ? '⌘' : 'Strg'}+Shift+K`,
   },
   bereichAnalyse: {
-    codes: ['Digit3'],
+    codes: ['KeyL'],
     ctrlKey: true,
     shiftKey: true,
-    label: (_layout, isMac) => `${isMac ? '⌘' : 'Strg'}+Shift+3`,
+    label: (_layout, isMac) => `${isMac ? '⌘' : 'Strg'}+Shift+L`,
   },
 
   // ── Editor: Cursor Anfang/Ende der Szene ─────────────────────────────────
