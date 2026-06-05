@@ -1527,7 +1527,7 @@ export function parseRoteRosen(rawText: string, ocrMode = false, layout?: BboxLa
     }
     // Add a warning about block import
     warnings.push(
-      `Block-PDF erkannt: ${episodeNrValues.length} Folgen (${episodeNrValues[0]}–${episodeNrValues[episodeNrValues.length - 1]}). Bitte jede Folge einzeln importieren.`
+      `Block-PDF erkannt: ${episodeNrValues.length} Folgen (${episodeNrValues[0]}–${episodeNrValues[episodeNrValues.length - 1]}).`
     )
   }
 

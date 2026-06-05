@@ -323,9 +323,21 @@ export default function ImportPage() {
         pendingAutoEpisode.current = detectedEpisode
       }
 
-      // Block import: auto-select all episodes
+      // Block import: auto-select all episodes + set header to first detected episode
       if (data.episodes && data.episodes.length > 1) {
         setSelectedEpisodes(new Set(data.episodes.map((e: EpisodeSummary) => e.episode_nr)))
+        const firstBlockEp = data.episodes[0].episode_nr
+        if (!detectedEpisode && firstBlockEp) {
+          setEditEpisode(firstBlockEp)
+          pendingAutoEpisode.current = firstBlockEp
+          // Immediate block matching if production already loaded
+          const matchBlock = bloecke.find((b: any) => b.folge_von != null && b.folge_bis != null && firstBlockEp >= b.folge_von && firstBlockEp <= b.folge_bis)
+          if (matchBlock) {
+            setSelectedBlock(matchBlock)
+            setSelectedFolgeNummer(firstBlockEp)
+            pendingAutoEpisode.current = null
+          }
+        }
       }
 
       // Auto-recognize production from staffel
