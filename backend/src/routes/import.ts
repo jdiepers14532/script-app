@@ -1245,6 +1245,53 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       ).catch(() => {})
     }
 
+    // ── Produktionsfassungs-Lock (label-getrieben) ──
+    // Wurde beim Import ein Fassungs-Label mit is_produktionsfassung=TRUE gewählt,
+    // wird die Werkstufe gesperrt — exakt wie über PUT /api/werkstufen/:id: der Editor
+    // ist read-only, Änderungen sind danach nur noch als Revision möglich.
+    // Single Source of Truth ist das Label (nicht der Stage-Type) — der Frontend-Button
+    // „Drehbuch (gelockt)" wählt lediglich dieses Label vor.
+    let produktionsfassungLocked = false
+    if (importLabel) {
+      try {
+        const prodfassung = await queryOne(
+          `SELECT 1 FROM stage_labels
+           WHERE produktion_id = $1 AND name = $2 AND is_produktionsfassung = TRUE LIMIT 1`,
+          [produktion_id, importLabel]
+        )
+        if (prodfassung) {
+          // 1) Status sperren + Replik-Baseline (Snapshot der aktuellen Replik-Zahlen)
+          const scenes = await query(
+            `SELECT id, replik_count FROM dokument_szenen
+             WHERE werkstufe_id = $1 AND geloescht = false
+             ORDER BY sort_order, scene_nummer`,
+            [werkstufeId]
+          )
+          const baseline: { scene_id: string; start: number; count: number }[] = []
+          let cumulative = 0
+          for (const s of scenes) {
+            const count = s.replik_count ?? 0
+            baseline.push({ scene_id: s.id, start: cumulative, count })
+            cumulative += count
+          }
+          await query(
+            `UPDATE werkstufen SET bearbeitung_status = 'gesperrt', replik_baseline = $1 WHERE id = $2`,
+            [JSON.stringify(baseline), werkstufeId]
+          )
+          // 2) Seitenzahlen einfrieren (gleiche Reihenfolge wie werkstufen.ts)
+          const { recalcPageNumbers } = await import('../utils/recalcPageNumbers')
+          await recalcPageNumbers(werkstufeId)
+          await query(
+            `UPDATE werkstufen SET seitenzahlen_gesperrt = TRUE, gesperrt_am = NOW(), gesperrt_von = $1 WHERE id = $2`,
+            [req.user!.name || req.user!.user_id, werkstufeId]
+          )
+          produktionsfassungLocked = true
+        }
+      } catch (lockErr) {
+        console.error('[Import] Produktionsfassungs-Lock fehlgeschlagen (non-fatal):', lockErr)
+      }
+    }
+
     // ── Unbekannte Stimmungen auto-registrieren ──
     let unbekannteStimmungen: string[] = []
     try {
@@ -1288,6 +1335,7 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       warnings: result.meta.warnings,
       metadata_saved: saveMetadata && Object.keys(fileMeta).length > 0,
       unbekannte_stimmungen: unbekannteStimmungen,
+      produktionsfassung_locked: produktionsfassungLocked,
     })
   } catch (err) {
     console.error('Import commit error:', err)

@@ -430,26 +430,51 @@ function sceneNumTrailingIsFlow(line: string): boolean {
   return true                                        // sentence / flow text
 }
 
+// Position of the scene currently being processed, for the monotonicity check below.
+interface SceneCtx { lastEpisodeNr: number; lastSceneNr: number }
+
+/**
+ * A scene number running BACKWARD relative to the current position: an earlier
+ * episode, or a lower scene number within the same episode. Real scenes run
+ * forward; an in-text reference ("vgl. Bild 4406.21" inside episode 4407) points
+ * backward. Used only as an extra signal where the line itself is ambiguous —
+ * never to reject a clearly-formatted header (which always carries its own
+ * INT/EXT code, duration, or location).
+ */
+function isBackwardReference(epNr: number, scNr: number, ctx: SceneCtx): boolean {
+  if (epNr < ctx.lastEpisodeNr) return true
+  if (epNr === ctx.lastEpisodeNr && scNr < ctx.lastSceneNr) return true
+  return false
+}
+
 /** True when the line at idx is a real scene header (not an in-text scene reference). */
-function isSceneHeaderAt(lines: string[], idx: number): boolean {
+function isSceneHeaderAt(lines: string[], idx: number, ctx?: SceneCtx): boolean {
   const t = lines[idx]?.trim() || ''
   const m = SCENE_NUM_RE.exec(t)
   if (!m) return false
+  const epNr = parseInt(m[1], 10)
+  const scNr = parseInt(m[2], 10)
   const trailing = (m[3] || '').trim()
 
-  // Tail present → accept only a header-like tail, reject running sentences.
+  // Tail present → accept only a header-like tail (INT/EXT-end, duration, location
+  // keyword), reject running sentences. A header keeps its strong tail even when the
+  // number is numerically backward (genuine duplicate; post-parse dedup handles it).
   if (trailing) return !sceneNumTrailingIsFlow(t)
 
-  // Bare scene number → confirm with the following non-blank line. Real headers are
-  // followed by a location / duration / INT-EXT / character list / crosscut partner
-  // number; a reference is followed by prose (lowercase or sentence punctuation).
+  // Bare scene number → confirm with the following non-blank line.
   const next = lines[skipBlanks(lines, idx + 1)]?.trim() || ''
+  // Strong header signals: nothing, a duration, an INT/EXT code, or a crosscut
+  // partner number follows — almost certainly a real header.
   if (!next) return true
   if (DURATION_RE.test(next)) return true
   if (INT_EXT_SPIELTAG_RE.test(next)) return true
   if (SCENE_NUM_RE.test(next)) return true
-  if (isCharacterLine(next)) return true
+  // Prose continuation (lowercase / sentence punctuation) → in-text reference.
   if (/^[a-zäöüß)\]},.;:!?»"]/.test(next)) return false
+  // Weak signal: a character list or a capitalized location word follows. Accept —
+  // UNLESS this is a backward reference, which is far more likely a "vgl. Bild
+  // NNNN.N" mention that happens to wrap onto its own line (monotonicity guard).
+  if (ctx && isBackwardReference(epNr, scNr, ctx)) return false
   return true
 }
 
@@ -1452,15 +1477,23 @@ export function parseRoteRosen(rawText: string, ocrMode = false, layout?: BboxLa
     }
   }
 
+  // Track the position of the last accepted scene so isSceneHeaderAt can spot
+  // backward in-text references (e.g. "vgl. Bild 4406.21" inside episode 4407).
+  let lastEpNr = 0
+  let lastScNr = 0
+
   while (i < lines.length) {
     const t = lines[i]?.trim()
     if (!t) { i++; continue }
     // Only treat a scene-number line as a NEW scene when it is a real header,
     // not an in-text reference like "4406.21) - sie selbst hat …" (flow text).
-    if (!isSceneHeaderAt(lines, i)) { i++; continue }
+    if (!isSceneHeaderAt(lines, i, { lastEpisodeNr: lastEpNr, lastSceneNr: lastScNr })) { i++; continue }
 
     const header = parseSceneHeader(lines, i)
     if (!header) { i++; continue }
+    // Context for in-block reference detection: a number lower than the current
+    // scene (same episode) or in an earlier episode is a reference, not a new scene.
+    const blockCtx: SceneCtx = { lastEpisodeNr: header.episodeNr, lastSceneNr: header.sceneNr }
 
     // Find end of this scene's block using a 2-phase approach:
     // Phase 1: Find initial blockEnd using only the crosscut duration table (pdftotext format).
@@ -1473,7 +1506,7 @@ export function parseRoteRosen(rawText: string, ocrMode = false, layout?: BboxLa
     // Use isSceneHeaderAt so an in-text scene reference does not end the block early.
     let blockEnd = lines.length
     for (let j = header.headerEndIdx; j < lines.length; j++) {
-      if (!isSceneHeaderAt(lines, j)) continue
+      if (!isSceneHeaderAt(lines, j, blockCtx)) continue
       const scM = SCENE_NUM_RE.exec(lines[j].trim())!
       const nr = parseInt(scM[2], 10)
       if (!crosscutPartnerNrs.has(nr)) {
@@ -1496,7 +1529,7 @@ export function parseRoteRosen(rawText: string, ocrMode = false, layout?: BboxLa
       blockEnd = lines.length
       for (let j = header.headerEndIdx; j < lines.length; j++) {
         const lineJ = lines[j]?.trim() || ''
-        if (isSceneHeaderAt(lines, j)) {
+        if (isSceneHeaderAt(lines, j, blockCtx)) {
           const scM = SCENE_NUM_RE.exec(lineJ)!
           const nr = parseInt(scM[2], 10)
           if (!crosscutPartnerNrs.has(nr)) {
@@ -1563,6 +1596,10 @@ export function parseRoteRosen(rawText: string, ocrMode = false, layout?: BboxLa
       // Normal (non-crosscut) scene
       szenen.push(buildScene(header, header.headerEndIdx, blockEnd))
     }
+
+    // Advance the monotonicity baseline to the highest scene processed so far.
+    if (header.episodeNr > lastEpNr) { lastEpNr = header.episodeNr; lastScNr = header.sceneNr }
+    else if (header.episodeNr === lastEpNr && header.sceneNr > lastScNr) { lastScNr = header.sceneNr }
 
     i = blockEnd
   }

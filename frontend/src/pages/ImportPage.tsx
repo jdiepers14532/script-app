@@ -1,10 +1,11 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell'
-import { FileUp, CheckCircle, AlertTriangle, ChevronRight, UploadCloud, X, FileText, Eye, List, Scissors, Pencil, BookOpen, FileSearch } from 'lucide-react'
+import { FileUp, CheckCircle, AlertTriangle, ChevronRight, UploadCloud, X, FileText, Eye, List, Scissors, Pencil, BookOpen, FileSearch, Lock } from 'lucide-react'
 import { useSelectedProduction, useAppSettings } from '../contexts'
 import { api } from '../api/client'
 import { useTerminologie } from '../sw-ui'
+import Tooltip from '../components/Tooltip'
 import PdfPageViewer from '../components/PdfPageViewer'
 import * as pdfjsLib from 'pdfjs-dist'
 
@@ -90,10 +91,10 @@ export default function ImportPage() {
   const { treatmentLabel } = useAppSettings()
   const { t } = useTerminologie()
   const STAGE_TYPES = [
-    { value: 'expose', label: 'Exposé' },
-    { value: 'treatment', label: treatmentLabel },
-    { value: 'draft', label: `${t('drehbuch')} (Draft)` },
-    { value: 'final', label: 'Final' },
+    { value: 'expose', label: 'Exposé', tip: `Legt eine Exposé-Werkstufe an.\nSzenen-Default-Editor: Notiz.\nVersionszählung läuft getrennt pro Stufentyp.` },
+    { value: 'treatment', label: treatmentLabel, tip: `Legt eine ${treatmentLabel}-Werkstufe an.\nSzenen-Default-Editor: Storyline (Fließtext).` },
+    { value: 'draft', label: `${t('drehbuch')} (Entwurf)`, tip: `Legt eine bearbeitbare ${t('drehbuch')}-Werkstufe an (Status: Entwurf).\nSzenen-Default-Editor: Drehbuch.` },
+    { value: 'final', label: `${t('drehbuch')} (gelockt)`, tip: '' },
   ]
   const [step, setStep] = useState<Step>(1)
   const [file, setFile] = useState<File | null>(null)
@@ -115,7 +116,14 @@ export default function ImportPage() {
   const [standDatum, setStandDatum] = useState('')
   const [importLabel, setImportLabel] = useState<string | null>(null)
   const [importSichtbarkeit, setImportSichtbarkeit] = useState('autoren')
-  const [stageLabels, setStageLabels] = useState<Array<{ id: number; name: string }>>([])
+  const [stageLabels, setStageLabels] = useState<Array<{ id: number; name: string; is_produktionsfassung?: boolean; sort_order?: number }>>([])
+  // Das Produktionsfassungs-Label sperrt beim Import die Werkstufe (read-only → nur noch
+  // Revisionen). Bei mehreren gilt das mit der höchsten sort_order. null = keines definiert.
+  const lockLabel = useMemo(() => {
+    const cands = stageLabels.filter(sl => sl.is_produktionsfassung)
+    if (cands.length === 0) return null
+    return cands.reduce((a, b) => ((b.sort_order ?? 0) > (a.sort_order ?? 0) ? b : a))
+  }, [stageLabels])
   const importDefaultsLoaded = useRef(false)
 
 
@@ -970,30 +978,66 @@ export default function ImportPage() {
                 {/* Row 2: Stage type + Fassungslabel + Sichtbarkeit */}
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                   <div style={{ display: 'flex', gap: 4 }}>
-                    {STAGE_TYPES.map(st => (
-                      <button key={st.value} onClick={() => setStageType(st.value)} style={{
-                        padding: '4px 10px', borderRadius: 4, fontSize: 11, border: '1px solid',
-                        borderColor: stageType === st.value ? '#000' : '#e0e0e0',
-                        background: stageType === st.value ? '#000' : '#fff',
-                        color: stageType === st.value ? '#fff' : '#666',
-                        cursor: 'pointer', fontWeight: stageType === st.value ? 600 : 400,
-                      }}>
-                        {st.label}
-                      </button>
-                    ))}
+                    {STAGE_TYPES.map(st => {
+                      const isLockStage = st.value === 'final'
+                      // „gelockt" nur möglich, wenn die Produktion ein Produktionsfassungs-Label hat.
+                      const disabled = isLockStage && !lockLabel
+                      const tip = isLockStage
+                        ? (lockLabel
+                            ? `Legt eine gesperrte ${t('drehbuch')}-Werkstufe an: setzt das Produktionsfassungs-Label „${lockLabel.name}" und sperrt sie sofort (read-only). Änderungen danach nur noch als Revision.`
+                            : `Kein Produktionsfassungs-Label definiert.\nLege in den DK-Einstellungen ein Fassungs-Label mit „Produktionsfassung" an, um gelockt importieren zu können.`)
+                        : st.tip
+                      const active = stageType === st.value
+                      const btn = (
+                        <button key={st.value} disabled={disabled} onClick={() => {
+                          setStageType(st.value)
+                          if (isLockStage && lockLabel) {
+                            // Lock-Stufe → Produktionsfassungs-Label vorauswählen (löst Sperre aus)
+                            setImportLabel(lockLabel.name)
+                          } else if (!isLockStage && lockLabel && importLabel === lockLabel.name) {
+                            // Weg von der Lock-Stufe → Lock-Label wieder entfernen
+                            setImportLabel(null)
+                          }
+                        }} style={{
+                          padding: '4px 10px', borderRadius: 4, fontSize: 11, border: '1px solid',
+                          borderColor: active ? '#000' : '#e0e0e0',
+                          background: active ? '#000' : '#fff',
+                          color: disabled ? '#bbb' : active ? '#fff' : '#666',
+                          cursor: disabled ? 'not-allowed' : 'pointer', fontWeight: active ? 600 : 400,
+                          display: 'inline-flex', alignItems: 'center', gap: 4,
+                        }}>
+                          {isLockStage && <Lock size={10} />}{st.label}
+                        </button>
+                      )
+                      return <Tooltip key={st.value} text={tip}>{btn}</Tooltip>
+                    })}
                   </div>
                   <div style={{ width: 1, height: 16, background: '#e0e0e0' }} />
                   <span style={{ fontSize: 11, color: '#757575' }}>Fassung:</span>
                   <select
                     value={importLabel ?? ''}
-                    onChange={e => setImportLabel(e.target.value || null)}
+                    onChange={e => {
+                      const val = e.target.value || null
+                      setImportLabel(val)
+                      // Lock-Status und Stage-Button synchron halten:
+                      // Produktionsfassungs-Label gewählt → Stufe „gelockt", sonst zurück auf „Entwurf".
+                      if (lockLabel && val === lockLabel.name) setStageType('final')
+                      else if (stageType === 'final') setStageType('draft')
+                    }}
                     style={{ fontSize: 11, padding: '3px 6px', borderRadius: 4, border: '1px solid #e0e0e0', background: '#fff', color: importLabel ? '#1565C0' : '#999' }}
                   >
                     <option value="">Ohne Label</option>
                     {stageLabels.map(sl => (
-                      <option key={sl.id} value={sl.name}>{sl.name}</option>
+                      <option key={sl.id} value={sl.name}>{sl.is_produktionsfassung ? `🔒 ${sl.name}` : sl.name}</option>
                     ))}
                   </select>
+                  {lockLabel && importLabel === lockLabel.name && (
+                    <Tooltip text={`Diese Werkstufe wird beim Import sofort gesperrt (read-only). Änderungen danach nur noch als Revision.`}>
+                      <span style={{ fontSize: 11, color: '#FF9500', display: 'inline-flex', alignItems: 'center', gap: 3, fontWeight: 600 }}>
+                        <Lock size={11} /> wird gesperrt
+                      </span>
+                    </Tooltip>
+                  )}
                   <span style={{ fontSize: 11, color: '#757575' }}>Sichtbarkeit:</span>
                   <select
                     value={importSichtbarkeit}
