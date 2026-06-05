@@ -1272,6 +1272,21 @@ export function parseRoteRosen(rawText: string, ocrMode = false, layout?: BboxLa
   const lines = cleanText(rawText, ocrMode)
   const warnings: string[] = []
 
+  // Build scene → PDF page map from form feed boundaries (before \f is stripped)
+  const scenePageMap = new Map<string, number>()
+  if (!ocrMode) {
+    const pages = rawText.split('\f')
+    for (let p = 0; p < pages.length; p++) {
+      for (const line of pages[p].split(/\r?\n/)) {
+        const m = SCENE_NUM_RE.exec(line.trim())
+        if (m) {
+          const key = `${m[1]}.${m[2]}`
+          if (!scenePageMap.has(key)) scenePageMap.set(key, p + 1)
+        }
+      }
+    }
+  }
+
   // parseCoverMeta must use raw (uncleaned) lines so that FOOTER_DOC_RE in stripFooterLines
   // does not remove "Drehbuch - Episode NNNN" from the cover page before we read docType.
   const rawLines = rawText.replace(/\f/g, '\n').split(/\r?\n/)
@@ -1337,6 +1352,7 @@ export function parseRoteRosen(rawText: string, ocrMode = false, layout?: BboxLa
     const isStockshot = hasStockshotKeyword
     const isStockshotVerdacht = !hasStockshotKeyword && heuristicMatch
 
+    const sceneKey = `${header.episodeNr}.${header.sceneNr}`
     return {
       nummer: header.sceneNr,
       episodeNr: header.episodeNr,
@@ -1355,6 +1371,7 @@ export function parseRoteRosen(rawText: string, ocrMode = false, layout?: BboxLa
       isStockshot,
       isStockshotVerdacht: isStockshotVerdacht || undefined,
       szeneninfo,
+      source_page: scenePageMap.get(sceneKey),
     }
   }
 

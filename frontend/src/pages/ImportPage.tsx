@@ -192,6 +192,7 @@ export default function ImportPage() {
   const [pdfPageFrom, setPdfPageFrom] = useState<number | ''>('')
   const [pdfPageTo, setPdfPageTo] = useState<number | ''>('')
   const [pdfTotalPages, setPdfTotalPages] = useState<number | null>(null)
+  const [pdfTargetPage, setPdfTargetPage] = useState<number | undefined>()
   const [ocrAvailable, setOcrAvailable] = useState(false)
 
   // Check OCR availability on mount
@@ -513,6 +514,7 @@ export default function ImportPage() {
     setSceneOverrides({})
     setPdfPageFrom('')
     setPdfPageTo('')
+    setPdfTargetPage(undefined)
     pendingAutoEpisode.current = null
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
@@ -822,6 +824,7 @@ export default function ImportPage() {
                       cropBottom={pdfMethod === 'pdftotext' ? pdfCropBottom : 0}
                       pageFrom={pdfPageFrom !== '' ? pdfPageFrom : undefined}
                       pageTo={pdfPageTo !== '' ? pdfPageTo : undefined}
+                      requestPage={pdfTargetPage}
                     />
                   ) : fileTextContent ? (
                     <pre style={{
@@ -1041,14 +1044,21 @@ export default function ImportPage() {
                     <div key={i} style={{
                       padding: '6px 12px', borderBottom: '1px solid #f0f0f0',
                       background: i % 2 === 0 ? '#fff' : '#fafafa',
-                    }}>
+                      cursor: sz.source_page ? 'pointer' : undefined,
+                    }}
+                      onClick={(e) => {
+                        const tag = (e.target as HTMLElement).tagName
+                        if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return
+                        if (sz.source_page) setPdfTargetPage(sz.source_page)
+                      }}
+                    >
                       {/* Row 1: SZ-Nummer, Motiv (parsed), INT/EXT, Tageszeit */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2, minWidth: 0 }}>
                         <span style={{
-                          fontSize: 12, fontWeight: 700, color: '#000',
+                          fontSize: 12, fontWeight: 700, color: sz.source_page ? '#1565C0' : '#000',
                           fontVariantNumeric: 'tabular-nums', minWidth: 60, flexShrink: 0,
                         }}>
-                          SZ {selectedFolgeNummer != null ? `${selectedFolgeNummer}.${String(sz.nummer).padStart(2, '0')}` : sz.nummer}
+                          SZ {(sz.episodeNr ?? selectedFolgeNummer) != null ? `${sz.episodeNr ?? selectedFolgeNummer}.${String(sz.nummer).padStart(2, '0')}` : sz.nummer}
                         </span>
                         <input type="text"
                           value={getSceneVal(sz, i, 'ort_name') || ''}

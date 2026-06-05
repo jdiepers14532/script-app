@@ -36,6 +36,7 @@ export interface ParsedScene {
   isStockshot?: boolean
   isStockshotVerdacht?: boolean
   szeneninfo?: string
+  source_page?: number  // PDF page number (1-based) where this scene starts
 }
 
 export interface PerEpisodeResult {

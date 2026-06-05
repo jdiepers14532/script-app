@@ -13,9 +13,10 @@ interface PdfPageViewerProps {
   cropBottom?: number
   pageFrom?: number
   pageTo?: number
+  requestPage?: number  // external page request — jumps to this page when changed
 }
 
-export default function PdfPageViewer({ fileUrl, cropLeft = 0, cropRight = 0, cropBottom = 0, pageFrom, pageTo }: PdfPageViewerProps) {
+export default function PdfPageViewer({ fileUrl, cropLeft = 0, cropRight = 0, cropBottom = 0, pageFrom, pageTo, requestPage }: PdfPageViewerProps) {
   const outerRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const pdfRef = useRef<pdfjsLib.PDFDocumentProxy | null>(null)
@@ -108,6 +109,13 @@ export default function PdfPageViewer({ fileUrl, cropLeft = 0, cropRight = 0, cr
     }).catch(err => console.error('[PdfPageViewer] load error:', err))
     return () => { cancelled = true; task.destroy() }
   }, [fileUrl])
+
+  // External page request
+  useEffect(() => {
+    if (requestPage && requestPage > 0 && requestPage <= totalPages && requestPage !== page) {
+      setPage(requestPage)
+    }
+  }, [requestPage, totalPages])
 
   // Render when page / pdf / zoomTop changes
   useEffect(() => {
