@@ -97,32 +97,27 @@ function parseJsonBlock(text: string): any | null {
   try { return JSON.parse(m[1].trim()) } catch { return null }
 }
 
-// ── Block-Chunking ───────────────────────────────────────────────────────────
+// ── Strang-Chunking ──────────────────────────────────────────────────────────
+// Dokument wird an H1/H2-Überschriften aufgeteilt (Stränge).
+// Nur Sektionen mit tatsächlichem Block-Inhalt werden an die KI geschickt.
+// Das verhindert False-Positives durch Prosa-Referenzen wie "In Block 845 trifft..."
 
-const BLOCKS_PER_CHUNK = 4
+const STRAND_CHUNK_MAX_CHARS = 60000
 
-function splitIntoBlockSections(text: string): Array<{ blockNr: number; raw: string }> {
-  // Tolerant gegenüber OCR-Formatierung: "Block 845", "**Block 845**", "## Block 845",
-  // "Block  845" (Doppel-Leerzeichen), auch mitten in der Zeile erlaubt (kein ^-Anker),
-  // da Mistral OCR-Markdown keine garantierte Zeilenstruktur hat.
-  // Wichtig: Nur 3-4-stellige Zahlen → keine Verwechslung mit Paragraphen-Nummern.
-  const pattern = /(?:^|\n)[^\n]*Block\s+(\d{3,4})[^\n]*(?:\r?\n|$)/gim
-  const positions: Array<{ pos: number; blockNr: number }> = []
+function splitIntoStrandSections(text: string): Array<{ strandName: string; raw: string }> {
+  const pattern = /(?:^|\n)(#{1,2}[ \t]+[^\n]+)(?:\r?\n|$)/gim
+  const positions: Array<{ pos: number; strandName: string }> = []
   let m: RegExpExecArray | null
   while ((m = pattern.exec(text)) !== null) {
-    positions.push({ pos: m.index, blockNr: parseInt(m[1], 10) })
+    positions.push({ pos: m.index, strandName: m[1].replace(/^#+\s*/, '').trim() })
   }
   if (positions.length === 0) return []
-  return positions.map((p, i) => ({
-    blockNr: p.blockNr,
+  const all = positions.map((p, i) => ({
+    strandName: p.strandName,
     raw: text.slice(p.pos, i + 1 < positions.length ? positions[i + 1].pos : undefined).trim(),
   }))
-}
-
-function toChunks<T>(arr: T[], size: number): T[][] {
-  const out: T[][] = []
-  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
-  return out
+  // Nur Sektionen die tatsächlich Block-Referenzen enthalten (Stränge, keine Titel-/Inhaltsseiten)
+  return all.filter(s => /Block[ \t]+\d{3,4}/i.test(s.raw))
 }
 
 async function extractItemsChunked(
@@ -131,15 +126,15 @@ async function extractItemsChunked(
   fullText: string,
   buildPrompt: (chunkText: string) => string,
 ): Promise<{ items: any[]; totalTokIn: number; totalTokOut: number }> {
-  const sections = splitIntoBlockSections(fullText)
-  console.log(`[konzept-import] text=${fullText.length} Zeichen, sections=${sections.length}, text[0..300]=${JSON.stringify(fullText.slice(0, 300))}`)
+  const strandSections = splitIntoStrandSections(fullText)
+  console.log(`[konzept-import] text=${fullText.length} Zeichen, strand_sektionen=${strandSections.length}, text[0..300]=${JSON.stringify(fullText.slice(0, 300))}`)
   let totalTokIn = 0
   let totalTokOut = 0
   const allItems: any[] = []
 
-  if (sections.length === 0) {
-    // Fallback: kein Block-Format erkannt → single call mit höherem Limit
-    console.log('[konzept-import] Fallback: kein Block-Format erkannt, single call 80k')
+  if (strandSections.length === 0) {
+    // Fallback: keine Strang-Sektionen erkannt → single call
+    console.log('[konzept-import] Fallback: keine Strang-Sektionen, single call 80k')
     const prompt = buildPrompt(fullText.slice(0, 80000))
     const raw = await callMistral(apiKey, model, prompt, 16000)
     totalTokIn = Math.round(prompt.length / 4)
@@ -150,25 +145,22 @@ async function extractItemsChunked(
     return { items: result?.items ?? [], totalTokIn, totalTokOut }
   }
 
-  const chunks = toChunks(sections, BLOCKS_PER_CHUNK)
-  console.log(`[konzept-import] ${chunks.length} Chunks à max ${BLOCKS_PER_CHUNK} Blöcke`)
-  for (const chunk of chunks) {
-    const chunkText = chunk.map(s => s.raw).join('\n\n')
+  console.log(`[konzept-import] ${strandSections.length} Strang-Sektionen`)
+  for (const section of strandSections) {
+    const chunkText = section.raw.length > STRAND_CHUNK_MAX_CHARS
+      ? section.raw.slice(0, STRAND_CHUNK_MAX_CHARS)
+      : section.raw
     const prompt = buildPrompt(chunkText)
     try {
-      const raw = await callMistral(apiKey, model, prompt, 8000, 60000)
+      const raw = await callMistral(apiKey, model, prompt, 16000, 90000)
       totalTokIn += Math.round(prompt.length / 4)
       totalTokOut += Math.round(raw.length / 4)
       const result = parseJsonBlock(raw)
       const count = result?.items?.length ?? 0
-      console.log(`[konzept-import] Chunk ${chunk[0]?.blockNr}–${chunk[chunk.length - 1]?.blockNr}: ${count} items`)
+      console.log(`[konzept-import] Strang "${section.strandName}": ${count} items`)
       if (result?.items) allItems.push(...result.items)
     } catch (err) {
-      console.warn(
-        `[konzept-import] Chunk Blöcke ${chunk[0]?.blockNr}–${chunk[chunk.length - 1]?.blockNr} fehlgeschlagen:`,
-        err,
-      )
-      // Loop läuft weiter — kein throw
+      console.warn(`[konzept-import] Strang "${section.strandName}" fehlgeschlagen:`, err)
     }
   }
 
