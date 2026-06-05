@@ -478,6 +478,38 @@ function isSceneHeaderAt(lines: string[], idx: number, ctx?: SceneCtx): boolean 
   return true
 }
 
+/**
+ * Does scene (epNr.scNr) appear somewhere as its OWN standalone full scene header?
+ * A full header carries an INT/EXT code — either at the end of the scene-number line
+ * (bbox: "4407.12 Mood-Shot I/T6") or on a following line within the header (pdftotext:
+ * bare number, then location, then "I/T6").
+ *
+ * Used to tell a genuine crosscut PARTNER apart from a standalone scene that merely
+ * cross-references another via "Wechselschnitt mit Bild N". In the side-by-side layout
+ * the partner has no header of its own (its content is interleaved after a marker); a
+ * sequentially-printed crosscut scene like 4407.12 has its full header and must be
+ * parsed as a normal scene, not absorbed as a sub-scene.
+ */
+function hasOwnFullHeader(lines: string[], epNr: number, scNr: number): boolean {
+  for (let j = 0; j < lines.length; j++) {
+    const t = lines[j].trim()
+    const m = SCENE_NUM_RE.exec(t)
+    if (!m || parseInt(m[1], 10) !== epNr || parseInt(m[2], 10) !== scNr) continue
+    if (!isSceneHeaderAt(lines, j)) continue
+    if (INT_EXT_AT_END_RE.test(t)) return true
+    // bare number → look for an INT/EXT line within the next few non-blank lines
+    let seen = 0
+    for (let k = j + 1; k < lines.length && seen < 6; k++) {
+      const c = lines[k].trim()
+      if (!c) continue
+      seen++
+      if (INT_EXT_SPIELTAG_RE.test(c)) return true
+      if (SCENE_NUM_RE.test(c)) break
+    }
+  }
+  return false
+}
+
 // ─── Parse synopsis & memo ──────────────────────────────
 
 function parseSynopsisAndMemo(lines: string[], startIdx: number): {
@@ -812,8 +844,34 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
     }
     const wsM = WECHSELSCHNITT_RE.exec(line)
     if (wsM) {
+      const partnerEp = parseInt(wsM[1], 10)
+      const partnerNr = parseInt(wsM[2], 10)
       isWechselschnitt = true
-      wechselschnittPartner.push(parseInt(wsM[2], 10))
+      wechselschnittPartner.push(partnerNr)
+      // Two layouts:
+      //  (a) Side-by-side (duration table present) OR an inline partner without its own
+      //      header → leave the marker for the sub-scene splitter in the main loop.
+      //  (b) The partner is a sequentially-printed scene with its own full header
+      //      (e.g. 4407.12). Then "Wechselschnitt mit Bild N …" is just a cross-reference
+      //      note: capture it COMPLETELY — including wrapped continuation lines such as
+      //      "(Kinderwagen)" or "Bitte mitproduzieren in Bild 4407.15" — and consume it,
+      //      so the partner is parsed as a normal scene (not absorbed).
+      if (crosscutDurationEntries.size === 0 && hasOwnFullHeader(lines, partnerEp, partnerNr)) {
+        let note = line
+        i++
+        while (i < lines.length) {
+          const cont = lines[i].trim()
+          if (!cont) { i++; continue }
+          if (isSceneHeaderAt(lines, i)) break
+          if (DURATION_RE.test(cont) || INT_EXT_SPIELTAG_RE.test(cont) ||
+              KOMPARSEN_RE.test(cont) || WECHSELSCHNITT_RE.test(cont) ||
+              /^Bild aus Block/i.test(cont)) break
+          note += ' ' + cont
+          i++
+        }
+        hinweise.push(note)
+        continue
+      }
       hinweise.push(line)
       // DON'T consume the marker — leave it for the sub-scene splitter
       // in the main loop to find as a split point.
