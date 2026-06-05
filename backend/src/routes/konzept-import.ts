@@ -105,7 +105,7 @@ function parseJsonBlock(text: string): any | null {
 
 const MAX_STRAND_SECTIONS = 8
 const STRAND_CHUNK_MAX_CHARS = 60000
-const FULL_DOC_MAX_CHARS = 260000  // ~65k Tokens, sicher im 128k-Fenster
+const FULL_DOC_MAX_CHARS = 320000  // ~80k Tokens, sicher im 128k-Fenster (Mistral Large)
 
 function splitIntoStrandSections(text: string): Array<{ strandName: string; raw: string }> {
   // Nur H1-Überschriften (# , nicht ##) — Strang-Gruppen-Ebene
