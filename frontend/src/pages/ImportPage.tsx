@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell'
-import { FileUp, CheckCircle, AlertTriangle, ChevronRight, UploadCloud, X, FileText, Eye, List, Scissors, Pencil, BookOpen } from 'lucide-react'
+import { FileUp, CheckCircle, AlertTriangle, ChevronRight, UploadCloud, X, FileText, Eye, List, Scissors, Pencil, BookOpen, FileSearch } from 'lucide-react'
 import { useSelectedProduction, useAppSettings } from '../contexts'
 import { api } from '../api/client'
 import { useTerminologie } from '../sw-ui'
@@ -1044,21 +1044,22 @@ export default function ImportPage() {
                     <div key={i} style={{
                       padding: '6px 12px', borderBottom: '1px solid #f0f0f0',
                       background: i % 2 === 0 ? '#fff' : '#fafafa',
-                      cursor: sz.source_page ? 'pointer' : undefined,
-                    }}
-                      onClick={(e) => {
-                        const tag = (e.target as HTMLElement).tagName
-                        if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return
-                        if (sz.source_page) setPdfTargetPage(sz.source_page)
-                      }}
-                    >
+                    }}>
                       {/* Row 1: SZ-Nummer, Motiv (parsed), INT/EXT, Tageszeit */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 2, minWidth: 0 }}>
                         <span style={{
-                          fontSize: 12, fontWeight: 700, color: sz.source_page ? '#1565C0' : '#000',
+                          fontSize: 12, fontWeight: 700, color: '#000',
                           fontVariantNumeric: 'tabular-nums', minWidth: 60, flexShrink: 0,
+                          display: 'inline-flex', alignItems: 'center', gap: 3,
                         }}>
                           SZ {(sz.episodeNr ?? selectedFolgeNummer) != null ? `${sz.episodeNr ?? selectedFolgeNummer}.${String(sz.nummer).padStart(2, '0')}` : sz.nummer}
+                          {sz.source_page && (
+                            <FileSearch
+                              size={11}
+                              style={{ color: '#1565C0', cursor: 'pointer', flexShrink: 0 }}
+                              onClick={() => setPdfTargetPage(sz.source_page)}
+                            />
+                          )}
                         </span>
                         <input type="text"
                           value={getSceneVal(sz, i, 'ort_name') || ''}

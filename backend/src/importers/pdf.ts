@@ -349,7 +349,8 @@ export async function parsePdf(buffer: Buffer, options?: PdfExtractOptions): Pro
 
   // Try Rote Rosen format first (structured production PDF)
   if (isRoteRosenFormat(textForDetection)) {
-    return parseRoteRosen(text, usedMethod === 'mistral', layout ?? undefined)
+    const pageOffset = (crop?.pageFrom && crop.pageFrom > 1) ? crop.pageFrom - 1 : 0
+    return parseRoteRosen(text, usedMethod === 'mistral', layout ?? undefined, pageOffset)
   }
 
   // Fallback: parse extracted text like Fountain

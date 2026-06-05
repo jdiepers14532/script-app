@@ -1268,20 +1268,30 @@ function parseDrehbuchContent(
 
 // ─── Main Parser ────────────────────────────────────────
 
-export function parseRoteRosen(rawText: string, ocrMode = false, layout?: BboxLayout): ImportResult {
+export function parseRoteRosen(rawText: string, ocrMode = false, layout?: BboxLayout, pageOffset = 0): ImportResult {
   const lines = cleanText(rawText, ocrMode)
   const warnings: string[] = []
 
-  // Build scene → PDF page map from form feed boundaries (before \f is stripped)
+  // Build scene → PDF page map (1-based page number in the actual PDF)
+  // Primary: bbox layout has per-line pageIdx. Fallback: form feed characters.
+  // pageOffset accounts for -f (pageFrom) in pdftotext: pageIdx=0 → actual page (pageOffset+1)
   const scenePageMap = new Map<string, number>()
-  if (!ocrMode) {
+  if (layout) {
+    for (const li of layout.lines) {
+      const m = SCENE_NUM_RE.exec(li.text.trim())
+      if (m) {
+        const key = `${parseInt(m[1], 10)}.${parseInt(m[2], 10)}`
+        if (!scenePageMap.has(key)) scenePageMap.set(key, li.pageIdx + 1 + pageOffset)
+      }
+    }
+  } else if (!ocrMode) {
     const pages = rawText.split('\f')
     for (let p = 0; p < pages.length; p++) {
       for (const line of pages[p].split(/\r?\n/)) {
         const m = SCENE_NUM_RE.exec(line.trim())
         if (m) {
-          const key = `${m[1]}.${m[2]}`
-          if (!scenePageMap.has(key)) scenePageMap.set(key, p + 1)
+          const key = `${parseInt(m[1], 10)}.${parseInt(m[2], 10)}`
+          if (!scenePageMap.has(key)) scenePageMap.set(key, p + 1 + pageOffset)
         }
       }
     }
