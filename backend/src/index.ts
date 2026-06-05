@@ -76,6 +76,7 @@ import { konzeptImportRouter } from './routes/konzept-import'
 import { planungKiRouter } from './routes/planung-ki'
 import { importJobsRouter } from './routes/import-jobs'
 import { beziehungstypenRouter, beziehungenRouter } from './routes/beziehungen'
+import { anmerkungenRouter, ankerRouter } from './routes/anmerkungen'
 
 // Load .env from project root or backend dir
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') })
@@ -237,6 +238,10 @@ app.use('/api/admin/colab-gruppen-register', adminColabRegisterRouter)
 // Figuren-Beziehungsbaum (v189)
 app.use('/api/beziehungstypen', beziehungstypenRouter)
 app.use('/api/beziehungen', beziehungenRouter)
+
+// Anmerkungen-Hub (v196): Anker-Fundament + Anmerkungs-Service
+app.use('/api/anmerkungen', anmerkungenRouter)
+app.use('/api/anker', ankerRouter)
 app.use('/api/notifications', notificationsRouter)
 app.use('/api/admin', dokAdminRouter)
 app.use('/api/autocomplete', autocompleteRouter)
@@ -501,6 +506,8 @@ async function runMigrations() {
     // Seed: rolle (Rollenbez. → label beim Promote) + methode (regel_parser|fliesstext|llm)
     'v194_seed_rolle_methode.sql',
     'v195_fassungen_ueberschreibschutz.sql',
+    // Anmerkungen-Hub Schritt 1: Anker-Fundament + Anmerkungs-System + fn_werkstufe_sichtbar
+    'v196_anker_anmerkungen.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
