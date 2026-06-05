@@ -113,6 +113,10 @@ export default function ImportPage() {
   const [editDocType, setEditDocType] = useState<string | null>(null)
   const [editEpisode, setEditEpisode] = useState<number | null>(null)
   const [standDatum, setStandDatum] = useState('')
+  const [importLabel, setImportLabel] = useState<string | null>(null)
+  const [importSichtbarkeit, setImportSichtbarkeit] = useState('autoren')
+  const [stageLabels, setStageLabels] = useState<Array<{ id: number; name: string }>>([])
+
 
   // Per-scene field overrides (index → partial fields)
   const [sceneOverrides, setSceneOverrides] = useState<Record<number, Record<string, any>>>({})
@@ -245,6 +249,14 @@ export default function ImportPage() {
       const first = data.length > 0 ? data[0] : null
       setSelectedBlock(first)
       setSelectedFolgeNummer(first?.folge_von ?? null)
+    }).catch(() => {})
+  }, [selectedId])
+
+  // Load stage labels for the selected production
+  useEffect(() => {
+    if (!selectedId) { setStageLabels([]); return }
+    api.getStageLabels(selectedId).then(data => {
+      if (Array.isArray(data)) setStageLabels(data)
     }).catch(() => {})
   }, [selectedId])
 
@@ -400,6 +412,8 @@ export default function ImportPage() {
     if (nonSceneElements.length > 0) fd.append('non_scene_elements', JSON.stringify(nonSceneElements))
     if (Object.keys(sceneOverrides).length > 0) fd.append('scene_overrides', JSON.stringify(sceneOverrides))
     if (episodeFilter != null) fd.append('episode_filter', String(episodeFilter))
+    if (importLabel) fd.append('import_label', importLabel)
+    if (importSichtbarkeit !== 'autoren') fd.append('import_sichtbarkeit', importSichtbarkeit)
     return fd
   }
 
@@ -527,6 +541,8 @@ export default function ImportPage() {
     setPdfPageFrom('')
     setPdfPageTo('')
     setPdfTargetPage(undefined)
+    setImportLabel(null)
+    setImportSichtbarkeit('autoren')
     pendingAutoEpisode.current = null
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
@@ -935,8 +951,8 @@ export default function ImportPage() {
                   </div>
                 )}
 
-                {/* Row 2: Stage type */}
-                <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                {/* Row 2: Stage type + Fassungslabel + Sichtbarkeit */}
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
                   <div style={{ display: 'flex', gap: 4 }}>
                     {STAGE_TYPES.map(st => (
                       <button key={st.value} onClick={() => setStageType(st.value)} style={{
@@ -950,6 +966,27 @@ export default function ImportPage() {
                       </button>
                     ))}
                   </div>
+                  <div style={{ width: 1, height: 16, background: '#e0e0e0' }} />
+                  <span style={{ fontSize: 11, color: '#757575' }}>Fassung:</span>
+                  <select
+                    value={importLabel ?? ''}
+                    onChange={e => setImportLabel(e.target.value || null)}
+                    style={{ fontSize: 11, padding: '3px 6px', borderRadius: 4, border: '1px solid #e0e0e0', background: '#fff', color: importLabel ? '#1565C0' : '#999' }}
+                  >
+                    <option value="">Ohne Label</option>
+                    {stageLabels.map(sl => (
+                      <option key={sl.id} value={sl.name}>{sl.name}</option>
+                    ))}
+                  </select>
+                  <span style={{ fontSize: 11, color: '#757575' }}>Sichtbarkeit:</span>
+                  <select
+                    value={importSichtbarkeit}
+                    onChange={e => setImportSichtbarkeit(e.target.value)}
+                    style={{ fontSize: 11, padding: '3px 6px', borderRadius: 4, border: '1px solid #e0e0e0', background: '#fff', color: '#333' }}
+                  >
+                    <option value="autoren">Autoren</option>
+                    <option value="produktion">Produktion</option>
+                  </select>
                 </div>
               </div>
 

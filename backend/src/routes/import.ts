@@ -618,8 +618,9 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
     if (Object.keys(filenameMeta).length > 0) metaJson.filename_metadata = filenameMeta
     if (result.meta.roteRosenMeta) metaJson.rote_rosen = result.meta.roteRosenMeta
 
-    // Ein Import vergibt NIE ein Fassungslabel — das macht erst ein Mensch über stage_labels.
-    // Die Herkunft (Dateiname) ist bereits in original_dateiname (Zeilen weiter unten) erfasst.
+    // Fassungslabel + Sichtbarkeit optional aus dem Import-Formular
+    const importLabel: string | null = req.body.import_label || null
+    const importSichtbarkeit: string = ['autoren', 'produktion'].includes(req.body.import_sichtbarkeit) ? req.body.import_sichtbarkeit : 'autoren'
     const standDatum = req.body.stand_datum || filenameMeta.fassungsdatum || null
 
     const stageToDocTyp: Record<string, string> = {
@@ -777,8 +778,8 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       )).rows[0]
       const werkRow = (await client.query(
         `INSERT INTO werkstufen (folge_id, typ, version_nummer, label, sichtbarkeit, erstellt_von, stand_datum, meta_json)
-         VALUES ($1, $2, $3, $4, 'autoren', $5, $6, $7) RETURNING id`,
-        [folgeId, docTyp, (maxVerRow?.m ?? 0) + 1, null, req.user!.user_id, standDatum, JSON.stringify(metaJson)]
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
+        [folgeId, docTyp, (maxVerRow?.m ?? 0) + 1, importLabel, importSichtbarkeit, req.user!.user_id, standDatum, JSON.stringify(metaJson)]
       )).rows[0]
       werkstufeId = werkRow.id
 
