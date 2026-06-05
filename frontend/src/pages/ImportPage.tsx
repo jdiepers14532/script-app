@@ -116,6 +116,7 @@ export default function ImportPage() {
   const [importLabel, setImportLabel] = useState<string | null>(null)
   const [importSichtbarkeit, setImportSichtbarkeit] = useState('autoren')
   const [stageLabels, setStageLabels] = useState<Array<{ id: number; name: string }>>([])
+  const importDefaultsLoaded = useRef(false)
 
 
   // Per-scene field overrides (index → partial fields)
@@ -259,6 +260,17 @@ export default function ImportPage() {
       if (Array.isArray(data)) setStageLabels(data)
     }).catch(() => {})
   }, [selectedId])
+
+  // Load last import defaults from user settings (once)
+  useEffect(() => {
+    if (importDefaultsLoaded.current) return
+    importDefaultsLoaded.current = true
+    api.getSettings().then(s => {
+      const ui = s?.ui_settings || {}
+      if (ui.last_import_label) setImportLabel(ui.last_import_label)
+      if (ui.last_import_sichtbarkeit) setImportSichtbarkeit(ui.last_import_sichtbarkeit)
+    }).catch(() => {})
+  }, [])
 
   const handleFile = useCallback(async (f: File) => {
     setFile(f)
@@ -442,7 +454,7 @@ export default function ImportPage() {
     }
     setBlockImportResults(results)
     setBlockImporting(false)
-    // Save last imported episode so ScriptPage auto-selects it
+    // Save last imported episode + import defaults so ScriptPage auto-selects it
     const lastSuccess = [...results].reverse().find(r => r.success)
     if (lastSuccess && selectedId) {
       await api.updateSettings({
@@ -451,6 +463,8 @@ export default function ImportPage() {
           last_folge_nummer: lastSuccess.episode_nr,
           last_stage_id: null,
           last_szene_id: null,
+          last_import_label: importLabel || null,
+          last_import_sichtbarkeit: importSichtbarkeit,
         },
       }).catch(() => {})
     }
@@ -473,13 +487,15 @@ export default function ImportPage() {
       }
       const data = await res.json()
       setCommitResult(data)
-      // Save last navigation state
+      // Save last navigation state + import defaults
       await api.updateSettings({
         ui_settings: {
           last_produktion_id: selectedId,
           last_folge_nummer: data.folge_nummer ?? selectedFolgeNummer,
           last_stage_id: null,
           last_szene_id: null,
+          last_import_label: importLabel || null,
+          last_import_sichtbarkeit: importSichtbarkeit,
         },
       }).catch(() => {})
       window.dispatchEvent(new Event('script-import-complete'))
