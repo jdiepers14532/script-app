@@ -73,7 +73,14 @@ function calcHeadingLines(templateJson: any, usablePt: number, linesPerPage: num
  *
  * Phase 1: reads content JSON fresh + derives heading height from the active
  * absatzformat preset — no hardcoded constants, auto-adapts to format changes.
- * Phase 2: scenes with seitenzahlen_gesperrt=TRUE are skipped (A-page logic).
+ * Phase 2: scenes with seitenzahlen_gesperrt=TRUE are skipped entirely (no recalc).
+ *
+ * NOTE — A-Seiten (Phase 3) ZURÜCKGESTELLT:
+ * A-page suffixes (12A, 12B...) after a lock require 100% page-count accuracy.
+ * Our system reaches ~96% match with the PDF export, which is insufficient for
+ * reliable auto-numbering. In practice, productions orient by scene number, not
+ * page number, making A-pages less critical. Shelved until a fully accurate
+ * page-count engine (matching PDF renderer output exactly) is feasible.
  */
 export async function recalcPageNumbers(werkstufeId: string): Promise<void> {
   // Fetch lock status + produktion_id in one query
