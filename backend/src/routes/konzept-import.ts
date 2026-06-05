@@ -105,7 +105,10 @@ function parseJsonBlock(text: string): any | null {
 const STRAND_CHUNK_MAX_CHARS = 60000
 
 function splitIntoStrandSections(text: string): Array<{ strandName: string; raw: string }> {
-  const pattern = /(?:^|\n)(#{1,2}[ \t]+[^\n]+)(?:\r?\n|$)/gim
+  // Nur H1-Überschriften (# ), nicht H2 (## ).
+  // H1 = Strang-Gruppen ("# SVENJA - ARTHUR - TILL - HEINER"),
+  // H2 = Block-Unterabschnitte ("## BLOCK 845 MIKA ARTHUR") → werden NICHT aufgeteilt.
+  const pattern = /(?:^|\n)(#[ \t]+[^\n]+)(?:\r?\n|$)/gim
   const positions: Array<{ pos: number; strandName: string }> = []
   let m: RegExpExecArray | null
   while ((m = pattern.exec(text)) !== null) {
