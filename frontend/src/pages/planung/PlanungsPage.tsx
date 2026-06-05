@@ -1,5 +1,5 @@
 import { Routes, Route, Navigate, NavLink, useLocation } from 'react-router-dom'
-import { Kanban, GanttChart, BookOpen, History, Upload, AlertTriangle } from 'lucide-react'
+import { Kanban, GanttChart, BookOpen, History, Upload, AlertTriangle, HelpCircle } from 'lucide-react'
 import AppShell from '../../components/AppShell'
 import { useSelectedProduction } from '../../contexts'
 import FutureBoardPage from './FutureBoardPage'
@@ -8,6 +8,7 @@ import BiblePage from './BiblePage'
 import VersionenPage from './VersionenPage'
 import PlanungsImportPage from './PlanungsImportPage'
 import BefundePage from './BefundePage'
+import PlanungsHilfePage from './PlanungsHilfePage'
 
 const TABS = [
   { to: 'board',    label: 'Future-Board',     icon: <Kanban size={14} /> },
@@ -16,6 +17,7 @@ const TABS = [
   { to: 'versionen',label: 'Versionen',         icon: <History size={14} /> },
   { to: 'import',   label: 'Import',            icon: <Upload size={14} /> },
   { to: 'befunde',  label: 'Befunde',           icon: <AlertTriangle size={14} /> },
+  { to: 'hilfe',    label: 'Hilfe',             icon: <HelpCircle size={14} /> },
 ]
 
 export default function PlanungsPage() {
@@ -79,6 +81,7 @@ export default function PlanungsPage() {
               <Route path="versionen" element={<VersionenPage />} />
               <Route path="import"    element={<PlanungsImportPage />} />
               <Route path="befunde"   element={<BefundePage />} />
+              <Route path="hilfe"     element={<PlanungsHilfePage />} />
             </Routes>
           </div>
         )}

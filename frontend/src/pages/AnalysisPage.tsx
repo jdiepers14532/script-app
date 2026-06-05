@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Copy, Check, RefreshCw, ChevronRight, ChevronLeft, Clock, Database, Plus, X, Trash2, FileDown, Eye } from 'lucide-react'
+import { Copy, Check, RefreshCw, ChevronRight, ChevronLeft, Clock, Database, Plus, X, Trash2, FileDown, Eye, HelpCircle } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import AppShell from '../components/AppShell'
@@ -1696,6 +1697,18 @@ export default function AnalysisPage() {
                   {statusLabel(activeRunStatus || 'queued')}
                 </div>
               )}
+
+              <Link
+                to="/analysis/hilfe"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 5, justifyContent: 'center',
+                  fontSize: 11, color: 'var(--text-secondary)', textDecoration: 'none',
+                  padding: '4px 0', opacity: 0.7,
+                }}
+              >
+                <HelpCircle size={11} />
+                Analyse-Hilfe
+              </Link>
             </div>
 
             {/* Runs-Liste */}

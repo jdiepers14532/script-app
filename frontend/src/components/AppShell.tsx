@@ -731,7 +731,12 @@ export default function AppShell({
       else if (matchesShortcut('navFreieDokumente', e))  { e.preventDefault(); navigate('/freie-dokumente') }
       else if (matchesShortcut('navDrehbuchkoordination', e) && hasDkAccess) { e.preventDefault(); navigate('/drehbuchkoordination') }
       else if (matchesShortcut('navExport', e))          { e.preventDefault(); window.dispatchEvent(new CustomEvent('open-export-dialog')) }
-      else if (matchesShortcut('navHandbuch', e))        { e.preventDefault(); navigate('/hilfe') }
+      else if (matchesShortcut('navHandbuch', e)) {
+        e.preventDefault()
+        if (activeBereich === 'konzept') navigate('/planung/hilfe')
+        else if (activeBereich === 'analyse') navigate('/analysis/hilfe')
+        else navigate('/hilfe')
+      }
       else if (matchesShortcut('navNtListe', e))         { e.preventDefault(); navigate('/nt-liste') }
       else if (matchesShortcut('navFreigaben', e) && hasDkAccess) { e.preventDefault(); navigate('/freigaben') }
     }
@@ -1772,7 +1777,7 @@ export default function AppShell({
               </Link>
             )}
             <Link
-              to="/hilfe"
+              to={activeBereich === 'konzept' ? '/planung/hilfe' : activeBereich === 'analyse' ? '/analysis/hilfe' : '/hilfe'}
               className="um-item"
               style={{ textDecoration: 'none', color: 'inherit', display: 'flex', alignItems: 'center', gap: 8 }}
               onClick={() => setUserMenuOpen(false)}
