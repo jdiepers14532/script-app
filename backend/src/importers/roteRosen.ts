@@ -294,6 +294,24 @@ function isCharacterLine(line: string): boolean {
   )
 }
 
+// Heuristic: a single character name on its own line (no comma), e.g. "Victoria",
+// "Dr. Müller". Distinguished from action/oneliner text by: every word starts
+// uppercase (action lines contain lowercase words like "Pelle steht am Zaun") and
+// it does not end like a sentence. Caller should still apply a lookahead (next line
+// is an INT/EXT code, a long oneliner, a duration, or the section end).
+function isSingleCharacterName(line: string): boolean {
+  const t = line.trim()
+  if (!t || t.length >= 40) return false
+  if (t.includes(',')) return false  // comma lists handled by isCharacterLine
+  if (DURATION_RE.test(t) || SCENE_NUM_RE.test(t) || INT_EXT_SPIELTAG_RE.test(t)) return false
+  if (KOMPARSEN_RE.test(t) || WECHSELSCHNITT_RE.test(t)) return false
+  if (/^Bild aus Block/i.test(t) || /^Bitte.*Memo/i.test(t)) return false
+  if (/[.!?:;]$/.test(t)) return false  // sentence-like ending → not a name
+  const words = t.split(/\s+/)
+  if (words.length > 4) return false
+  return words.every(w => /^[A-ZÄÖÜ]/.test(w))  // every word starts uppercase
+}
+
 // ─── Cover Page Metadata ────────────────────────────────
 
 interface CoverMeta {
@@ -996,6 +1014,15 @@ function parseSubSceneHeader(
   if (i < endIdx && isCharacterLine(lines[i])) {
     charaktere = lines[i].trim().split(',').map(c => c.replace(/\s*\(.*?\)\s*/g, '').trim()).filter(Boolean)
     i++
+  } else if (i < endIdx && isSingleCharacterName(lines[i]?.trim() || '')) {
+    // Single character (no comma) before the I/E line: accept when followed by an
+    // INT/EXT code, a long oneliner, a duration, or the section end.
+    const nextIdx = skipBlanks(lines, i + 1)
+    const nextLine = lines[nextIdx]?.trim() || ''
+    if (nextIdx >= endIdx || INT_EXT_SPIELTAG_RE.test(nextLine) || nextLine.length > 40 || DURATION_RE.test(nextLine)) {
+      charaktere = [lines[i].trim().replace(/\s*\(.*?\)\s*/g, '').trim()].filter(Boolean)
+      i++
+    }
   }
 
   // INT/EXT (explicit line overrides inline value parsed above)
@@ -1013,6 +1040,15 @@ function parseSubSceneHeader(
   if (charaktere.length === 0 && i < endIdx && isCharacterLine(lines[i])) {
     charaktere = lines[i].trim().split(',').map(c => c.replace(/\s*\(.*?\)\s*/g, '').trim()).filter(Boolean)
     i++
+  } else if (charaktere.length === 0 && i < endIdx && isSingleCharacterName(lines[i]?.trim() || '')) {
+    // Single character after the I/E line: accept when followed by a long oneliner,
+    // a duration, or the section end.
+    const nextIdx = skipBlanks(lines, i + 1)
+    const nextLine = lines[nextIdx]?.trim() || ''
+    if (nextIdx >= endIdx || nextLine.length > 40 || DURATION_RE.test(nextLine)) {
+      charaktere = [lines[i].trim().replace(/\s*\(.*?\)\s*/g, '').trim()].filter(Boolean)
+      i++
+    }
   }
 
   // Duration may appear after INT/EXT
