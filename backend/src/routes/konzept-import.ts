@@ -105,7 +105,7 @@ function parseJsonBlock(text: string): any | null {
 
 const MAX_STRAND_SECTIONS = 8
 const STRAND_CHUNK_MAX_CHARS = 60000
-const FULL_DOC_MAX_CHARS = 320000  // ~80k Tokens, sicher im 128k-Fenster (Mistral Large)
+const MAX_CHARS_PER_CALL = 300000  // ~75k Tokens pro Call, sicher im 128k-Fenster (Mistral Large)
 
 function splitIntoStrandSections(text: string): Array<{ strandName: string; raw: string }> {
   // Nur H1-Überschriften (# , nicht ##) — Strang-Gruppen-Ebene
@@ -134,18 +134,40 @@ async function extractItemsChunked(
   let totalTokIn = 0
   let totalTokOut = 0
 
-  // Flaches Dokument (keine Hierarchie oder zu viele Sektionen) → single call
+  // Flaches Dokument (keine Hierarchie oder zu viele Sektionen)
+  // → Text in MAX_CHARS_PER_CALL-Blöcke aufteilen, je ein KI-Call, dann merge+dedup
   if (strandSections.length === 0 || strandSections.length > MAX_STRAND_SECTIONS) {
     const reason = strandSections.length === 0 ? 'keine H1-Sektionen' : `${strandSections.length} Sektionen (flache Struktur)`
-    console.log(`[konzept-import] Single-Call (${reason}), ${Math.min(fullText.length, FULL_DOC_MAX_CHARS)} Zeichen`)
-    const prompt = buildPrompt(fullText.slice(0, FULL_DOC_MAX_CHARS))
-    const raw = await callMistral(apiKey, model, prompt, 16000, 180000)
-    totalTokIn = Math.round(prompt.length / 4)
-    totalTokOut = Math.round(raw.length / 4)
-    console.log(`[konzept-import] Single-Call raw[0..400]=${JSON.stringify(raw.slice(0, 400))}`)
-    const result = parseJsonBlock(raw)
-    console.log(`[konzept-import] Single-Call items=${result?.items?.length ?? 'null'}`)
-    return { items: result?.items ?? [], totalTokIn, totalTokOut }
+    const textChunks: string[] = []
+    for (let i = 0; i < fullText.length; i += MAX_CHARS_PER_CALL) {
+      textChunks.push(fullText.slice(i, i + MAX_CHARS_PER_CALL))
+    }
+    console.log(`[konzept-import] Flat-Chunking (${reason}): ${textChunks.length} Chunk(s) à max ${MAX_CHARS_PER_CALL} Zeichen`)
+    const allItems: any[] = []
+    for (let ci = 0; ci < textChunks.length; ci++) {
+      const prompt = buildPrompt(textChunks[ci])
+      try {
+        const raw = await callMistral(apiKey, model, prompt, 16000, 180000)
+        totalTokIn += Math.round(prompt.length / 4)
+        totalTokOut += Math.round(raw.length / 4)
+        const result = parseJsonBlock(raw)
+        const count = result?.items?.length ?? 0
+        console.log(`[konzept-import] Flat-Chunk ${ci + 1}/${textChunks.length}: ${count} items`)
+        if (result?.items) allItems.push(...result.items)
+      } catch (err) {
+        console.warn(`[konzept-import] Flat-Chunk ${ci + 1}/${textChunks.length} fehlgeschlagen:`, err)
+      }
+    }
+    // Deduplizieren: gleicher Strangname + Blocknummer → erster Treffer gewinnt
+    const seen = new Set<string>()
+    const items = allItems.filter(it => {
+      const key = `${String(it.strang_name ?? '').toLowerCase().trim()}__${it.block_nummer}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+    console.log(`[konzept-import] Flat-Chunking gesamt: ${items.length} unique items`)
+    return { items, totalTokIn, totalTokOut }
   }
 
   // Hierarchisches Dokument → pro Strang-Sektion ein KI-Call
