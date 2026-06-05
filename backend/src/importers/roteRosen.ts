@@ -787,10 +787,13 @@ function parseSubSceneHeader(
 ): SceneHeader | null {
   let i = startIdx
   let dauer_sekunden = 0
+  let sameLineOrt = ''
+  let sameLineIntExtParsed: ReturnType<typeof parseIntExtCode> | null = null
 
   // Skip blank lines and scene-number lines (partner ref from pdftotext).
   // pdftotext sometimes merges scene number + duration on one line: "4402.9 1:10"
-  // SCENE_NUM_RE group 3 captures the rest — extract duration if present.
+  // bbox merges scene number + location + I/E on one line: "4454.12 Studio 2 / Wohnzimmer I/T34"
+  // SCENE_NUM_RE group 3 captures the rest — extract duration, location, or I/E if present.
   while (i < endIdx) {
     const t = lines[i]?.trim()
     if (!t) { i++; continue }
@@ -799,6 +802,15 @@ function parseSubSceneHeader(
       const rest = numM[3].trim()
       if (rest && DURATION_RE.test(rest)) {
         dauer_sekunden = parseDurationToSeconds(rest)
+      } else if (rest) {
+        // bbox: "4454.12 Studio 2 / Wohnzimmer I/T34" — extract location + I/E from rest
+        const intExtM = rest.match(/^(.*?)\s+([IE]\/[TNAD]\d+)$/)
+        if (intExtM) {
+          sameLineOrt = intExtM[1].trim()
+          sameLineIntExtParsed = parseIntExtCode(intExtM[2])
+        } else if (!INT_EXT_SPIELTAG_RE.test(rest)) {
+          sameLineOrt = rest
+        }
       }
       i++
       if (i < endIdx && DURATION_RE.test(lines[i]?.trim() || '')) {
@@ -811,33 +823,36 @@ function parseSubSceneHeader(
   }
   if (i >= endIdx) return null
 
-  // INT/EXT (will be set below; defaults from parent)
-  let int_ext = parent.int_ext
-  let tageszeit = parent.tageszeit
-  let spieltag = parent.spieltag
+  // INT/EXT (will be set below; defaults from parent or same-line extraction)
+  let int_ext = sameLineIntExtParsed?.int_ext ?? parent.int_ext
+  let tageszeit = sameLineIntExtParsed?.tageszeit ?? parent.tageszeit
+  let spieltag = sameLineIntExtParsed?.spieltag ?? parent.spieltag
 
   // Location — skip blanks; don't take character lists as ort_name.
   // bbox mode: location and INT/EXT code may be merged on one line:
   // "Stu. 02 / Wohngemeinschaft I/T4"
   i = skipBlanks(lines, i)
-  let ort_name = ''
-  const locCandidate = lines[i]?.trim() || ''
-  if (locCandidate && !DURATION_RE.test(locCandidate) &&
-      !INT_EXT_SPIELTAG_RE.test(locCandidate) && !isCharacterLine(locCandidate)) {
-    // Check if an INT/EXT code is embedded at end of the location line
-    const mergedM = locCandidate.match(/^(.*?)\s+([IE]\/[TNAD]\d+)$/)
-    if (mergedM) {
-      // Strip optional "Stu. NN /" studio prefix, keep just the set name
-      ort_name = mergedM[1].replace(/^Stu\.\s*\d+\s*\/\s*/i, '').trim()
-      const parsed = parseIntExtCode(mergedM[2])
-      int_ext = parsed.int_ext
-      tageszeit = parsed.tageszeit
-      spieltag = parsed.spieltag
-    } else {
-      // Strip "Stu. NN /" prefix even without embedded INT/EXT
-      ort_name = locCandidate.replace(/^Stu\.\s*\d+\s*\/\s*/i, '').trim()
+  let ort_name = sameLineOrt
+  if (!ort_name) {
+    // Only look for location on a separate line if we didn't extract it from the scene-number line
+    const locCandidate = lines[i]?.trim() || ''
+    if (locCandidate && !DURATION_RE.test(locCandidate) &&
+        !INT_EXT_SPIELTAG_RE.test(locCandidate) && !isCharacterLine(locCandidate)) {
+      // Check if an INT/EXT code is embedded at end of the location line
+      const mergedM = locCandidate.match(/^(.*?)\s+([IE]\/[TNAD]\d+)$/)
+      if (mergedM) {
+        // Strip optional "Stu. NN /" studio prefix, keep just the set name
+        ort_name = mergedM[1].replace(/^Stu\.\s*\d+\s*\/\s*/i, '').trim()
+        const parsed = parseIntExtCode(mergedM[2])
+        int_ext = parsed.int_ext
+        tageszeit = parsed.tageszeit
+        spieltag = parsed.spieltag
+      } else {
+        // Strip "Stu. NN /" prefix even without embedded INT/EXT
+        ort_name = locCandidate.replace(/^Stu\.\s*\d+\s*\/\s*/i, '').trim()
+      }
+      i++
     }
-    i++
   }
 
   // Characters
