@@ -98,16 +98,17 @@ function parseJsonBlock(text: string): any | null {
 }
 
 // ── Strang-Chunking ──────────────────────────────────────────────────────────
-// Dokument wird an H1/H2-Überschriften aufgeteilt (Stränge).
-// Nur Sektionen mit tatsächlichem Block-Inhalt werden an die KI geschickt.
-// Das verhindert False-Positives durch Prosa-Referenzen wie "In Block 845 trifft..."
+// Strategie:
+//   1. Dokument hat klare H1-Strang-Sektionen (≤8)  → pro Strang ein KI-Call
+//   2. Flaches Dokument (>8 H1s oder keine H1s)      → ein einziger Call mit Volldokument
+//      (302k Zeichen ≈ 75k Tokens, Mistral Large hat 128k-Fenster)
 
+const MAX_STRAND_SECTIONS = 8
 const STRAND_CHUNK_MAX_CHARS = 60000
+const FULL_DOC_MAX_CHARS = 260000  // ~65k Tokens, sicher im 128k-Fenster
 
 function splitIntoStrandSections(text: string): Array<{ strandName: string; raw: string }> {
-  // Nur H1-Überschriften (# ), nicht H2 (## ).
-  // H1 = Strang-Gruppen ("# SVENJA - ARTHUR - TILL - HEINER"),
-  // H2 = Block-Unterabschnitte ("## BLOCK 845 MIKA ARTHUR") → werden NICHT aufgeteilt.
+  // Nur H1-Überschriften (# , nicht ##) — Strang-Gruppen-Ebene
   const pattern = /(?:^|\n)(#[ \t]+[^\n]+)(?:\r?\n|$)/gim
   const positions: Array<{ pos: number; strandName: string }> = []
   let m: RegExpExecArray | null
@@ -119,7 +120,6 @@ function splitIntoStrandSections(text: string): Array<{ strandName: string; raw:
     strandName: p.strandName,
     raw: text.slice(p.pos, i + 1 < positions.length ? positions[i + 1].pos : undefined).trim(),
   }))
-  // Nur Sektionen die tatsächlich Block-Referenzen enthalten (Stränge, keine Titel-/Inhaltsseiten)
   return all.filter(s => /Block[ \t]+\d{3,4}/i.test(s.raw))
 }
 
@@ -130,25 +130,27 @@ async function extractItemsChunked(
   buildPrompt: (chunkText: string) => string,
 ): Promise<{ items: any[]; totalTokIn: number; totalTokOut: number }> {
   const strandSections = splitIntoStrandSections(fullText)
-  console.log(`[konzept-import] text=${fullText.length} Zeichen, strand_sektionen=${strandSections.length}, text[0..300]=${JSON.stringify(fullText.slice(0, 300))}`)
+  console.log(`[konzept-import] text=${fullText.length} Zeichen, strand_sektionen=${strandSections.length}`)
   let totalTokIn = 0
   let totalTokOut = 0
-  const allItems: any[] = []
 
-  if (strandSections.length === 0) {
-    // Fallback: keine Strang-Sektionen erkannt → single call
-    console.log('[konzept-import] Fallback: keine Strang-Sektionen, single call 80k')
-    const prompt = buildPrompt(fullText.slice(0, 80000))
-    const raw = await callMistral(apiKey, model, prompt, 16000)
+  // Flaches Dokument (keine Hierarchie oder zu viele Sektionen) → single call
+  if (strandSections.length === 0 || strandSections.length > MAX_STRAND_SECTIONS) {
+    const reason = strandSections.length === 0 ? 'keine H1-Sektionen' : `${strandSections.length} Sektionen (flache Struktur)`
+    console.log(`[konzept-import] Single-Call (${reason}), ${Math.min(fullText.length, FULL_DOC_MAX_CHARS)} Zeichen`)
+    const prompt = buildPrompt(fullText.slice(0, FULL_DOC_MAX_CHARS))
+    const raw = await callMistral(apiKey, model, prompt, 16000, 180000)
     totalTokIn = Math.round(prompt.length / 4)
     totalTokOut = Math.round(raw.length / 4)
-    console.log(`[konzept-import] Fallback raw[0..400]=${JSON.stringify(raw.slice(0, 400))}`)
+    console.log(`[konzept-import] Single-Call raw[0..400]=${JSON.stringify(raw.slice(0, 400))}`)
     const result = parseJsonBlock(raw)
-    console.log(`[konzept-import] Fallback items=${result?.items?.length ?? 'null'}`)
+    console.log(`[konzept-import] Single-Call items=${result?.items?.length ?? 'null'}`)
     return { items: result?.items ?? [], totalTokIn, totalTokOut }
   }
 
-  console.log(`[konzept-import] ${strandSections.length} Strang-Sektionen`)
+  // Hierarchisches Dokument → pro Strang-Sektion ein KI-Call
+  console.log(`[konzept-import] ${strandSections.length} Strang-Sektionen (hierarchisch)`)
+  const allItems: any[] = []
   for (const section of strandSections) {
     const chunkText = section.raw.length > STRAND_CHUNK_MAX_CHARS
       ? section.raw.slice(0, STRAND_CHUNK_MAX_CHARS)
@@ -175,7 +177,6 @@ async function extractItemsChunked(
     seen.add(key)
     return true
   })
-
   return { items, totalTokIn, totalTokOut }
 }
 
