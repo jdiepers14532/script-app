@@ -401,6 +401,58 @@ function findContentStart(lines: string[]): number {
   return 0
 }
 
+// ─── Scene-header vs. flow-text discrimination ──────────
+//
+// A line beginning with a scene number (NNNN.N) is only a real scene HEADER when
+// what follows it looks like header metadata — NOT a running sentence. This stops
+// in-text references such as "(vgl. Bild 4406.21) - sie selbst hat …" (which
+// word-wrap so "4406.21) …" starts a line) from being parsed as new scenes.
+//
+// Real header tails:
+//   • nothing after the number       → "4407.1"             (pdftotext: number alone)
+//   • ends with an INT/EXT code       → "… / Küche I/T6"     (bbox)
+//   • a bare duration                 → "4402.1 1:33"
+//   • starts with a location keyword  → "4402.8 Außendreh…"  (OCR merge)
+// Anything else after the number (lowercase, ")", a normal sentence) = flow text.
+
+const SCENE_LOCATION_TAIL_RE = /^(Stu\.|Studio|Außendreh)/i
+
+/** A SCENE_NUM_RE line whose trailing text is a running sentence, not a header tail. */
+function sceneNumTrailingIsFlow(line: string): boolean {
+  const t = line.trim()
+  const m = SCENE_NUM_RE.exec(t)
+  if (!m) return false
+  const trailing = (m[3] || '').trim()
+  if (!trailing) return false                       // bare number → not flow text
+  if (INT_EXT_AT_END_RE.test(t)) return false        // header tail (bbox)
+  if (DURATION_RE.test(trailing)) return false       // header tail (duration)
+  if (SCENE_LOCATION_TAIL_RE.test(trailing)) return false // header tail (location)
+  return true                                        // sentence / flow text
+}
+
+/** True when the line at idx is a real scene header (not an in-text scene reference). */
+function isSceneHeaderAt(lines: string[], idx: number): boolean {
+  const t = lines[idx]?.trim() || ''
+  const m = SCENE_NUM_RE.exec(t)
+  if (!m) return false
+  const trailing = (m[3] || '').trim()
+
+  // Tail present → accept only a header-like tail, reject running sentences.
+  if (trailing) return !sceneNumTrailingIsFlow(t)
+
+  // Bare scene number → confirm with the following non-blank line. Real headers are
+  // followed by a location / duration / INT-EXT / character list / crosscut partner
+  // number; a reference is followed by prose (lowercase or sentence punctuation).
+  const next = lines[skipBlanks(lines, idx + 1)]?.trim() || ''
+  if (!next) return true
+  if (DURATION_RE.test(next)) return true
+  if (INT_EXT_SPIELTAG_RE.test(next)) return true
+  if (SCENE_NUM_RE.test(next)) return true
+  if (isCharacterLine(next)) return true
+  if (/^[a-zäöüß)\]},.;:!?»"]/.test(next)) return false
+  return true
+}
+
 // ─── Parse synopsis & memo ──────────────────────────────
 
 function parseSynopsisAndMemo(lines: string[], startIdx: number): {
@@ -668,7 +720,7 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
     const line = lines[i].trim()
     if (!line) { zusammenfassungLines.push(''); i++; continue }
     if (DURATION_RE.test(line)) break
-    if (SCENE_NUM_RE.test(line)) break
+    if (SCENE_NUM_RE.test(line) && !sceneNumTrailingIsFlow(line)) break
     if (INT_EXT_SPIELTAG_RE.test(line)) break
     if (KOMPARSEN_RE.test(line)) break
     if (/^Bild aus Block/i.test(line) || WECHSELSCHNITT_RE.test(line) || /^Bitte.*Memo/i.test(line)) break
@@ -894,7 +946,7 @@ function parseSubSceneHeader(
     const line = lines[i]?.trim() || ''
     if (!line) { i++; continue }
     if (DURATION_RE.test(line)) break
-    if (SCENE_NUM_RE.test(line)) break
+    if (SCENE_NUM_RE.test(line) && !sceneNumTrailingIsFlow(line)) break
     if (KOMPARSEN_RE.test(line)) break
     if (WECHSELSCHNITT_RE.test(line)) break
     if (INT_EXT_SPIELTAG_RE.test(line)) break
@@ -1089,7 +1141,7 @@ function parseTreatmentContent(lines: string[], startIdx: number, endIdx: number
       let j = i + 1
       while (j < endIdx) {
         const next = lines[j].trim()
-        if (!next || SCENE_NUM_RE.test(next)) break
+        if (!next || (SCENE_NUM_RE.test(next) && !sceneNumTrailingIsFlow(next))) break
         anmParts.push(next)
         j++
       }
@@ -1241,7 +1293,7 @@ function parseDrehbuchContent(
       let j = i + 1
       while (j < endIdx) {
         const next = lines[j].trim()
-        if (!next || SCENE_NUM_RE.test(next) || DIALOG_NUM_RE.test(next)) break
+        if (!next || (SCENE_NUM_RE.test(next) && !sceneNumTrailingIsFlow(next)) || DIALOG_NUM_RE.test(next)) break
         const nextNext = lines[j + 1]?.trim() || ''
         if (isUnnumberedCharacterCue(next, nextNext)) break
         anmParts.push(next)
@@ -1294,7 +1346,7 @@ export function parseRoteRosen(rawText: string, ocrMode = false, layout?: BboxLa
   if (layout) {
     for (const li of layout.lines) {
       const m = SCENE_NUM_RE.exec(li.text.trim())
-      if (m) {
+      if (m && !sceneNumTrailingIsFlow(li.text)) {
         const key = `${parseInt(m[1], 10)}.${parseInt(m[2], 10)}`
         if (!scenePageMap.has(key)) scenePageMap.set(key, li.pageIdx + 1 + pageOffset)
       }
@@ -1304,7 +1356,7 @@ export function parseRoteRosen(rawText: string, ocrMode = false, layout?: BboxLa
     for (let p = 0; p < pages.length; p++) {
       for (const line of pages[p].split(/\r?\n/)) {
         const m = SCENE_NUM_RE.exec(line.trim())
-        if (m) {
+        if (m && !sceneNumTrailingIsFlow(line)) {
           const key = `${parseInt(m[1], 10)}.${parseInt(m[2], 10)}`
           if (!scenePageMap.has(key)) scenePageMap.set(key, p + 1 + pageOffset)
         }
@@ -1403,7 +1455,9 @@ export function parseRoteRosen(rawText: string, ocrMode = false, layout?: BboxLa
   while (i < lines.length) {
     const t = lines[i]?.trim()
     if (!t) { i++; continue }
-    if (!SCENE_NUM_RE.test(t)) { i++; continue }
+    // Only treat a scene-number line as a NEW scene when it is a real header,
+    // not an in-text reference like "4406.21) - sie selbst hat …" (flow text).
+    if (!isSceneHeaderAt(lines, i)) { i++; continue }
 
     const header = parseSceneHeader(lines, i)
     if (!header) { i++; continue }
@@ -1416,16 +1470,15 @@ export function parseRoteRosen(rawText: string, ocrMode = false, layout?: BboxLa
     const crosscutPartnerNrs = new Set(header.crosscutDurationEntries.keys())
 
     // Phase 1: initial blockEnd (only partners from duration table, if any)
+    // Use isSceneHeaderAt so an in-text scene reference does not end the block early.
     let blockEnd = lines.length
     for (let j = header.headerEndIdx; j < lines.length; j++) {
-      const lineJ = lines[j]?.trim() || ''
-      const scM = SCENE_NUM_RE.exec(lineJ)
-      if (scM) {
-        const nr = parseInt(scM[2], 10)
-        if (!crosscutPartnerNrs.has(nr)) {
-          blockEnd = j
-          break
-        }
+      if (!isSceneHeaderAt(lines, j)) continue
+      const scM = SCENE_NUM_RE.exec(lines[j].trim())!
+      const nr = parseInt(scM[2], 10)
+      if (!crosscutPartnerNrs.has(nr)) {
+        blockEnd = j
+        break
       }
     }
 
@@ -1443,8 +1496,8 @@ export function parseRoteRosen(rawText: string, ocrMode = false, layout?: BboxLa
       blockEnd = lines.length
       for (let j = header.headerEndIdx; j < lines.length; j++) {
         const lineJ = lines[j]?.trim() || ''
-        const scM = SCENE_NUM_RE.exec(lineJ)
-        if (scM) {
+        if (isSceneHeaderAt(lines, j)) {
+          const scM = SCENE_NUM_RE.exec(lineJ)!
           const nr = parseInt(scM[2], 10)
           if (!crosscutPartnerNrs.has(nr)) {
             blockEnd = j
