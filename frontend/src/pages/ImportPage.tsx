@@ -428,6 +428,18 @@ export default function ImportPage() {
     }
     setBlockImportResults(results)
     setBlockImporting(false)
+    // Save last imported episode so ScriptPage auto-selects it
+    const lastSuccess = [...results].reverse().find(r => r.success)
+    if (lastSuccess && selectedId) {
+      await api.updateSettings({
+        ui_settings: {
+          last_produktion_id: selectedId,
+          last_folge_nummer: lastSuccess.episode_nr,
+          last_stage_id: null,
+          last_szene_id: null,
+        },
+      }).catch(() => {})
+    }
     window.dispatchEvent(new Event('script-import-complete'))
     if (results.every(r => r.success)) {
       setStep(3)
