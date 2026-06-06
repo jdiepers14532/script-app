@@ -57,7 +57,8 @@ export function buildShortcutGroups(
       title: 'Befehle, Ansicht & Hilfe', color: '#00C853', icon: '⌘',
       rows: [
         { keys: `${mod}+K`, desc: 'Befehlspalette' },
-        { keys: '?', desc: 'diese Kürzel-Übersicht (nur außerhalb von Eingabefeldern)' },
+        { keys: '?', desc: 'Kürzel-Übersicht als Grafik (außerhalb von Eingabefeldern)' },
+        { keys: `${mod}+?`, desc: 'Kürzel-Übersicht als Liste' },
         { keys: 'F6 / Shift+F6', desc: 'Bereich wechseln (Liste ↔ Editor)' },
         { keys: label('focusMode'), desc: 'Fokus-Modus an/aus' },
         { keys: 'Esc', desc: 'Fokus-Modus / Dialog verlassen' },

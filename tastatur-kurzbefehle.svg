@@ -59,7 +59,7 @@
 <text x="92" y="1206" font-weight="700" fill="#00A847">Esc</text><text x="250" y="1206">Text verlassen → Liste</text>
 <text x="92" y="1232" font-weight="700" fill="#00A847">Enter</text><text x="250" y="1232">aus Liste → in Editor</text>
 <text x="92" y="1258" font-weight="700" fill="#00A847">Strg + K</text><text x="250" y="1258">Befehlspalette</text>
-<text x="92" y="1284" font-weight="700" fill="#00A847">?</text><text x="250" y="1284">diese Kürzel-Übersicht</text>
+<text x="92" y="1284" font-weight="700" fill="#00A847">? / Strg+?</text><text x="250" y="1284">Übersicht: Grafik / Liste</text>
 <text x="92" y="1310" font-weight="700" fill="#00A847">Alt + Z</text><text x="250" y="1310">Fokus-Modus</text>
 <text x="92" y="1336" font-weight="700" fill="#00A847">Alt + A</text><text x="250" y="1336">Ansichts-Einstellungen</text>
 </g>

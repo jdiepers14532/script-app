@@ -15,7 +15,7 @@ import { useOfflineQueueContext } from '../sw-ui'
 import ProductionSelector from './ProductionSelector'
 import HeaderSelect from './HeaderSelect'
 import { CompanyInfoModal, useTerminologie, WuenscheModal, MagicModal, injectMagicCSS, MAGIC_COLORS, CommandPalette, ShortcutCheatSheet, useKeymapHotkeys } from '../sw-ui'
-import type { WunschNotification, WunschDialoge, Command } from '../sw-ui'
+import type { WunschNotification, WunschDialoge, Command, CheatSheetView } from '../sw-ui'
 import { buildShortcutGroups } from '../data/shortcutReference'
 import { api } from '../api/client'
 import Tooltip from './Tooltip'
@@ -728,7 +728,11 @@ export default function AppShell({
   // Mechanik aus sw-ui (app-übergreifend). Stabile Callbacks → kein Re-Register.
   useKeymapHotkeys({
     onTogglePalette:  useCallback(() => setPaletteOpen(v => !v), []),
-    onOpenCheatSheet: useCallback(() => setCheatSheetOpen(true), []),
+    // ? öffnet die Grafik, Strg+? die Liste — gewählte Ansicht persistieren (cheatSheetView)
+    onOpenCheatSheet: useCallback((view?: CheatSheetView) => {
+      if (view) setTweaks(t => ({ ...t, cheatSheetView: view }))
+      setCheatSheetOpen(true)
+    }, []),
   })
 
   // ── Nav-Shortcuts (Alt+Buchstabe) → direkte Navigation ───────────────────

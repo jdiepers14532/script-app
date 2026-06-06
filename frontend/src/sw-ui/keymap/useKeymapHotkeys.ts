@@ -3,12 +3,16 @@
 // Kürzel-Übersicht (?). Die App liefert die Callbacks und mountet die Overlays.
 // Übergib stabile Callbacks (useCallback), sonst registriert sich der Listener neu.
 import { useEffect } from 'react'
+import type { CheatSheetView } from './ShortcutCheatSheet'
 
 export interface KeymapHotkeyHandlers {
   /** Strg/Cmd+K (ohne Shift/Alt — Strg+Shift+K bleibt für die App frei) */
   onTogglePalette?: () => void
-  /** ? — nur ausgelöst, wenn der Fokus NICHT in einem Eingabe-/Textfeld liegt */
-  onOpenCheatSheet?: () => void
+  /**
+   * Kürzel-Übersicht öffnen — nur wenn der Fokus NICHT in einem Eingabe-/Textfeld liegt.
+   * ? öffnet die Grafik, Strg+? die Liste (der View-Wunsch wird als Argument übergeben).
+   */
+  onOpenCheatSheet?: (view?: CheatSheetView) => void
 }
 
 export function useKeymapHotkeys({ onTogglePalette, onOpenCheatSheet }: KeymapHotkeyHandlers) {
@@ -19,8 +23,9 @@ export function useKeymapHotkeys({ onTogglePalette, onOpenCheatSheet }: KeymapHo
       if (onTogglePalette && (e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.code === 'KeyK') {
         e.preventDefault(); onTogglePalette(); return
       }
-      if (onOpenCheatSheet && e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey && !isEditable) {
-        e.preventDefault(); onOpenCheatSheet()
+      // ? → Grafik · Strg+? → Liste (Cmd zählt nicht — bleibt für OS/Browser frei)
+      if (onOpenCheatSheet && e.key === '?' && !e.metaKey && !e.altKey && !isEditable) {
+        e.preventDefault(); onOpenCheatSheet(e.ctrlKey ? 'liste' : 'grafik')
       }
     }
     window.addEventListener('keydown', handler)
