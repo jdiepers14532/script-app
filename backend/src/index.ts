@@ -143,9 +143,12 @@ app.use('/api/produktionen', produktionenRouter)
 app.use('/api/folgen', locksRouter)       // GET/POST/DELETE /:produktionId/:folgeNummer/lock
 app.use('/api/locks', contractLocksRouter) // POST /contract-update
 // Internal routes — MUST be before exportsRouter (which applies authMiddleware to all /api/*)
+// verteilerInternalRouter ZUERST: gatet nur /mail-status (per-Route-Secret), übrige
+// Pfade fallen durch. taetigkeitenInternalRouter hat ein router-globales Secret-Gate,
+// das sonst /mail-status abfangen würde.
+app.use('/api/internal', verteilerInternalRouter) // mail-status (X-Mail-Service-Secret)
 app.use('/api/internal', commentWebhookRouter)
 app.use('/api/internal', taetigkeitenInternalRouter)
-app.use('/api/internal', verteilerInternalRouter) // mail-status (X-Mail-Service-Secret)
 app.use('/api', exportsRouter)            // werkstufe/:id/export/* routes
 app.use('/api/stages', stagesCommentRouter)
 app.use('/api/szenen', szenenCommentRouter)

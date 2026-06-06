@@ -16,19 +16,21 @@ import { MAIL_SERVICE_SECRET } from '../lib/verteiler'
 
 export const verteilerInternalRouter = Router()
 
+// Secret PRO ROUTE (nicht router-global): /api/internal teilt sich mehrere
+// Router mit je eigenem Secret. Ein router-globales .use(checkSecret) würde die
+// anderen /api/internal-Router blockieren — daher nur auf der mail-status-Route.
 function checkSecret(req: Request, res: Response, next: NextFunction) {
   if (req.headers['x-mail-service-secret'] !== MAIL_SERVICE_SECRET) {
     return res.status(401).json({ error: 'Unauthorized' })
   }
   next()
 }
-verteilerInternalRouter.use(checkSecret)
 
 // Erlaubte Zustellungs-Status aus dem Mail-Service (Versand-FSM, ohne 'expired'/'queued').
 const VALID_STATUS = new Set(['sent', 'delivered', 'bounced'])
 
 // POST /api/internal/mail-status
-verteilerInternalRouter.post('/mail-status', async (req, res) => {
+verteilerInternalRouter.post('/mail-status', checkSecret, async (req, res) => {
   const { correlation_id, status, bounce_grund } = req.body || {}
   if (!correlation_id || !status) {
     return res.status(400).json({ error: 'correlation_id und status erforderlich' })
