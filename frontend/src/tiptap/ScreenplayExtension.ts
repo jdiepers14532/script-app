@@ -1,4 +1,5 @@
 import { Node, mergeAttributes, Command } from '@tiptap/core'
+import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { uuidv4 } from '../utils/uuid'
 
 export type ScreenplayElementType =
@@ -150,15 +151,34 @@ export const ScreenplayExtension = Node.create<{ formatElements: FormatElement[]
           .run()
       },
 
-      // Format shortcuts Alt+1–7 (web-safe, avoids browser tab-switch conflict)
-      'Alt-1': () => this.editor.commands.setElementType('scene_heading'),
-      'Alt-2': () => this.editor.commands.setElementType('action'),
-      'Alt-3': () => this.editor.commands.setElementType('character'),
-      'Alt-4': () => this.editor.commands.setElementType('parenthetical'),
-      'Alt-5': () => this.editor.commands.setElementType('dialogue'),
-      'Alt-6': () => this.editor.commands.setElementType('transition'),
-      'Alt-7': () => this.editor.commands.setElementType('shot'),
     }
+  },
+
+  // Alt+1…7 = Elementtyp. Über e.code (Digit1…7) statt Tiptap-Keymap-String 'Alt-1',
+  // damit es auch auf Mac funktioniert (⌥+1 liefert dort event.key='¡', nicht '1').
+  // Alt (nicht Strg) gewählt, weil Strg+Ziffer im Browser für Tab-Wechsel reserviert ist.
+  addProseMirrorPlugins() {
+    const editor = this.editor
+    const map: Record<string, ScreenplayElementType> = {
+      Digit1: 'scene_heading', Digit2: 'action', Digit3: 'character',
+      Digit4: 'parenthetical', Digit5: 'dialogue', Digit6: 'transition', Digit7: 'shot',
+    }
+    return [
+      new Plugin({
+        key: new PluginKey('screenplay-alt-digit'),
+        props: {
+          handleKeyDown: (_view, event) => {
+            // Nur reines Alt (kein AltGr = Alt+Ctrl, kein Meta/Shift)
+            if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return false
+            const type = map[event.code]
+            if (!type) return false
+            event.preventDefault()
+            editor.commands.setElementType(type)
+            return true
+          },
+        },
+      }),
+    ]
   },
 })
 

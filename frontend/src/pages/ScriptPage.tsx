@@ -19,6 +19,7 @@ import StoryRadarPanel from '../components/StoryRadarPanel'
 import StrangVerwaltungModal from '../components/StrangVerwaltungModal'
 import StoppzeitenModal from '../components/StoppzeitenModal'
 import { resolveSzeneSwitch } from '../utils/resolveSzeneSwitch'
+import { matchesShortcut } from '../shortcuts'
 
 // ── Fehlender-Dialog Blocking-Modal ───────────────────────────────────────────
 function FehlenderDialogModal({ issues, onClose }: { issues: any[]; onClose: () => void }) {
@@ -875,7 +876,22 @@ export default function ScriptPage() {
       }}).catch(() => {})
   }, [])
 
-  // Keyboard navigation: ←→ = Szene wechseln, Strg+G = Gehe zu Szene
+  // Folge wechseln (innerhalb des aktuellen Blocks, bounded an folge_von/-bis)
+  const navigateFolge = useCallback((dir: 1 | -1) => {
+    const block = selectedBlockRef.current
+    const cur = selectedFolgeNummerRef.current
+    if (!block || cur == null) return
+    const von = block.folge_von ?? null
+    const bis = block.folge_bis ?? null
+    if (von == null) return
+    const next = cur + dir
+    if (next < von) return
+    if (bis != null && next > bis) return
+    navRestored.current = true
+    setSelectedFolgeNummer(next)
+  }, [])
+
+  // Keyboard navigation: ←→ = Szene · Alt+Bild = Szene · Alt+Shift+Bild = Folge · Strg+G = Gehe zu Szene
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const tag = (document.activeElement?.tagName || '').toLowerCase()
@@ -886,6 +902,16 @@ export default function ScriptPage() {
         if (!isEditable) { e.preventDefault(); setGotoOpen(true) }
         return
       }
+
+      // Szene wechseln: Alt+Bild auf/ab (auch im Editor). Mac-Laptop-Alias ⌘+⌥+↑/↓.
+      // NICHT Strg+Bild — browserreserviert für Tab-Wechsel (nicht abfangbar).
+      const macArrowAlias = e.metaKey && e.altKey && (e.code === 'ArrowUp' || e.code === 'ArrowDown')
+      if (matchesShortcut('scenePrev', e) || (macArrowAlias && !e.shiftKey && e.code === 'ArrowUp'))   { e.preventDefault(); navigateSzene(-1); return }
+      if (matchesShortcut('sceneNext', e) || (macArrowAlias && !e.shiftKey && e.code === 'ArrowDown')) { e.preventDefault(); navigateSzene(1);  return }
+
+      // Folge wechseln: Alt+Shift+Bild auf/ab. Mac-Alias ⌘+⌥+Shift+↑/↓.
+      if (matchesShortcut('folgePrev', e) || (macArrowAlias && e.shiftKey && e.code === 'ArrowUp'))   { e.preventDefault(); navigateFolge(-1); return }
+      if (matchesShortcut('folgeNext', e) || (macArrowAlias && e.shiftKey && e.code === 'ArrowDown')) { e.preventDefault(); navigateFolge(1);  return }
 
       if (!['ArrowLeft', 'ArrowRight'].includes(e.key)) return
       if (isEditable) return

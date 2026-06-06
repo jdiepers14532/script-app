@@ -5,6 +5,7 @@ import { C } from './hilfe/_shared'
 
 // ── Lazy-geladene Tab-Inhalte (Code Splitting) ────────────────────────────────
 const ErsteSchritteTab     = lazy(() => import('./hilfe/ErsteSchritteTab'))
+const TastenkuerzelTab     = lazy(() => import('./hilfe/TastenkuerzelTab'))
 const PwaInstallationTab   = lazy(() => import('./hilfe/PwaInstallationTab'))
 const OfflineTab           = lazy(() => import('./hilfe/OfflineTab'))
 const SzenenEditorTab      = lazy(() => import('./hilfe/SzenenEditorTab'))
@@ -55,6 +56,8 @@ function TabSpinner() {
 const NAV_ITEMS = [
   { id: 'erste-schritte',       label: 'Erste Schritte',            icon: '🚀',
     keywords: 'start anfang einführung schnellstart übersicht willkommen neu' },
+  { id: 'tastenkuerzel',        label: 'Tastenkürzel',              icon: '⌨️',
+    keywords: 'tastenkürzel shortcut shortcuts kürzel tastatur keyboard hotkey strg ctrl alt cmd bild auf ab pos1 ende pfeile szene folge wechseln fokus navigation befehlspalette f6' },
   { id: 'pwa-installation',     label: 'App installieren',          icon: '📲',
     keywords: 'pwa installieren install browser chrome safari ios android desktop homescreen icon update deinstall' },
   { id: 'offline',              label: 'Offline-Modus',             icon: '📶',
@@ -174,6 +177,7 @@ function HilfePage() {
   function renderTab() {
     switch (activeSection) {
       case 'erste-schritte':     return <ErsteSchritteTab />
+      case 'tastenkuerzel':      return <TastenkuerzelTab />
       case 'pwa-installation':   return <PwaInstallationTab />
       case 'offline':            return <OfflineTab />
       case 'szenen-editor':      return <SzenenEditorTab />

@@ -192,6 +192,36 @@ export const SHORTCUT_DEFS: Record<string, ShortcutDef> = {
     label: (_layout, isMac) => `${isMac ? '⌘' : 'Strg'}+G`,
   },
 
+  // Szene wechseln: Alt+Bild auf/ab.
+  // NICHT Strg+Bild — das ist im Browser für Tab-Wechsel reserviert und per
+  // preventDefault() nicht abfangbar. Alt+Bild ist frei und behält die „Bild"-Semantik.
+  // Funktioniert auch im Editor (kein isEditable-Guard im Handler).
+  // Mac-Laptop-Alias ⌘+⌥+↑/↓ wird im ScriptPage-Handler separat behandelt.
+  sceneNext: {
+    codes: ['PageDown'],
+    altKey: true,
+    label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+Bild ab`,
+  },
+  scenePrev: {
+    codes: ['PageUp'],
+    altKey: true,
+    label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+Bild auf`,
+  },
+
+  // Folge wechseln: Alt+Shift+Bild auf/ab. Mac-Alias ⌘+⌥+Shift+↑/↓ im Handler.
+  folgeNext: {
+    codes: ['PageDown'],
+    altKey: true,
+    shiftKey: true,
+    label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+Shift+Bild ab`,
+  },
+  folgePrev: {
+    codes: ['PageUp'],
+    altKey: true,
+    shiftKey: true,
+    label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+Shift+Bild auf`,
+  },
+
 }
 
 // ── Hilfsfunktionen (pure, kein React) ────────────────────────────────────────

@@ -1,4 +1,5 @@
 import { Node, mergeAttributes, Command } from '@tiptap/core'
+import { Plugin, PluginKey } from '@tiptap/pm/state'
 
 export interface AbsatzFormat {
   id: string
@@ -93,31 +94,7 @@ export const AbsatzExtension = Node.create<{ formate: AbsatzFormat[] }>({
     const getFormatById = (id: string | null) =>
       id ? this.options.formate.find(f => f.id === id) : null
 
-    // Build Alt+1 through Alt+9 shortcuts for format selection.
-    // Works on both 'absatz' nodes (updateAttributes) and plain 'paragraph' nodes
-    // (setNode converts them). Use a copy of formate to avoid mutating the options array.
-    const altShortcuts: Record<string, () => boolean> = {}
-    for (let i = 1; i <= 9; i++) {
-      altShortcuts[`Alt-${i}`] = () => {
-        const fmt = [...this.options.formate].sort((a, b) => a.sort_order - b.sort_order)[i - 1]
-        if (!fmt) return false
-        const { $from } = this.editor.state.selection
-        const nodeType = $from.node().type.name
-        if (nodeType === 'absatz') {
-          return this.editor.chain()
-            .updateAttributes('absatz', { format_id: fmt.id, format_name: fmt.name })
-            .run()
-        }
-        // paragraph or other block: convert to absatz node
-        return this.editor.chain()
-          .setNode('absatz', { format_id: fmt.id, format_name: fmt.name })
-          .run()
-      }
-    }
-
     return {
-      ...altShortcuts,
-
       Tab: () => {
         const { state } = this.editor
         const { $from } = state.selection
@@ -179,6 +156,35 @@ export const AbsatzExtension = Node.create<{ formate: AbsatzFormat[] }>({
           .run()
       },
     }
+  },
+
+  // Alt+1…9 = Absatzformat (nach sort_order). e.code-basiert für Mac-Korrektheit
+  // (⌥+Ziffer liefert auf Mac kein '1'..'9' in event.key). Alt statt Strg wegen Browser-Tabs.
+  addProseMirrorPlugins() {
+    const editor = this.editor
+    const getFormate = () => [...this.options.formate].sort((a, b) => a.sort_order - b.sort_order)
+    return [
+      new Plugin({
+        key: new PluginKey('absatz-alt-digit'),
+        props: {
+          handleKeyDown: (_view, event) => {
+            if (!event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return false
+            const m = /^Digit([1-9])$/.exec(event.code)
+            if (!m) return false
+            const fmt = getFormate()[parseInt(m[1], 10) - 1]
+            if (!fmt) return false
+            event.preventDefault()
+            const { $from } = editor.state.selection
+            if ($from.node().type.name === 'absatz') {
+              editor.chain().updateAttributes('absatz', { format_id: fmt.id, format_name: fmt.name }).run()
+            } else {
+              editor.chain().setNode('absatz', { format_id: fmt.id, format_name: fmt.name }).run()
+            }
+            return true
+          },
+        },
+      }),
+    ]
   },
 })
 
