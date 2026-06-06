@@ -320,7 +320,16 @@ export default function EditorPanel({
         // wrong content after a werkstufe switch.
         let szeneId: string | null = null
         if (sceneIdentityId && selectedWerkId) {
+          // Die identity der gewählten Szene existiert evtl. (noch) nicht in der
+          // Werkstufe DIESES Panels — z.B. während eines Werkstufen-/Folgenwechsels,
+          // wenn selectedWerkId zu einer anderen Folge gehört als sceneIdentityId.
+          // Dann liefert resolve 404 "Szene nicht in dieser Folge gefunden". Das ist
+          // ein transienter Zustand, kein Fehler → Panel leeren statt console.error.
           const resolved = await api.resolveDokumentSzene(selectedWerkId, sceneIdentityId)
+            .catch((e: any) => {
+              if (e?.status === 404) return null
+              throw e
+            })
           if (resolved?.id) szeneId = resolved.id
         } else if (typeof selectedSzeneId === 'string') {
           // Fallback for non-scene elements (cover, synopsis, etc.) without identity
