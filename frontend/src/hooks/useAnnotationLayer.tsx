@@ -17,7 +17,7 @@ export interface AnnotationLayerOpts {
   decoAnker: DecoAnker[]
   activeAnmerkungId: string | null
   onOpen: (id: string) => void
-  onCreateContent: (p: { node_id: string; selektor: Selektor; quelle: string; body: any }) => Promise<void> | void
+  onCreateContent: (p: { node_id: string | null; selektor: Selektor; quelle: string; body: any }) => Promise<void> | void
   onResolved?: (resolved: ResolvedAnchor[]) => void
   canCreate: boolean
 }
@@ -43,7 +43,7 @@ function injectCSS() {
 }
 
 export function useAnnotationLayer(editor: Editor | null, opts: AnnotationLayerOpts | null): { overlay: ReactNode } {
-  const [sel, setSel] = useState<{ top: number; left: number; node_id: string; selektor: Selektor } | null>(null)
+  const [sel, setSel] = useState<{ top: number; left: number; node_id: string | null; selektor: Selektor } | null>(null)
   const [composing, setComposing] = useState(false)
   const [quelle, setQuelle] = useState('produktion')
   const [text, setText] = useState('')

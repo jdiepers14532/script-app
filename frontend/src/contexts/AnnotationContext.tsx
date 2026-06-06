@@ -44,7 +44,7 @@ interface AnnotationCtx {
   decoAnker: DecoAnker[]     // content-Anker der Szene (für Editor-Decorations)
   kopffeldItems: (feldname: string) => AnmerkungItem[]
   reload: () => void
-  createContent: (p: { node_id: string; selektor: Selektor; quelle: string; kategorie?: string; body: any }) => Promise<void>
+  createContent: (p: { node_id: string | null; selektor: Selektor; quelle: string; kategorie?: string; body: any }) => Promise<void>
   createKopffeld: (p: { feldname: string; quelle: string; kategorie?: string; body: any }) => Promise<void>
   patchStatus: (id: string, status: string, aufloesung?: string) => Promise<void>
   addKommentar: (id: string, body: any) => Promise<void>
@@ -147,13 +147,15 @@ export function AnnotationProvider({
     window.dispatchEvent(new CustomEvent('sw-anmerkungen-changed', { detail: { werkstufeId } }))
   }, [werkstufeId])
 
-  const createContent = useCallback(async (p: { node_id: string; selektor: Selektor; quelle: string; kategorie?: string; body: any }) => {
+  const createContent = useCallback(async (p: { node_id: string | null; selektor: Selektor; quelle: string; kategorie?: string; body: any }) => {
     if (!werkstufeId || !sceneIdentityId) return
+    // Weg B: scene_identity_id ist der Pflicht-Scope (aus dem Provider); node_id optionaler Hinweis,
+    // block_index lebt im selektor.
     await jfetch('/api/anmerkungen', {
       method: 'POST',
       body: JSON.stringify({
         werkstufe_id: werkstufeId, scene_identity_id: sceneIdentityId,
-        store: 'content', node_id: p.node_id, selektor: p.selektor,
+        store: 'content', node_id: p.node_id ?? null, selektor: p.selektor,
         quelle: p.quelle, kategorie: p.kategorie, body: p.body,
       }),
     })

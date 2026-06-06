@@ -7,6 +7,7 @@
  */
 import * as fs from 'fs'
 import * as path from 'path'
+import { pathToFileURL } from 'url'
 import { resolveInScene as beResolve } from '../src/utils/reanchor'
 
 const FIXTURE = path.join(__dirname, '..', '..', 'frontend', 'src', 'utils', 'anchorParity.fixture.json')
@@ -35,7 +36,7 @@ async function ladeFeResolve(): Promise<((b: any, s: any, n?: any) => any) | nul
   const fe = path.join(__dirname, '..', '..', 'frontend', 'src', 'utils', 'anchorCore.ts')
   if (!fs.existsSync(fe)) return null
   try {
-    const mod = await import(fe)
+    const mod = await import(pathToFileURL(fe).href)
     return mod.resolveInScene ?? null
   } catch (e) {
     console.warn('[parity] anchorCore.ts vorhanden, aber nicht ladbar:', (e as Error).message)
