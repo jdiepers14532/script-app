@@ -34,3 +34,11 @@ export type { MagicModalProps } from './MagicModal';
 export { useWuensche } from './useWuensche';
 export type { Wunsch, WunschNotification, WunschDialoge, MistralVorschlag } from './useWuensche';
 export { injectMagicCSS, fireMagicConfetti, fireSparkles, MAGIC_COLORS, MAGIC_CSS, STAR_CLIP_PATH } from './MagicWandTheme';
+
+// ── Keymap (Befehlspalette, Kürzel-Übersicht, globale Hotkeys) ───────────────
+export { CommandPalette } from './keymap/CommandPalette';
+export type { Command } from './keymap/CommandPalette';
+export { ShortcutCheatSheet } from './keymap/ShortcutCheatSheet';
+export type { ShortcutGroup, ShortcutRow } from './keymap/ShortcutCheatSheet';
+export { useKeymapHotkeys } from './keymap/useKeymapHotkeys';
+export type { KeymapHotkeyHandlers } from './keymap/useKeymapHotkeys';

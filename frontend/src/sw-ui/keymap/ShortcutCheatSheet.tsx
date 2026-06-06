@@ -1,18 +1,23 @@
-// ── Tastenkürzel-Übersicht (Overlay, Taste „?") ─────────────────────────────
-// Rendert dieselbe zentrale Referenz wie der Hilfe-Tab und die Befehlspalette
-// (data/shortcutReference.ts). Schließt mit Esc oder Klick auf Backdrop.
+// ── Tastenkürzel-Übersicht (Overlay) — generisch, app-übergreifend ───────────
+// Rendert eine gruppierte Kürzel-Liste, die die App liefert. Schließt mit Esc oder
+// Klick auf den Backdrop. Theme über CSS-Variablen.
 import { useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { X } from 'lucide-react'
-import { useShortcut } from '../hooks/useShortcut'
-import { buildShortcutGroups } from '../data/shortcutReference'
 
-export default function ShortcutCheatSheet({ onClose }: { onClose: () => void }) {
-  const { label, isMac } = useShortcut()
-  const mod = isMac ? '⌘' : 'Strg'
-  const alt = isMac ? '⌥' : 'Alt'
-  const groups = buildShortcutGroups(label, mod, alt)
+export interface ShortcutRow { keys: string; desc: string }
+export interface ShortcutGroup { title: string; color: string; icon: string; rows: ShortcutRow[] }
 
+export function ShortcutCheatSheet({
+  groups,
+  onClose,
+  title = 'Tastenkürzel',
+  subtitle,
+}: {
+  groups: ShortcutGroup[]
+  onClose: () => void
+  title?: string
+  subtitle?: string
+}) {
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.preventDefault(); onClose() } }
     document.addEventListener('keydown', h)
@@ -28,17 +33,15 @@ export default function ShortcutCheatSheet({ onClose }: { onClose: () => void })
         background: 'var(--bg-page)', borderRadius: 14, boxShadow: '0 12px 48px rgba(0,0,0,0.35)',
         zIndex: 3001, padding: '22px 24px',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16, gap: 16 }}>
           <div>
-            <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>Tastenkürzel</div>
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-              {mod}+K öffnet die Befehlspalette · ausführliches Handbuch unter /hilfe → Tastenkürzel
-            </div>
+            <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-primary)' }}>{title}</div>
+            {subtitle && <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{subtitle}</div>}
           </div>
           <button onClick={onClose} aria-label="Schließen" style={{
             background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)',
-            display: 'flex', padding: 6, borderRadius: 8,
-          }}><X size={20} /></button>
+            fontSize: 20, lineHeight: 1, padding: 4,
+          }}>✕</button>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
@@ -67,3 +70,5 @@ export default function ShortcutCheatSheet({ onClose }: { onClose: () => void })
     document.body,
   )
 }
+
+export default ShortcutCheatSheet

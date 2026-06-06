@@ -1,6 +1,7 @@
-// ── Befehlspalette (Strg/Cmd + K) ───────────────────────────────────────────
-// Generische Palette: erhält eine Command-Liste, bietet Suche + Tastatur-Navigation.
-// Jede Zeile zeigt rechts ihr Kürzel → passives Lernen der Shortcuts.
+// ── Befehlspalette (Strg/Cmd + K) — generisch, app-übergreifend ──────────────
+// Erhält eine Command-Liste, bietet Suche + Tastatur-Navigation. Jede Zeile zeigt
+// rechts ihr Kürzel (passives Lernen). Die App liefert die Commands; die Mechanik
+// lebt hier in sw-ui. Theme über CSS-Variablen (--bg-page, --text-primary, …).
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
@@ -11,12 +12,20 @@ export interface Command {
   group?: string
   /** Tastenkürzel-Label, rechtsbündig angezeigt */
   hint?: string
-  /** Suchbegriffe zusätzlich zum Label */
+  /** Zusätzliche Suchbegriffe neben dem Label */
   keywords?: string
   run: () => void
 }
 
-export default function CommandPalette({ commands, onClose }: { commands: Command[]; onClose: () => void }) {
+export function CommandPalette({
+  commands,
+  onClose,
+  placeholder = 'Befehl oder Seite suchen…',
+}: {
+  commands: Command[]
+  onClose: () => void
+  placeholder?: string
+}) {
   const [query, setQuery] = useState('')
   const [sel, setSel] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -32,7 +41,6 @@ export default function CommandPalette({ commands, onClose }: { commands: Comman
     )
   }, [commands, q])
 
-  // Auswahl in gültigem Bereich halten, wenn die Trefferliste schrumpft
   useEffect(() => { setSel(0) }, [q])
 
   const run = (c?: Command) => { if (c) { onClose(); c.run() } }
@@ -44,7 +52,6 @@ export default function CommandPalette({ commands, onClose }: { commands: Comman
     else if (e.key === 'Enter') { e.preventDefault(); run(results[sel]) }
   }
 
-  // Ausgewählte Zeile in den sichtbaren Bereich scrollen
   useEffect(() => {
     const el = listRef.current?.querySelector<HTMLElement>(`[data-idx="${sel}"]`)
     el?.scrollIntoView({ block: 'nearest' })
@@ -64,7 +71,7 @@ export default function CommandPalette({ commands, onClose }: { commands: Comman
           value={query}
           onChange={e => setQuery(e.target.value)}
           onKeyDown={onKeyDown}
-          placeholder="Befehl oder Seite suchen…"
+          placeholder={placeholder}
           autoComplete="off"
           style={{
             border: 'none', borderBottom: '1px solid var(--border)', outline: 'none',
@@ -108,3 +115,5 @@ export default function CommandPalette({ commands, onClose }: { commands: Comman
     document.body,
   )
 }
+
+export default CommandPalette

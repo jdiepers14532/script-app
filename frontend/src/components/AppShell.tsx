@@ -14,13 +14,12 @@ import { getShortcutLabel } from '../shortcuts'
 import { useOfflineQueueContext } from '../sw-ui'
 import ProductionSelector from './ProductionSelector'
 import HeaderSelect from './HeaderSelect'
-import { CompanyInfoModal, useTerminologie, WuenscheModal, MagicModal, injectMagicCSS, MAGIC_COLORS } from '../sw-ui'
-import type { WunschNotification, WunschDialoge } from '../sw-ui'
+import { CompanyInfoModal, useTerminologie, WuenscheModal, MagicModal, injectMagicCSS, MAGIC_COLORS, CommandPalette, ShortcutCheatSheet, useKeymapHotkeys } from '../sw-ui'
+import type { WunschNotification, WunschDialoge, Command } from '../sw-ui'
+import { buildShortcutGroups } from '../data/shortcutReference'
 import { api } from '../api/client'
 import Tooltip from './Tooltip'
 import AnsichtsModal from './AnsichtsModal'
-import CommandPalette, { type Command } from './CommandPalette'
-import ShortcutCheatSheet from './ShortcutCheatSheet'
 import FarbschemaModal from './FarbschemaModal'
 import type { BgPalette, FontOption } from './appShellConstants'
 import { LIGHT_PALETTES, DARK_PALETTES, INTERFACE_FONTS, SCRIPT_FONTS, FONT_SIZES, INTERFACE_FONT_SIZES, CUSTOM_IDX, resolveColorScheme } from './appShellConstants'
@@ -723,23 +722,12 @@ export default function AppShell({
     return () => window.removeEventListener('keydown', handler)
   }, [])
 
-  // ── Befehlspalette (Strg/Cmd+K) + Cheat-Sheet (?) ────────────────────────
-  useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
-      const tag = (document.activeElement?.tagName || '').toLowerCase()
-      const isEditable = ['input', 'textarea', 'select'].includes(tag) || !!document.activeElement?.getAttribute('contenteditable')
-      // Mod+K — ohne Shift/Alt (Strg+Shift+K ist Bereich Konzept)
-      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.code === 'KeyK') {
-        e.preventDefault(); setPaletteOpen(v => !v); return
-      }
-      // ? — Kürzel-Übersicht (nicht in Eingabefeldern)
-      if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey && !isEditable) {
-        e.preventDefault(); setCheatSheetOpen(true)
-      }
-    }
-    window.addEventListener('keydown', handler)
-    return () => window.removeEventListener('keydown', handler)
-  }, [])
+  // ── Globale Keymap-Hotkeys: Befehlspalette (Strg/Cmd+K) + Cheat-Sheet (?) ──
+  // Mechanik aus sw-ui (app-übergreifend). Stabile Callbacks → kein Re-Register.
+  useKeymapHotkeys({
+    onTogglePalette:  useCallback(() => setPaletteOpen(v => !v), []),
+    onOpenCheatSheet: useCallback(() => setCheatSheetOpen(true), []),
+  })
 
   // ── Nav-Shortcuts (Alt+Buchstabe) → direkte Navigation ───────────────────
   useEffect(() => {
@@ -1302,7 +1290,13 @@ export default function AppShell({
                 ]}
               />
             )}
-            {cheatSheetOpen && <ShortcutCheatSheet onClose={() => setCheatSheetOpen(false)} />}
+            {cheatSheetOpen && (
+              <ShortcutCheatSheet
+                groups={buildShortcutGroups(sc, isMac ? '⌘' : 'Strg', isMac ? '⌥' : 'Alt')}
+                onClose={() => setCheatSheetOpen(false)}
+                subtitle={`${isMac ? '⌘' : 'Strg'}+K öffnet die Befehlspalette · volle Liste unter /hilfe → Tastenkürzel`}
+              />
+            )}
           </UserPrefsContext.Provider>
         </TweaksContext.Provider>
         </ToastContext.Provider>
