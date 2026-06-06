@@ -795,12 +795,16 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
           .filter((n): n is number => n != null)
         const existingByNummer = new Map<number, string>()
         if (sceneNummern.length > 0) {
+          // Nur suffixlose Identities matchen: Importierte Szenen tragen nie einen Suffix
+          // (Parser liefern scene_nummer als reine Zahl), daher darf ein importiertes "12"
+          // nicht versehentlich eine im Editor angelegte "12A"-Identity übernehmen.
           const existResult = await client.query(
             `SELECT DISTINCT ON (ds.scene_nummer) ds.scene_nummer, si.id
              FROM scene_identities si
              JOIN dokument_szenen ds ON ds.scene_identity_id = si.id
              WHERE si.folge_id = $1
                AND ds.scene_nummer = ANY($2::int[])
+               AND COALESCE(ds.scene_nummer_suffix, '') = ''
                AND ds.geloescht = false
              ORDER BY ds.scene_nummer, si.id`,
             [folgeId, sceneNummern]

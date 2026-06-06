@@ -18,6 +18,7 @@ import { useSearchReplace } from '../hooks/useSearchReplace'
 import StoryRadarPanel from '../components/StoryRadarPanel'
 import StrangVerwaltungModal from '../components/StrangVerwaltungModal'
 import StoppzeitenModal from '../components/StoppzeitenModal'
+import { resolveSzeneSwitch } from '../utils/resolveSzeneSwitch'
 
 // ── Fehlender-Dialog Blocking-Modal ───────────────────────────────────────────
 function FehlenderDialogModal({ issues, onClose }: { issues: any[]; onClose: () => void }) {
@@ -1272,16 +1273,17 @@ export default function ScriptPage() {
                   setSelectedStageId(werkId as any)
                   if (freiDokId) return
                   if (typ) setSelectedWerkstufeTyp(typ)
+                  // Vor dem Wechsel die aktuell gewählte Szene merken (alte Fassung),
+                  // um in der neuen Fassung im selben Inhalt zu bleiben.
+                  const prevSzenen = szenenRef.current
+                  const prevId = selectedSzeneIdRef.current
+                  const prevIndex = prevId != null ? prevSzenen.findIndex(s => s.id === prevId) : -1
+                  const prevSzene = prevIndex >= 0 ? prevSzenen[prevIndex] : null
                   api.getWerkstufenSzenen(werkId)
                     .then(scenes => {
                       setSzenen(scenes)
-                      // Nur zur ersten Szene springen wenn die aktuell angezeigte Szene nicht
-                      // in der neuen Werkstufe existiert — verhindert Überschreiben der
-                      // wiederhergestellten letzten Szene durch die Titelseite.
-                      setSelectedSzeneId(prev => {
-                        if (prev != null && scenes.find((s: any) => s.id === prev)) return prev
-                        return scenes.length > 0 ? scenes[0].id : null
-                      })
+                      // Sprung: UUID-Treffer → nächstniedrigere Szenennummer → Index (Non-Scene).
+                      setSelectedSzeneId(resolveSzeneSwitch(prevSzene, prevIndex, scenes))
                     })
                     .catch(() => {})
                 }}
