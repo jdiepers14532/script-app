@@ -514,6 +514,9 @@ async function runMigrations() {
     'v196_anker_anmerkungen.sql',
     // Bulk-Import: mehrere Dokumente gleichzeitig (import_batches + import_batch_jobs)
     'v197_import_batches.sql',
+    // Weg B: Content-Anker auf scene_identity_id (Pflicht) + block_index + Quote; node_id optional
+    // (v198 ist im Anmerkungs-Paket für Handoff 6 reserviert → Bewertungs-Freigabe; hier übersprungen)
+    'v199_anker_scene_primary.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

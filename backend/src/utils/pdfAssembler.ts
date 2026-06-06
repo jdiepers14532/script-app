@@ -20,6 +20,7 @@ import {
   buildPdfHtml,
   buildExportFilename,
   renderPmJson,
+  renderNode,
   renderZeilenContent,
   ExportContext,
 } from './exportAssembler'
@@ -362,11 +363,12 @@ function renderAbsatzNode(
   node: any,
   fmtById: Map<string, AbsatzFormat>,
   fmtByName: Map<string, AbsatzFormat>,
-  ctx: ExportContext
+  ctx: ExportContext,
+  blockIndex?: number
 ): string {
-  // Fallback für paragraph/heading/table etc. aus Notiz-Seiten
+  // Fallback für paragraph/heading/table etc. aus Notiz-Seiten (data-block-index durchreichen)
   if (node.type !== 'absatz' && node.type !== 'screenplay_element') {
-    return renderPmJson({ type: 'doc', content: [node] }, ctx)
+    return renderNode(node, ctx, blockIndex)
   }
 
   let fmt: AbsatzFormat | undefined
@@ -384,8 +386,10 @@ function renderAbsatzNode(
 
   const css    = fmt ? fmtToCss(fmt) : 'margin:0 0 8pt;line-height:1.5'
   const kz     = fmt?.kuerzel ? ` data-kuerzel="${esc(fmt.kuerzel)}"` : ''
-  // Anker-Wurzelpunkt fürs DOM-Anchoring im Lese-Modus (Handoff 3 §2). Additiv, layout-neutral.
+  // Anker-Verortung fürs DOM-Anchoring im Lese-Modus (Handoff 3 §2 / Weg B). Additiv, layout-neutral.
+  // node_id = optionaler Hinweis; block_index = 0-basierter Top-Level-Index der Szene (Fast-Path).
   const nid    = node.attrs?.node_id ? ` data-node-id="${esc(String(node.attrs.node_id))}"` : ''
+  const bid    = blockIndex != null ? ` data-block-index="${blockIndex}"` : ''
   const inner  = renderInline(node.content ?? [], ctx)
 
   // Page-break Regeln für CHAR / DIA / PAR
@@ -396,7 +400,7 @@ function renderAbsatzNode(
 
   const fullCss = breakCss ? `${css};${breakCss}` : css
 
-  return `<p style="${fullCss}"${kz}${nid}>${inner || '&nbsp;'}</p>`
+  return `<p style="${fullCss}"${kz}${nid}${bid}>${inner || '&nbsp;'}</p>`
 }
 
 /** Rendert ein vollständiges ProseMirror-Dokument mit Absatz-Support.
@@ -418,7 +422,8 @@ function renderDoc(
   } else {
     nodes = [docObj]
   }
-  return nodes.map(n => renderAbsatzNode(n, fmtById, fmtByName, ctx)).join('\n')
+  // block_index = 0-basierter Top-Level-Index der Szene (matched Editor $from.index(0) + DOM data-block-index)
+  return nodes.map((n, i) => renderAbsatzNode(n, fmtById, fmtByName, ctx, i)).join('\n')
 }
 
 // ── Szenenrendering ────────────────────────────────────────────────────────────

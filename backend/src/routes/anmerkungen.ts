@@ -2,7 +2,7 @@ import { Router, Request } from 'express'
 import { pool, query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
 import {
-  AnkerRow, resolveContentAnker, resolveKopffeld, KOPFFELD_WHITELIST,
+  AnkerRow, ResolveResult, resolveContentAnker, resolveKopffeld, KOPFFELD_WHITELIST,
 } from '../utils/reanchor'
 import { istAutorUser, getScriptUsers } from '../utils/scriptUsers'
 
@@ -59,8 +59,8 @@ async function getSzene(werkstufeId: string, sceneIdentityId: string): Promise<a
   )
 }
 
-// Anker (DB-Row) gegen die zugehörige Szene auflösen. Liefert Status + (für content) Position.
-function aufloesen(anker: AnkerRow, szene: any | null) {
+// Anker (DB-Row) gegen die zugehörige Szene auflösen. Liefert Status + (für content) block_index/Position.
+function aufloesen(anker: AnkerRow, szene: any | null): ResolveResult {
   if (anker.store === 'kopffeld') {
     const val = szene && anker.feldname ? szene[anker.feldname] : null
     return resolveKopffeld(val)
@@ -68,8 +68,8 @@ function aufloesen(anker: AnkerRow, szene: any | null) {
   if (anker.store !== 'content') {
     // Szenen-weiter Anker (store=NULL): verankert solange die Szene existiert.
     return {
-      anker_status: (szene ? 'verankert' : 'verwaist') as 'verankert' | 'verwaist',
-      konfidenz: szene ? 1 : null, node_id: anker.node_id, position: null,
+      anker_status: szene ? 'verankert' : 'verwaist',
+      konfidenz: szene ? 1 : null, block_index: null, node_id: anker.node_id, position: null,
     }
   }
   return resolveContentAnker(anker, szene?.content)
@@ -107,8 +107,9 @@ anmerkungenRouter.post('/', async (req, res) => {
   if (store && !werkstufe_id) {
     return res.status(400).json({ error: 'store-Anker nur an einer Werkstufe möglich' })
   }
-  if (store === 'content' && !node_id) {
-    return res.status(400).json({ error: "store='content' braucht node_id" })
+  // Weg B: content-Anker brauchen scene_identity_id (Pflicht-Scope); node_id ist optionaler Hinweis.
+  if (store === 'content' && !scene_identity_id) {
+    return res.status(400).json({ error: "store='content' braucht scene_identity_id" })
   }
   if (store === 'kopffeld') {
     if (!feldname) return res.status(400).json({ error: "store='kopffeld' braucht feldname" })
@@ -218,7 +219,7 @@ anmerkungenRouter.get('/', async (req, res) => {
           id: r.anker_id, werkstufe_id: r.werkstufe_id, scene_identity_id: r.scene_identity_id,
           store: r.store, node_id: aufgeloest.node_id ?? r.node_id, feldname: r.feldname,
           selektor: r.selektor, anker_status: aufgeloest.anker_status,
-          konfidenz: aufgeloest.konfidenz, position: aufgeloest.position,
+          konfidenz: aufgeloest.konfidenz, block_index: aufgeloest.block_index, position: aufgeloest.position,
         },
       })
     }
@@ -434,13 +435,14 @@ ankerRouter.post('/resolve', async (req, res) => {
         szene = szeneCache.get(key)
       }
       const r = aufloesen(a, szene)
-      // Persistieren (inkl. node_id-Update bei szenenweitem Fund).
+      // Persistieren: anker_status + konfidenz (Anker-Status). block_index/Quote bleiben im
+      // selektor (nicht-autoritativer Hinweis) unangetastet; node_id optional aktualisiert.
       await query(
         `UPDATE anker SET anker_status = $1, konfidenz = $2,
            node_id = COALESCE($3, node_id) WHERE id = $4`,
         [r.anker_status, r.konfidenz, r.node_id, a.id]
       )
-      result.push({ anker_id: a.id, anker_status: r.anker_status, konfidenz: r.konfidenz, node_id: r.node_id, position: r.position })
+      result.push({ anker_id: a.id, anker_status: r.anker_status, konfidenz: r.konfidenz, block_index: r.block_index, node_id: r.node_id, position: r.position })
     }
     res.json(result)
   } catch (err) {

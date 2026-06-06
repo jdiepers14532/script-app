@@ -1,0 +1,47 @@
+{
+  "_comment": "Paritäts-Vertrag für die Anker-Kernlogik (resolveInScene). Wird von backend/scripts/anchorParity.check.ts gegen reanchor.ts (BE) UND anchorCore.ts (FE) geprüft. Drift zwischen beiden ⇒ Test schlägt fehl. Statusregel: 1 voll-kontextbestätigter Quote-Treffer in der Szene = verankert (auch bei Offset/block_index-Shift); mehrdeutig/teilweise = verschoben; nicht gefunden = verwaist. block_index/node_id sind nur Tie-Breaker.",
+  "faelle": [
+    {
+      "name": "verankert — unveraendert, exakt an Position",
+      "blocks": [{ "text": "Der Hund bellt laut.", "block_index": 0 }],
+      "selektor": { "block_index": 0, "position": { "start": 4, "end": 8 }, "quote": { "prefix": "Der ", "exact": "Hund", "suffix": " bel" } },
+      "node_id": null,
+      "erwartet": { "anker_status": "verankert", "konfidenz": 1, "block_index": 0, "start": 4, "end": 8 }
+    },
+    {
+      "name": "verankert — Offset-Shift (Text davor eingefuegt), Quote+Kontext eindeutig",
+      "blocks": [{ "text": "Heute: Der Hund bellt laut.", "block_index": 0 }],
+      "selektor": { "block_index": 0, "position": { "start": 4, "end": 8 }, "quote": { "prefix": "Der ", "exact": "Hund", "suffix": " bel" } },
+      "node_id": null,
+      "erwartet": { "anker_status": "verankert", "konfidenz": 1, "block_index": 0, "start": 11, "end": 15 }
+    },
+    {
+      "name": "verankert — block_index stale, Quote eindeutig in anderem Block",
+      "blocks": [{ "text": "Erster Block.", "block_index": 0 }, { "text": "Der Hund bellt laut.", "block_index": 1 }],
+      "selektor": { "block_index": 0, "position": { "start": 4, "end": 8 }, "quote": { "prefix": "Der ", "exact": "Hund", "suffix": " bel" } },
+      "node_id": null,
+      "erwartet": { "anker_status": "verankert", "konfidenz": 1, "block_index": 1, "start": 4, "end": 8 }
+    },
+    {
+      "name": "verschoben — mehrdeutig (zwei voll-bestaetigte Treffer)",
+      "blocks": [{ "text": "A: Ja. B: Ja.", "block_index": 0 }],
+      "selektor": { "block_index": 0, "position": { "start": 3, "end": 5 }, "quote": { "prefix": ": ", "exact": "Ja", "suffix": "." } },
+      "node_id": null,
+      "erwartet": { "anker_status": "verschoben", "konfidenz": 0.7, "block_index": 0, "start": 3, "end": 5 }
+    },
+    {
+      "name": "verschoben — teilweiser Kontext (Umgebung geaendert)",
+      "blocks": [{ "text": "Die Katze rennt.", "block_index": 0 }],
+      "selektor": { "block_index": 0, "position": { "start": 4, "end": 9 }, "quote": { "prefix": "Der ", "exact": "Katze", "suffix": " bell" } },
+      "node_id": null,
+      "erwartet": { "anker_status": "verschoben", "konfidenz": 0.5, "block_index": 0, "start": 4, "end": 9 }
+    },
+    {
+      "name": "verwaist — Quote nicht in der Szene",
+      "blocks": [{ "text": "Der Hund bellt.", "block_index": 0 }],
+      "selektor": { "block_index": 0, "position": { "start": 0, "end": 5 }, "quote": { "prefix": "", "exact": "Katze", "suffix": "" } },
+      "node_id": null,
+      "erwartet": { "anker_status": "verwaist", "konfidenz": null, "block_index": null, "start": null, "end": null }
+    }
+  ]
+}

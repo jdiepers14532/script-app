@@ -191,11 +191,13 @@ function renderInlineNode(node: any, ctx: ExportContext): string {
   return ''
 }
 
-function renderNode(node: any, ctx: ExportContext): string {
+export function renderNode(node: any, ctx: ExportContext, blockIndex?: number): string {
   if (!node?.type) return ''
 
-  // Anker-Wurzelpunkt fürs DOM-Anchoring im Lese-Modus (Handoff 3 §2). Additiv, layout-neutral.
+  // Anker-Verortung fürs DOM-Anchoring im Lese-Modus (Handoff 3 §2 / Weg B). Additiv, layout-neutral.
+  // node_id = optionaler Hinweis; block_index = 0-basierter Top-Level-Index der Szene (Fast-Path).
   const nid = node.attrs?.node_id ? ` data-node-id="${String(node.attrs.node_id).replace(/"/g, '')}"` : ''
+  const bid = blockIndex != null ? ` data-block-index="${blockIndex}"` : ''
 
   if (node.type === 'paragraph') {
     // Special case: paragraph whose sole child is {{notiz_inhalt}} → inject rendered scene HTML as block
@@ -227,27 +229,27 @@ function renderNode(node: any, ctx: ExportContext): string {
     if (sa)  styles.push(`margin-bottom:${sa}`)
     const style = styles.length ? ` style="${styles.join(';')}"` : ''
     const inner = renderInlineNodes(node.content ?? [], ctx)
-    return `<p${style}${nid}>${inner || '&nbsp;'}</p>`
+    return `<p${style}${nid}${bid}>${inner || '&nbsp;'}</p>`
   }
 
   if (node.type === 'heading') {
     const level = node.attrs?.level ?? 2
     const inner = renderInlineNodes(node.content ?? [], ctx)
-    return `<h${level}${nid}>${inner}</h${level}>`
+    return `<h${level}${nid}${bid}>${inner}</h${level}>`
   }
 
   if (node.type === 'bulletList') {
     const items = (node.content ?? []).map((li: any) =>
       `<li>${renderInlineNodes(li.content?.[0]?.content ?? [], ctx)}</li>`
     ).join('')
-    return `<ul${nid}>${items}</ul>`
+    return `<ul${nid}${bid}>${items}</ul>`
   }
 
   if (node.type === 'orderedList') {
     const items = (node.content ?? []).map((li: any) =>
       `<li>${renderInlineNodes(li.content?.[0]?.content ?? [], ctx)}</li>`
     ).join('')
-    return `<ol${nid}>${items}</ol>`
+    return `<ol${nid}${bid}>${items}</ol>`
   }
 
   if (node.type === 'horizontalRule') return '<hr style="border:none;border-top:1px solid #d0d0d0;width:100%;margin:8px 0">'
@@ -288,7 +290,7 @@ function renderNode(node: any, ctx: ExportContext): string {
       }).join('')
       return `<tr${rowStyle}>${cells}</tr>`
     }).join('')
-    return `<table${nid} style="border-collapse:collapse;${tableLayout}width:100%;margin:4px 0"><tbody>${rows}</tbody></table>`
+    return `<table${nid}${bid} style="border-collapse:collapse;${tableLayout}width:100%;margin:4px 0"><tbody>${rows}</tbody></table>`
   }
 
   // Fallback: treat content as block container
