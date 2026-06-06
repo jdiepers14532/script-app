@@ -1,6 +1,7 @@
 // onboardingGuide.ts — Interaktiver Onboarding-Guide (Driver.js npm)
 import { driver } from 'driver.js'
 import 'driver.js/dist/driver.css'
+import { getShortcutLabel } from '../shortcuts'
 
 // ── Persistenz-Keys ───────────────────────────────────────────────────────
 const LS_KEY = 'serienwerft_tour_completed'
@@ -10,6 +11,15 @@ let _treatmentLabel = 'Treatment'
 export function setTreatmentLabel(label: string) {
   if (label) _treatmentLabel = label
 }
+
+// Tastatur-Labels zentral aus der Registry (shortcuts.ts) ziehen statt hartcodieren.
+// Die Label-Funktionen nutzen nur isMac (Layout wird ignoriert) → Default 'qwertz' genügt.
+let _layout: 'qwertz' | 'qwerty' = 'qwertz'
+export function setKeyboardLayout(layout: 'qwertz' | 'qwerty') { if (layout) _layout = layout }
+const _isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.userAgent)
+const sc = (id: string) => getShortcutLabel(id, _layout, _isMac)
+const _mod = _isMac ? '⌘' : 'Strg'
+const _alt = _isMac ? '⌥' : 'Alt'
 
 // ── findButton-Hilfsfunktion (spec-konform) ───────────────────────────────
 function findButton(opts: {
@@ -139,7 +149,7 @@ function buildSteps() {
       element: () => findButton({ svgClassContains: 'lucide-clock' }),
       popover: {
         title: '🕐 Autospeichern &amp; Verlauf',
-        description: 'Die App speichert automatisch. <strong>Strg+Z</strong> macht die letzten Tipp-Schritte rückgängig. Der Verlauf zeigt alle <strong>Szenen-Snapshots</strong> — automatische (grau) und manuelle (blau) — sowie die Option, die gesamte <strong>Folge wiederherzustellen</strong>.',
+        description: `Die App speichert automatisch. <strong>${sc('undo')}</strong> macht die letzten Tipp-Schritte rückgängig. Der Verlauf zeigt alle <strong>Szenen-Snapshots</strong> — automatische (grau) und manuelle (blau) — sowie die Option, die gesamte <strong>Folge wiederherzustellen</strong>.`,
         side: 'left' as const,
         align: 'start' as const,
       },
@@ -149,7 +159,7 @@ function buildSteps() {
       element: () => findButton({ text: 'TXT' }),
       popover: {
         title: '✍️ Absatzformatierungen',
-        description: 'Die Formatleiste gibt schnellen Zugriff auf alle Absatztypen: <strong>TXT</strong> (Szenenüberschrift), <strong>ACTI</strong> (Action), <strong>CHAR</strong> (Character), <strong>DIAL</strong> (Dialogue), <strong>PAR</strong> (Parenthetical), <strong>TRAN</strong> (Transition), <strong>SHOT</strong> (Shot). Tastenkürzel: <kbd>Alt+1</kbd> bis <kbd>Alt+7</kbd>.',
+        description: `Die Formatleiste gibt schnellen Zugriff auf alle Absatztypen: <strong>TXT</strong> (Szenenüberschrift), <strong>ACTI</strong> (Action), <strong>CHAR</strong> (Character), <strong>DIAL</strong> (Dialogue), <strong>PAR</strong> (Parenthetical), <strong>TRAN</strong> (Transition), <strong>SHOT</strong> (Shot). Tastenkürzel: <kbd>${_alt}+1</kbd> bis <kbd>${_alt}+7</kbd>.`,
         side: 'top' as const,
         align: 'start' as const,
       },
@@ -169,7 +179,7 @@ function buildSteps() {
       element: 'header.topbar',
       popover: {
         title: '⌨️ Tastenkürzel',
-        description: 'Schneller arbeiten mit der Tastatur:<br><br>⌨️ <strong>?</strong> öffnet die komplette Kürzel-Übersicht<br>🔎 <strong>Strg/⌘ + K</strong> öffnet die Befehlspalette (durchsuchbar, jede Zeile zeigt ihr Kürzel)<br>🎬 <strong>Alt + Bild ↑/↓</strong> wechselt die Szene, <strong>Alt + Shift + Bild</strong> die Folge<br><br><em>Hinweis: Die Taste <strong>?</strong> funktioniert nur außerhalb von Eingabe- und Textfeldern. Die volle Liste steht auch unter /hilfe → „Tastenkürzel".</em>',
+        description: `Schneller arbeiten mit der Tastatur:<br><br>⌨️ <strong>?</strong> öffnet die komplette Kürzel-Übersicht<br>🔎 <strong>${_mod} + K</strong> öffnet die Befehlspalette (durchsuchbar, jede Zeile zeigt ihr Kürzel)<br>🎬 <strong>${sc('scenePrev')} / ${sc('sceneNext')}</strong> wechselt die Szene, <strong>${sc('folgePrev')} / ${sc('folgeNext')}</strong> die Folge<br><br><em>Hinweis: Die Taste <strong>?</strong> funktioniert nur außerhalb von Eingabe- und Textfeldern. Die volle Liste steht auch unter /hilfe → „Tastenkürzel".</em>`,
         side: 'bottom' as const,
         align: 'start' as const,
       },
@@ -206,7 +216,7 @@ function buildSteps() {
       element: 'button.avatar',
       popover: {
         title: '🎨 Ansichts-Einstellungen',
-        description: 'Über <strong>Avatar → Ansicht</strong> (oder <kbd>Alt+A</kbd>) erreichst du alle persönlichen Darstellungsoptionen:<br><br>🌓 <strong>Theme</strong> — Hell / Dunkel<br>🎨 <strong>Hintergrundfarbe</strong> — Farbpalette oder eigener Ton<br>📐 <strong>Panelmodus</strong> — Dual-View oder Einzelansicht<br>🔢 <strong>Zeilen- &amp; Repliken-Nummern</strong><br>🔤 <strong>Schriftarten &amp; -größen</strong><br>✓ <strong>Rechtschreibung &amp; Autokorrektur</strong><br><br>Diese Einstellungen sind persönlich und gelten nur für dich.',
+        description: `Über <strong>Avatar → Ansicht</strong> (oder <kbd>${sc('viewSettings')}</kbd>) erreichst du alle persönlichen Darstellungsoptionen:<br><br>🌓 <strong>Theme</strong> — Hell / Dunkel<br>🎨 <strong>Hintergrundfarbe</strong> — Farbpalette oder eigener Ton<br>📐 <strong>Panelmodus</strong> — Dual-View oder Einzelansicht<br>🔢 <strong>Zeilen- &amp; Repliken-Nummern</strong><br>🔤 <strong>Schriftarten &amp; -größen</strong><br>✓ <strong>Rechtschreibung &amp; Autokorrektur</strong><br><br>Diese Einstellungen sind persönlich und gelten nur für dich.`,
         side: 'left' as const,
         align: 'start' as const,
       },
