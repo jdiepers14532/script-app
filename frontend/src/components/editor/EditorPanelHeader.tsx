@@ -94,6 +94,10 @@ export default function EditorPanelHeader({
   const isHoverDevice = useRef(
     typeof window !== 'undefined' && window.matchMedia('(hover: hover) and (pointer: fine)').matches
   )
+  // Touch/Tablet: Tooltip nicht erreichbar → Speicher-Zeitpunkt als Text zeigen
+  const isTouchDevice = useRef(
+    typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches
+  )
   const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   function openSubmenu(id: 'team' | 'colab') {
@@ -142,16 +146,25 @@ export default function EditorPanelHeader({
   const formattedDate = updatedAt
     ? new Date(updatedAt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })
     : null
+  const formattedTime = updatedAt
+    ? new Date(updatedAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })
+    : null
 
-  const saveColor = saveStatus === 'saved' ? 'var(--sw-green)'
-    : saveStatus === 'queued' ? '#FF9500'
-    : saveStatus === 'error' ? 'var(--sw-danger)'
+  // Ruhezustand (idle) gilt als "gespeichert", sobald die Szene schon einmal gesichert wurde.
+  // So steht der grüne Status dauerhaft da und verschwindet nicht beim Öffnen einer Szene.
+  const effectiveSaveStatus: SaveStatus =
+    (!saveStatus || saveStatus === 'idle') ? (updatedAt ? 'saved' : 'idle') : saveStatus
+
+  const saveColor = effectiveSaveStatus === 'saved' ? 'var(--sw-green)'
+    : effectiveSaveStatus === 'queued' ? '#FF9500'
+    : effectiveSaveStatus === 'error' ? 'var(--sw-danger)'
     : 'var(--text-muted)'
 
-  const saveLabel = saveStatus === 'saving' ? 'Speichert…'
-    : saveStatus === 'saved' ? '● Gespeichert'
-    : saveStatus === 'queued' ? '⏸ Lokal'
-    : saveStatus === 'error' ? '● Fehler'
+  // Immer ein ●-Punkt, nur die Farbe wechselt — ruhiges Ampel-Signal ohne Text-Springen.
+  const saveLabel = effectiveSaveStatus === 'saving' ? 'Speichert…'
+    : effectiveSaveStatus === 'saved' ? 'Gespeichert'
+    : effectiveSaveStatus === 'queued' ? 'Lokal'
+    : effectiveSaveStatus === 'error' ? 'Fehler'
     : ''
 
   return (<>
@@ -387,11 +400,22 @@ export default function EditorPanelHeader({
 
       {rightSlot}
 
-      {/* Save status */}
-      {saveStatus && saveStatus !== 'idle' && (
-        <span style={{ fontSize: 11, color: saveColor, fontWeight: saveStatus === 'saved' || saveStatus === 'queued' ? 500 : 400, whiteSpace: 'nowrap' }}>
-          {saveLabel}
-        </span>
+      {/* Save status — links neben dem User-Icon, dauerhaft sichtbar sobald gespeichert wurde.
+          Desktop: Zeitpunkt im Tooltip. Tablet (kein Hover): Zeitpunkt als Text. */}
+      {effectiveSaveStatus !== 'idle' && (
+        <Tooltip text={
+          formattedDate
+            ? `Zuletzt gespeichert: ${formattedDate}${updatedBy ? '\nvon ' + updatedBy : ''}`
+            : 'Automatisches Speichern aktiv'
+        }>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: saveColor, fontWeight: effectiveSaveStatus === 'saved' || effectiveSaveStatus === 'queued' ? 500 : 400, whiteSpace: 'nowrap', cursor: 'default' }}>
+            <span style={{ fontSize: 9, lineHeight: 1 }}>●</span>
+            {saveLabel}
+            {isTouchDevice.current && effectiveSaveStatus === 'saved' && formattedTime && (
+              <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>{formattedTime}</span>
+            )}
+          </span>
+        </Tooltip>
       )}
 
       {/* User-Tooltip */}
