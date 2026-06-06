@@ -79,6 +79,11 @@ import { importJobsRouter } from './routes/import-jobs'
 import { beziehungstypenRouter, beziehungenRouter } from './routes/beziehungen'
 import { anmerkungenRouter, ankerRouter } from './routes/anmerkungen'
 import { lesemodusRouter } from './routes/lesemodus'
+import {
+  verteilerRouter, pdfExportProfilRouter, distributionenRouter, veroeffentlichenRouter,
+} from './routes/verteiler'
+import { verteilerPortalRouter } from './routes/verteiler-portal'
+import { verteilerInternalRouter } from './routes/verteiler-internal'
 
 // Load .env from project root or backend dir
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') })
@@ -133,12 +138,14 @@ app.use('/api', healthRouter)
 // Public routes (no auth) — MUST be before the catch-all /api routers with auth middleware
 app.use('/api/privat-mode-tokens', privatModeTokensPublicRouter)
 app.use('/api/public/freigabe', rollenFreigabePublicRouter)
+app.use('/api/v', verteilerPortalRouter)  // Verteiler Empfänger-Portal (Token, kein Login)
 app.use('/api/produktionen', produktionenRouter)
 app.use('/api/folgen', locksRouter)       // GET/POST/DELETE /:produktionId/:folgeNummer/lock
 app.use('/api/locks', contractLocksRouter) // POST /contract-update
 // Internal routes — MUST be before exportsRouter (which applies authMiddleware to all /api/*)
 app.use('/api/internal', commentWebhookRouter)
 app.use('/api/internal', taetigkeitenInternalRouter)
+app.use('/api/internal', verteilerInternalRouter) // mail-status (X-Mail-Service-Secret)
 app.use('/api', exportsRouter)            // werkstufe/:id/export/* routes
 app.use('/api/stages', stagesCommentRouter)
 app.use('/api/szenen', szenenCommentRouter)
@@ -237,6 +244,13 @@ app.use('/api/werkstufen', sichtbarkeitRouter)
 
 app.use('/api/statistik', statistikRouter)
 app.use('/api/admin/colab-gruppen-register', adminColabRegisterRouter)
+
+// Verteiler-System (Schritt 2): Verteiler/Mitglieder/Besetzung, PDF-Profil,
+// Distributionen + resend, Veröffentlichen (POST /api/werkstufen/:id/veroeffentlichen)
+app.use('/api/verteiler', verteilerRouter)
+app.use('/api/pdf-export-profil', pdfExportProfilRouter)
+app.use('/api/distributionen', distributionenRouter)
+app.use('/api/werkstufen', veroeffentlichenRouter)
 
 // Figuren-Beziehungsbaum (v189)
 app.use('/api/beziehungstypen', beziehungstypenRouter)
@@ -519,6 +533,8 @@ async function runMigrations() {
     'v199_anker_scene_primary.sql',
     // Verteiler-System: Verteiler, Distribution, PDF-Export-Profil, Druck-Job (Paket v118 → umnummeriert auf v200, v118 war belegt)
     'v200_verteiler_system.sql',
+    // Verteiler Schritt 2: published-Flag auf werkstufen (manuelle Veröffentlichung)
+    'v201_werkstufen_published.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
