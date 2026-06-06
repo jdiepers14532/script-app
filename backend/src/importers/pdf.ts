@@ -4,7 +4,8 @@ import * as os from 'os'
 import * as path from 'path'
 import pdfParse from 'pdf-parse'
 import { parseFountain } from './fountain'
-import { isRoteRosenFormat, parseRoteRosen } from './roteRosen'
+import { isDailyLayout, parseDaily } from './daily'
+import { isMasterScene, parseMasterScene } from './masterScene'
 import { ImportResult, BboxLayout, LineInfo } from './types'
 import { getProviderApiKey, recordUsage } from '../routes/ki'
 
@@ -272,11 +273,27 @@ export function buildTextFromLayout(layout: BboxLayout): string {
   return out.join(String.fromCharCode(10))
 }
 
+export type PdfLayoutId = 'daily' | 'master-scene' | 'auto'
+
 export interface PdfExtractOptions {
   method?: 'pdftotext' | 'mistral'
   cropPercent?: number // DEPRECATED — use crop instead
   crop?: PdftextCropOptions // left/right/bottom crop percentages
+  layoutHint?: PdfLayoutId // explizite Layout-Wahl aus dem Import-Wizard; 'auto'/undefined → Auto-Detect
 }
+
+// ── Layout-Registry: PDF-Textextraktion ist gemeinsam, das Layout (Szenenstruktur)
+//    wird hierüber gewählt. Reihenfolge = Auto-Detect-Priorität. ────────────────
+interface PdfLayoutParser {
+  id: Exclude<PdfLayoutId, 'auto'>
+  detect: (text: string) => boolean
+  parse: (text: string, ctx: { ocrMode: boolean; layout?: BboxLayout; pageOffset: number }) => ImportResult
+}
+
+const PDF_LAYOUTS: PdfLayoutParser[] = [
+  { id: 'daily', detect: isDailyLayout, parse: (t, c) => parseDaily(t, c.ocrMode, c.layout, c.pageOffset) },
+  { id: 'master-scene', detect: isMasterScene, parse: (t) => parseMasterScene(t) },
+]
 
 export async function parsePdf(buffer: Buffer, options?: PdfExtractOptions): Promise<ImportResult> {
   const method = options?.method || 'pdftotext'
@@ -347,15 +364,30 @@ export async function parsePdf(buffer: Buffer, options?: PdfExtractOptions): Pro
   // so the format is recognised even when the range excludes the title block.
   const textForDetection = detectionPrefix ? detectionPrefix + '\n' + text : text
 
-  // Try Rote Rosen format first (structured production PDF)
-  if (isRoteRosenFormat(textForDetection)) {
-    const pageOffset = (crop?.pageFrom && crop.pageFrom > 1) ? crop.pageFrom - 1 : 0
-    return parseRoteRosen(text, usedMethod === 'mistral', layout ?? undefined, pageOffset)
+  const pageOffset = (crop?.pageFrom && crop.pageFrom > 1) ? crop.pageFrom - 1 : 0
+  const ctx = { ocrMode: usedMethod === 'mistral', layout: layout ?? undefined, pageOffset }
+  const hint = options?.layoutHint
+
+  // 1. Explizite Layout-Wahl gewinnt (Wizard-Dropdown)
+  if (hint && hint !== 'auto') {
+    const chosen = PDF_LAYOUTS.find(l => l.id === hint)
+    if (chosen) {
+      console.log(`[PDF Import] Layout (explizit): ${chosen.id}`)
+      return chosen.parse(text, ctx)
+    }
   }
 
-  // Fallback: parse extracted text like Fountain
-  const result = parseFountain(text)
+  // 2. Auto-Detect in Registry-Reihenfolge
+  for (const l of PDF_LAYOUTS) {
+    if (l.detect(textForDetection)) {
+      console.log(`[PDF Import] Layout (auto): ${l.id}`)
+      return l.parse(text, ctx)
+    }
+  }
 
+  // 3. Generischer Fallback: Fountain-Heuristik
+  console.log('[PDF Import] Layout: kein Treffer → Fountain-Fallback')
+  const result = parseFountain(text)
   return {
     ...result,
     meta: {

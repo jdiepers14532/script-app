@@ -8,7 +8,7 @@ import { authMiddleware } from '../auth'
 import { getStimmungen, ensureDefaultStimmungen } from './dk-access'
 import { detectFormat, parseScript, ParseOptions } from '../importers'
 import { stripWatermark, decodeWatermarkFromText } from '../utils/watermark'
-import { parseFilename } from '../importers/roteRosen'
+import { parseFilename } from '../importers/daily'
 import { calcPageLength } from '../utils/calcPageLength'
 
 const UPLOAD_BASE = process.env.UPLOAD_DIR || '/srv/script/uploads/originals'
@@ -450,6 +450,9 @@ importRouter.post('/preview', upload.single('file'), async (req, res) => {
     } else if (req.body.pdf_crop_percent) {
       parseOpts.pdfCropPercent = parseInt(req.body.pdf_crop_percent, 10)
     }
+    if (req.body.pdf_layout === 'daily' || req.body.pdf_layout === 'master-scene') {
+      parseOpts.pdfLayout = req.body.pdf_layout
+    }
 
     const cacheKey = makeParseKey(parseBuffer, parseOpts)
     let result = cacheGet(cacheKey)
@@ -541,6 +544,9 @@ export function buildParseOptsFromBody(body: any): ParseOptions {
     }
   } else if (body.pdf_crop_percent) {
     parseOpts.pdfCropPercent = parseInt(body.pdf_crop_percent, 10)
+  }
+  if (body.pdf_layout === 'daily' || body.pdf_layout === 'master-scene') {
+    parseOpts.pdfLayout = body.pdf_layout
   }
   return parseOpts
 }

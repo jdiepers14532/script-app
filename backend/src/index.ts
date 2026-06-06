@@ -17,6 +17,7 @@ import { locksRouter, contractLocksRouter } from './routes/locks'
 import exportsRouter from './routes/exports'
 import kiRouter, { kiAdminRouter, kiProviderRouter } from './routes/ki'
 import { importRouter } from './routes/import'
+import { importBatchRouter } from './routes/import-batch'
 import meRouter from './routes/me'
 import weatherRouter from './routes/weather'
 import watermarkAdminRouter from './routes/watermark-admin'
@@ -146,6 +147,7 @@ app.use('/api/ki', kiLimiter, kiRouter)
 app.use('/api/admin/ki-settings', kiAdminRouter)
 app.use('/api/admin/ki-providers', kiProviderRouter)
 app.use('/api/import', importRouter)
+app.use('/api/import', importBatchRouter)
 app.use('/api/me', meRouter)
 app.use('/api/weather', weatherRouter)
 app.use('/api/folgen', folgenRouter)

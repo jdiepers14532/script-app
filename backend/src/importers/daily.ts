@@ -1,8 +1,10 @@
 /**
- * Rote Rosen PDF Import Filter
+ * Daily PDF Import Filter (deutsches Vorabend-/Daily-Format)
  *
- * Parst Treatment- und Drehbuch-PDFs im Rote-Rosen-Produktionsformat.
- * Erkennt automatisch den Dokumenttyp anhand des Headers.
+ * Parst Treatment- und Drehbuch-PDFs im deutschen Daily-Produktionsformat
+ * (Episode.Szene-Nummerierung NNNN.N, I/E-Tageszeit-Codes, Dauer-Tabellen).
+ * Ursprünglich für Rote Rosen / Sturm der Liebe entwickelt; die Layout-Erkennung
+ * greift inzwischen über die Struktur-Signatur, nicht nur über den Seriennamen.
  *
  * Beinhaltet einen Preprocessor, der pdf-parse-Artefakte repariert:
  * - Zusammengeklebte Zeilen (Scene-Header, INT/EXT, Footer)
@@ -16,16 +18,29 @@ import { Textelement, ImportResult, PerEpisodeResult, ParsedScene, NonSceneEleme
 const TITLE_RE = /(?:Rote Rosen|Sturm der Liebe)\s+(?:Produktion|Staffel)\s+(\d+)/
 const DOC_TYPE_RE = /(Treatment|Drehbuch)\s+-\s+Episode\s+(\d+)/
 
-export function isRoteRosenFormat(text: string): boolean {
+export function isDailyLayout(text: string): boolean {
   const header = text.slice(0, 3000) // Mistral OCR may have more preamble
-  if (!TITLE_RE.test(header)) return false
-  // Standard single-episode format
-  if (DOC_TYPE_RE.test(header)) return true
-  // Block-level format: has Block number + scene numbers (e.g. "Rote Rosen Staffel 25 / Block 893")
-  const hasBlock = /Block\s+\d{3,4}/.test(header)
-  const hasSceneNums = /\d{4}\.\d{1,3}/.test(text.slice(0, 10000))
-  return hasBlock && hasSceneNums
+  // Strong signal: bekannte Studio-Hamburg-Daily-Serien im Header
+  if (TITLE_RE.test(header) && (DOC_TYPE_RE.test(header) || /Block\s+\d{3,4}/.test(header))) return true
+  // Struktur-Signal: das Daily-Schema NNNN.N (Episode.Szene) + I/E-Tageszeit-Codes —
+  // unabhängig vom Seriennamen, damit andere Dailies mit gleicher Vorlage ebenfalls matchen.
+  const sample = text.slice(0, 12000)
+  const sceneNumCount = (sample.match(/\b\d{4}\.\d{1,3}\b/g) || []).length
+  const hasIntExtCodes = /\b[IE]\/[TNAD]\d/.test(sample)
+  if (sceneNumCount >= 3 && hasIntExtCodes) return true
+  // Loserer Fallback: Titel + Block + Szenennummern
+  if (TITLE_RE.test(header)) {
+    const hasBlock = /Block\s+\d{3,4}/.test(header)
+    const hasSceneNums = /\d{4}\.\d{1,3}/.test(text.slice(0, 10000))
+    return hasBlock && hasSceneNums
+  }
+  return false
 }
+
+/** @deprecated Alias — use isDailyLayout. */
+export const isRoteRosenFormat = isDailyLayout
+/** @deprecated Alias — use parseDaily. */
+export const parseRoteRosen = parseDaily
 
 // ─── Filename Parser ────────────────────────────────────
 // Pattern: "Treatment - Rote Rosen Produktion 24 - Episode 4402 - 2026-04-30.pdf"
@@ -1458,7 +1473,7 @@ function parseDrehbuchContent(
 
 // ─── Main Parser ────────────────────────────────────────
 
-export function parseRoteRosen(rawText: string, ocrMode = false, layout?: BboxLayout, pageOffset = 0): ImportResult {
+export function parseDaily(rawText: string, ocrMode = false, layout?: BboxLayout, pageOffset = 0): ImportResult {
   const lines = cleanText(rawText, ocrMode)
   const warnings: string[] = []
 

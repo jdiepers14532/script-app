@@ -7,6 +7,7 @@ import { api } from '../api/client'
 import { useTerminologie } from '../sw-ui'
 import Tooltip from '../components/Tooltip'
 import PdfPageViewer from '../components/PdfPageViewer'
+import BulkImportPanel from '../components/BulkImportPanel'
 import * as pdfjsLib from 'pdfjs-dist'
 
 const ACCEPTED_EXTS = ['.fdx', '.fountain', '.docx', '.pdf', '.celtx', '.wdz']
@@ -97,6 +98,7 @@ export default function ImportPage() {
     { value: 'final', label: `${t('drehbuch')} (gelockt)`, tip: '' },
   ]
   const [step, setStep] = useState<Step>(1)
+  const [bulkMode, setBulkMode] = useState(false)
   const [file, setFile] = useState<File | null>(null)
   const [dragging, setDragging] = useState(false)
   const [detectResult, setDetectResult] = useState<DetectResult | null>(null)
@@ -197,6 +199,8 @@ export default function ImportPage() {
 
   // PDF extraction options
   const [pdfMethod, setPdfMethod] = useState<'pdftotext' | 'mistral'>('pdftotext')
+  // Layout-Konvention für PDFs: 'auto' = automatische Erkennung
+  const [pdfLayout, setPdfLayout] = useState<'auto' | 'daily' | 'master-scene'>('auto')
   const [pdfCropLeft, setPdfCropLeft] = useState(0)
   const [pdfCropRight, setPdfCropRight] = useState(0)
   const [pdfCropBottom, setPdfCropBottom] = useState(0)
@@ -320,6 +324,7 @@ export default function ImportPage() {
       fd.append('file', file)
       if (isPdf) {
         fd.append('pdf_method', pdfMethod)
+        if (pdfLayout !== 'auto') fd.append('pdf_layout', pdfLayout)
         if (pdfMethod === 'pdftotext') {
           if (pdfCropLeft > 0) fd.append('pdf_crop_left', String(pdfCropLeft))
           if (pdfCropRight > 0) fd.append('pdf_crop_right', String(pdfCropRight))
@@ -421,6 +426,7 @@ export default function ImportPage() {
     if (standDatum) fd.append('stand_datum', standDatum)
     if (isPdf) {
       fd.append('pdf_method', pdfMethod)
+      if (pdfLayout !== 'auto') fd.append('pdf_layout', pdfLayout)
       if (pdfMethod === 'pdftotext') {
         if (pdfCropLeft > 0) fd.append('pdf_crop_left', String(pdfCropLeft))
         if (pdfCropRight > 0) fd.append('pdf_crop_right', String(pdfCropRight))
@@ -529,6 +535,7 @@ export default function ImportPage() {
       fd.append('file', file)
       if (isPdf) {
         fd.append('pdf_method', pdfMethod)
+        if (pdfLayout !== 'auto') fd.append('pdf_layout', pdfLayout)
         if (pdfMethod === 'pdftotext') {
           if (pdfCropLeft > 0) fd.append('pdf_crop_left', String(pdfCropLeft))
           if (pdfCropRight > 0) fd.append('pdf_crop_right', String(pdfCropRight))
@@ -610,10 +617,35 @@ export default function ImportPage() {
         {step === 1 && (
           <div>
             <h2 style={{ marginBottom: 8, fontSize: 20, fontWeight: 600 }}>{t('drehbuch')} importieren</h2>
-            <p style={{ color: '#757575', marginBottom: 24, fontSize: 14 }}>
+            <p style={{ color: '#757575', marginBottom: 16, fontSize: 14 }}>
               Unterstützte Formate: Final Draft (.fdx), Fountain, Word (.docx), PDF, Celtx, WriterDuet (.wdz)
             </p>
 
+            {/* Modus-Umschalter: Einzeldatei vs. Mehrere Dateien (Bulk) */}
+            <div style={{ display: 'flex', gap: 8, marginBottom: 24, borderBottom: '1px solid #e0e0e0' }}>
+              {[{ v: false, label: 'Einzeldatei' }, { v: true, label: 'Mehrere Dateien' }].map(m => (
+                <button
+                  key={String(m.v)}
+                  onClick={() => setBulkMode(m.v)}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer', padding: '8px 4px',
+                    fontSize: 14, fontWeight: bulkMode === m.v ? 600 : 400,
+                    color: bulkMode === m.v ? '#000' : '#757575',
+                    borderBottom: `2px solid ${bulkMode === m.v ? '#000' : 'transparent'}`, marginBottom: -1,
+                  }}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+
+            {bulkMode ? (
+              <BulkImportPanel
+                produktionId={selectedId || null}
+                stageTypes={STAGE_TYPES.map(s => ({ value: s.value, label: s.label }))}
+              />
+            ) : (
+            <>
             {/* Drop zone */}
             <div
               onDragOver={e => { e.preventDefault(); setDragging(true) }}
@@ -725,6 +757,27 @@ export default function ImportPage() {
               </div>
             )}
 
+            {/* PDF Layout/Format — Szenenstruktur-Konvention; 'auto' erkennt anhand der Signatur */}
+            {isPdf && detectResult && (
+              <div style={{ border: '1px solid #e0e0e0', borderRadius: 8, padding: 16, marginBottom: 16 }}>
+                <label style={{ display: 'block', fontSize: 13, marginBottom: 6 }}>
+                  Layout / Format
+                </label>
+                <select
+                  value={pdfLayout}
+                  onChange={e => setPdfLayout(e.target.value as 'auto' | 'daily' | 'master-scene')}
+                  style={{ width: '100%', padding: '8px 10px', fontSize: 13, border: '1px solid #e0e0e0', borderRadius: 6, background: '#fff' }}
+                >
+                  <option value="auto">Automatisch erkennen</option>
+                  <option value="daily">Daily (dt. Episode.Szene-Format)</option>
+                  <option value="master-scene">Master Scene (US / BBC / ARD-ZDF)</option>
+                </select>
+                <span style={{ fontSize: 11, color: '#999', marginTop: 4, display: 'block' }}>
+                  Bei falsch erkannten Szenen das passende Layout explizit wählen.
+                </span>
+              </div>
+            )}
+
             {error && (
               <div style={{ color: 'var(--sw-danger)', fontSize: 13, marginBottom: 16, display: 'flex', gap: 6 }}>
                 <AlertTriangle size={14} />
@@ -743,6 +796,8 @@ export default function ImportPage() {
             >
               {loading ? 'Analysiere…' : 'Weiter'}
             </button>
+            </>
+            )}
           </div>
         )}
 

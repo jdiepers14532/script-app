@@ -15,6 +15,7 @@ export interface ParseOptions {
   pdfMethod?: 'pdftotext' | 'mistral'
   pdfCropPercent?: number // legacy — use pdfCrop instead
   pdfCrop?: PdftextCropOptions
+  pdfLayout?: 'daily' | 'master-scene' | 'auto' // explizite Layout-Wahl (Wizard); sonst Auto-Detect
 }
 
 export async function parseScript(filename: string, buffer: Buffer, options?: ParseOptions): Promise<ImportResult> {
@@ -36,6 +37,7 @@ export async function parseScript(filename: string, buffer: Buffer, options?: Pa
       if (options?.pdfMethod) pdfOpts.method = options.pdfMethod
       if (options?.pdfCrop) pdfOpts.crop = options.pdfCrop
       else if (options?.pdfCropPercent) pdfOpts.cropPercent = options.pdfCropPercent
+      if (options?.pdfLayout) pdfOpts.layoutHint = options.pdfLayout
       return parsePdf(buffer, pdfOpts)
     }
     case 'celtx':
