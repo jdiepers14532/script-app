@@ -4,7 +4,7 @@ import { authMiddleware } from '../auth'
 import {
   AnkerRow, resolveContentAnker, resolveKopffeld, KOPFFELD_WHITELIST,
 } from '../utils/reanchor'
-import { istAutorUser } from '../utils/scriptUsers'
+import { istAutorUser, getScriptUsers } from '../utils/scriptUsers'
 
 const TIER1_ROLES = ['superadmin', 'geschaeftsfuehrung', 'herstellungsleitung']
 const STATUS_WERTE = ['offen', 'in_arbeit', 'uebernommen', 'abgelehnt']
@@ -223,6 +223,43 @@ anmerkungenRouter.get('/', async (req, res) => {
       })
     }
     res.json({ items })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ── GET /api/anmerkungen/taggbare-user — Auswahl fürs Person-Tagging ───────────
+// Liefert die für die Script-App registrierten Nutzer (id, name). Das eigentliche
+// Sichtbarkeits-Gate pro getaggtem User erfolgt serverseitig in POST …/tags.
+anmerkungenRouter.get('/taggbare-user', async (_req, res) => {
+  try {
+    const users = await getScriptUsers()
+    res.json(users.map(u => ({ id: u.id, name: u.name })))
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ── GET /api/anmerkungen/:id/kommentare — Thread laden (Sichtbarkeits-Gate) ─────
+anmerkungenRouter.get('/:id/kommentare', async (req, res) => {
+  const user = req.user!
+  try {
+    const row = await queryOne(
+      `SELECT a.werkstufe_id
+       FROM anmerkung an JOIN anker a ON a.id = an.anker_id WHERE an.id = $1`,
+      [req.params.id]
+    )
+    if (!row) return res.status(404).json({ error: 'Anmerkung nicht gefunden' })
+    if (row.werkstufe_id) {
+      const sichtbar = await darfWerkstufeSehen(row.werkstufe_id, user.user_id, istAutor(req))
+      if (!sichtbar) return res.status(403).json({ error: 'Keine Sicht auf diese Anmerkung' })
+    }
+    const kommentare = await query(
+      `SELECT id, anmerkung_id, autor, body, erstellt_am
+       FROM anmerkung_kommentar WHERE anmerkung_id = $1 ORDER BY erstellt_am ASC`,
+      [req.params.id]
+    )
+    res.json(kommentare)
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }

@@ -31,6 +31,8 @@ import { Decoration, DecorationSet } from '@tiptap/pm/view'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import PageWrapper from './PageWrapper'
 import { useUserPrefs, useFocus, useAppSettings, useTweaks, useSelectedProduction, useToast } from '../../contexts'
+import { useAnnotationsOptional } from '../../contexts/AnnotationContext'
+import { useAnnotationLayer } from '../../hooks/useAnnotationLayer'
 // Shortcut labels in tooltips: import { useShortcut } from '../../hooks/useShortcut'
 // See src/shortcuts.ts for the registry — add new shortcuts there, use label() in Tooltips
 import { LineNumberOverlay } from './LineNumberOverlay'
@@ -842,6 +844,19 @@ export default function UniversalEditor({
     editorRef.current = editor ?? null
     return () => { editorRef.current = null }
   }, [editor, editorRef])
+
+  // ── Anmerkungen-Layer (Schritt 2) — view-lokale Decorations + Anmerken/Scroll ──
+  // Optionaler Context: nur aktiv, wenn der Editor in einem AnnotationProvider mit
+  // Werkstufe + Szene läuft (Bearbeitungsmodus); sonst No-Op.
+  const annotCtx = useAnnotationsOptional()
+  const annotation = (annotCtx && werkstufeId && sceneIdentityId) ? {
+    decoAnker: annotCtx.decoAnker,
+    activeAnmerkungId: annotCtx.activeAnmerkungId,
+    onOpen: annotCtx.setActiveAnmerkungId,
+    onCreateContent: annotCtx.createContent,
+    canCreate: true, // Erstellen für alle (serverseitig gegated)
+  } : null
+  const annotLayer = useAnnotationLayer(editor, annotation)
 
   // Solo mode: track History state via editor transactions
   useEffect(() => {
@@ -2345,6 +2360,9 @@ export default function UniversalEditor({
           />
         </PageWrapper>
       </div>
+
+      {/* Anmerkungen: "Anmerken"-Affordance + Erstell-Popover (Schritt 2) */}
+      {annotLayer.overlay}
 
       {/* Charakter-Autovervollständigung Dropdown — öffnet nach oben */}
       {acPos && (acSuggestions.length > 0 || acNewName) && createPortal(

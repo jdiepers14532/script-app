@@ -8,6 +8,7 @@ import { api, peekCache } from '../api/client'
 import { PanelModeContext, useAppSettings, useUserPrefs, useTweaks, useFocus, useToast } from '../contexts'
 import { useTerminologie } from '../sw-ui'
 import { getShortcutLabel } from '../shortcuts'
+import { KopffeldAnmerkung } from './anmerkungen/KopffeldAnmerkung'
 
 interface SceneEditorProps {
   szeneId: number | string
@@ -1300,18 +1301,21 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
               <tr style={{ verticalAlign: 'baseline' }}>
                 <td colSpan={2} style={{ padding: 0 }} />
                 <td style={{ paddingRight: 8, paddingBottom: 2 }}>
-                  <input
-                    key={`zf-${scene?.id}`}
-                    className="sf-input"
-                    style={{ width: '100%' }}
-                    defaultValue={scene.zusammenfassung ?? ''}
-                    placeholder="Oneliner…"
-                    onBlur={e => {
-                      const val = e.target.value.trim() || null
-                      if (val !== (scene.zusammenfassung ?? null))
-                        saveScene({ zusammenfassung: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
-                    }}
-                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <input
+                      key={`zf-${scene?.id}`}
+                      className="sf-input"
+                      style={{ width: '100%' }}
+                      defaultValue={scene.zusammenfassung ?? ''}
+                      placeholder="Oneliner…"
+                      onBlur={e => {
+                        const val = e.target.value.trim() || null
+                        if (val !== (scene.zusammenfassung ?? null))
+                          saveScene({ zusammenfassung: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {})
+                      }}
+                    />
+                    <KopffeldAnmerkung werkstufeId={werkstufId ?? null} sceneIdentityId={sceneIdentityId ?? scene?.scene_identity_id ?? null} feldname="zusammenfassung" label="Oneliner" />
+                  </div>
                 </td>
                 <td colSpan={3} style={{ paddingRight: 8, paddingBottom: 2, textAlign: 'left' }}>
                   {(() => {
@@ -1589,7 +1593,10 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
               <tr style={{ verticalAlign: 'baseline' }}>
                 <td colSpan={2} style={{ padding: 0 }} />
                 <td colSpan={4} style={{ paddingRight: 8, paddingBottom: 2 }}>
-                  <input key={`sinfo-${scene?.id}`} className="sf-input sf-input-info" defaultValue={scene.szeneninfo ?? ''} placeholder={`${t('szene','c')}info…`} style={{ fontSize: 11, color: '#90CAF9', fontStyle: 'italic', width: '100%' }} onBlur={e => { const val = e.target.value.trim() || null; if (val !== (scene.szeneninfo ?? null)) saveScene({ szeneninfo: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {}) }} />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <input key={`sinfo-${scene?.id}`} className="sf-input sf-input-info" defaultValue={scene.szeneninfo ?? ''} placeholder={`${t('szene','c')}info…`} style={{ fontSize: 11, color: '#90CAF9', fontStyle: 'italic', width: '100%' }} onBlur={e => { const val = e.target.value.trim() || null; if (val !== (scene.szeneninfo ?? null)) saveScene({ szeneninfo: val }).then(s => { setScene(s); onSzeneUpdated?.(s) }).catch(() => {}) }} />
+                    <KopffeldAnmerkung werkstufeId={werkstufId ?? null} sceneIdentityId={sceneIdentityId ?? scene?.scene_identity_id ?? null} feldname="szeneninfo" label="Szeneninfo" />
+                  </div>
                 </td>
               </tr>
               {/* Row: Notiz */}

@@ -22,6 +22,8 @@ import NeueWerkstufeModal, { type NeueWerkstufeParams } from '../NeueWerkstufeMo
 import PlatzhalterSzenenDialog from '../PlatzhalterSzenenDialog'
 import ExportDrawer from './ExportDrawer'
 import UeberschreibWarnungModal from '../UeberschreibWarnungModal'
+import { AnnotationProvider } from '../../contexts/AnnotationContext'
+import { AnnotationPanel } from '../anmerkungen/AnnotationPanel'
 
 interface Props {
   produktionId: string
@@ -704,7 +706,14 @@ export default function EditorPanel({
     enabled: collabEnabled,
   })
 
+  // ── Anmerkungen-Hub (Schritt 2): Panel rechts neben dem Editor ──────────────
+  // Szenen-skopiert; nicht im Diff-Modus. canEdit = editierbar (nicht gesperrt/abgegeben/eingefroren).
+  const annotSceneIdentityId = sceneIdentityId ?? currentSzene?.scene_identity_id ?? null
+  const annotCanEdit = !isReadOnly && !selectedWerk?.eingefroren
+  const showAnnotationPanel = !!selectedWerk && !!selectedSzeneId && !!annotSceneIdentityId && !diffWerkId
+
   return (
+    <AnnotationProvider werkstufeId={selectedWerkId} sceneIdentityId={annotSceneIdentityId} canEdit={annotCanEdit}>
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', position: 'relative' }}>
       <EditorPanelHeader
         selectedWerk={selectedWerk}
@@ -1128,7 +1137,8 @@ export default function EditorPanel({
         />
       )}
 
-      <div style={{ flex: 1, overflow: 'hidden' }}>
+      <div style={{ flex: 1, display: 'flex', minHeight: 0, overflow: 'hidden' }}>
+        <div style={{ flex: 1, overflow: 'hidden', minWidth: 0 }}>
         {loading ? (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', fontSize: 13 }}>
             Lädt…
@@ -1208,6 +1218,12 @@ export default function EditorPanel({
             />
           </Suspense>
         )}
+        </div>
+        {showAnnotationPanel && (
+          <div style={{ width: 320, flexShrink: 0, overflow: 'hidden' }}>
+            <AnnotationPanel />
+          </div>
+        )}
       </div>
 
       {/* Überschreibschutz-Warnung */}
@@ -1284,5 +1300,6 @@ export default function EditorPanel({
         />
       )}
     </div>
+    </AnnotationProvider>
   )
 }
