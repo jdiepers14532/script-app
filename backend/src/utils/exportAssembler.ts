@@ -194,6 +194,9 @@ function renderInlineNode(node: any, ctx: ExportContext): string {
 function renderNode(node: any, ctx: ExportContext): string {
   if (!node?.type) return ''
 
+  // Anker-Wurzelpunkt fürs DOM-Anchoring im Lese-Modus (Handoff 3 §2). Additiv, layout-neutral.
+  const nid = node.attrs?.node_id ? ` data-node-id="${String(node.attrs.node_id).replace(/"/g, '')}"` : ''
+
   if (node.type === 'paragraph') {
     // Special case: paragraph whose sole child is {{notiz_inhalt}} → inject rendered scene HTML as block
     const innerNodes = node.content ?? []
@@ -224,27 +227,27 @@ function renderNode(node: any, ctx: ExportContext): string {
     if (sa)  styles.push(`margin-bottom:${sa}`)
     const style = styles.length ? ` style="${styles.join(';')}"` : ''
     const inner = renderInlineNodes(node.content ?? [], ctx)
-    return `<p${style}>${inner || '&nbsp;'}</p>`
+    return `<p${style}${nid}>${inner || '&nbsp;'}</p>`
   }
 
   if (node.type === 'heading') {
     const level = node.attrs?.level ?? 2
     const inner = renderInlineNodes(node.content ?? [], ctx)
-    return `<h${level}>${inner}</h${level}>`
+    return `<h${level}${nid}>${inner}</h${level}>`
   }
 
   if (node.type === 'bulletList') {
     const items = (node.content ?? []).map((li: any) =>
       `<li>${renderInlineNodes(li.content?.[0]?.content ?? [], ctx)}</li>`
     ).join('')
-    return `<ul>${items}</ul>`
+    return `<ul${nid}>${items}</ul>`
   }
 
   if (node.type === 'orderedList') {
     const items = (node.content ?? []).map((li: any) =>
       `<li>${renderInlineNodes(li.content?.[0]?.content ?? [], ctx)}</li>`
     ).join('')
-    return `<ol>${items}</ol>`
+    return `<ol${nid}>${items}</ol>`
   }
 
   if (node.type === 'horizontalRule') return '<hr style="border:none;border-top:1px solid #d0d0d0;width:100%;margin:8px 0">'
@@ -285,7 +288,7 @@ function renderNode(node: any, ctx: ExportContext): string {
       }).join('')
       return `<tr${rowStyle}>${cells}</tr>`
     }).join('')
-    return `<table style="border-collapse:collapse;${tableLayout}width:100%;margin:4px 0"><tbody>${rows}</tbody></table>`
+    return `<table${nid} style="border-collapse:collapse;${tableLayout}width:100%;margin:4px 0"><tbody>${rows}</tbody></table>`
   }
 
   // Fallback: treat content as block container

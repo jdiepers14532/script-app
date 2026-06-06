@@ -8,9 +8,9 @@
  * Die eigentlichen Exporter werden in Phase 3 (PDF), 5 (DOCX), 6 (Fountain/FDX) eingehängt.
  */
 
-import { Router } from 'express'
+import { Router, Request, Response, NextFunction } from 'express'
 import { authMiddleware } from '../auth'
-import { pool } from '../db'
+import { pool, queryOne } from '../db'
 import {
   createJob,
   runJob,
@@ -24,6 +24,35 @@ const router = Router()
 router.use(authMiddleware)
 
 const VALID_FORMATS: ExportFormat[] = ['pdf', 'docx', 'fountain', 'fdx']
+
+// ── Sichtbarkeits-Gate für Export/Preview (Handoff 3 + Handoff 6 §7.2) ────────
+// Schließt das Leck: bisher konnte jeder Authentifizierte jede Fassung als HTML/PDF ziehen.
+// p_ist_autor = roles.length>0. compareWerkstufId (Diff-Export) wird mitgeprüft, falls gesetzt.
+async function darfWerkstufeSehen(req: Request, werkstufId: string): Promise<boolean> {
+  const istAutor = (req.user?.roles ?? []).filter(Boolean).length > 0
+  const row = await queryOne(`SELECT fn_werkstufe_sichtbar($1, $2, $3) AS ok`,
+    [werkstufId, req.user!.user_id, istAutor])
+  return !!row?.ok
+}
+
+function requireWerkstufeSichtbar(getId: (req: Request) => string | undefined) {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const id = getId(req)
+    if (!id) return res.status(400).json({ error: 'werkstufId erforderlich' })
+    try {
+      if (!(await darfWerkstufeSehen(req, id))) {
+        return res.status(403).json({ error: 'Keine Sicht auf diese Werkstufe' })
+      }
+      const cmp = (req.body?.options?.compareWerkstufId ?? req.body?.compareWerkstufId) as string | undefined
+      if (cmp && !(await darfWerkstufeSehen(req, cmp))) {
+        return res.status(403).json({ error: 'Keine Sicht auf die Vergleichs-Werkstufe' })
+      }
+      next()
+    } catch (err) {
+      res.status(500).json({ error: String(err) })
+    }
+  }
+}
 
 // ── Validierung: OrderedExportItems (Modul-Level für Wiederverwendung) ────────
 
@@ -58,7 +87,7 @@ function parseOrderedItems(raw: any): import('../utils/exportJobQueue').OrderedE
 
 // ── POST /api/export/job ──────────────────────────────────────────────────────
 
-router.post('/export/job', async (req, res) => {
+router.post('/export/job', requireWerkstufeSichtbar(req => req.body?.werkstufId), async (req, res) => {
   const { werkstufId, format, options = {} } = req.body
 
   if (!werkstufId || typeof werkstufId !== 'string') {
@@ -193,7 +222,7 @@ function previewParamsFromQuery(req: any): PdfAssemblerInput {
 // ── GET /api/export/preview ───────────────────────────────────────────────────
 // Gibt das vollständige HTML als text/html zurück (kein Puppeteer).
 
-router.get('/export/preview', async (req, res) => {
+router.get('/export/preview', requireWerkstufeSichtbar(req => req.query.werkstufId as string | undefined), async (req, res) => {
   const werkstufId = req.query.werkstufId as string | undefined
   if (!werkstufId) return res.status(400).json({ error: 'werkstufId erforderlich' })
 
@@ -211,7 +240,7 @@ router.get('/export/preview', async (req, res) => {
 // Wie GET /preview, aber akzeptiert die vollständige Export-Konfiguration im Body
 // (preItems, postItems, hauptinhaltAktiv). Gibt HTML zurück.
 
-router.post('/export/preview', async (req, res) => {
+router.post('/export/preview', requireWerkstufeSichtbar(req => req.body?.werkstufId), async (req, res) => {
   const { werkstufId, options = {} } = req.body
   if (!werkstufId || typeof werkstufId !== 'string') {
     return res.status(400).json({ error: 'werkstufId erforderlich' })
@@ -241,7 +270,7 @@ router.post('/export/preview', async (req, res) => {
 // Echter PDF-Vorschau mit vollständiger Export-Konfiguration (preItems, postItems,
 // hauptinhaltAktiv). Liefert das PDF inline — identisch mit dem späteren Download.
 
-router.post('/export/pdf-preview', async (req, res) => {
+router.post('/export/pdf-preview', requireWerkstufeSichtbar(req => req.body?.werkstufId), async (req, res) => {
   const { werkstufId, options = {} } = req.body
   if (!werkstufId || typeof werkstufId !== 'string') {
     return res.status(400).json({ error: 'werkstufId erforderlich' })
@@ -280,7 +309,7 @@ router.post('/export/pdf-preview', async (req, res) => {
 // Echter PDF-Vorschau: läuft synchron durch Puppeteer, liefert das PDF inline
 // im Browser-PDF-Viewer — identisch mit dem späteren Download.
 
-router.get('/export/pdf-preview', async (req, res) => {
+router.get('/export/pdf-preview', requireWerkstufeSichtbar(req => req.query.werkstufId as string | undefined), async (req, res) => {
   const werkstufId = req.query.werkstufId as string | undefined
   if (!werkstufId) return res.status(400).json({ error: 'werkstufId erforderlich' })
 
@@ -368,7 +397,7 @@ router.get('/export/titelseite-vorlagen', async (req, res) => {
 // sowie die Block-Grenzen (min/max sort_order aller Rows mit scene_nummer != null).
 // Wird vom ExportDrawer genutzt um Notiz-Elemente automatisch in VOR/NACH einzusortieren.
 
-router.get('/export/notiz-szenen', async (req, res) => {
+router.get('/export/notiz-szenen', requireWerkstufeSichtbar(req => req.query.werkstufId as string | undefined), async (req, res) => {
   const werkstufId = req.query.werkstufId as string | undefined
   if (!werkstufId) return res.status(400).json({ error: 'werkstufId erforderlich' })
 

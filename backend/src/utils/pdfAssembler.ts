@@ -384,6 +384,8 @@ function renderAbsatzNode(
 
   const css    = fmt ? fmtToCss(fmt) : 'margin:0 0 8pt;line-height:1.5'
   const kz     = fmt?.kuerzel ? ` data-kuerzel="${esc(fmt.kuerzel)}"` : ''
+  // Anker-Wurzelpunkt fürs DOM-Anchoring im Lese-Modus (Handoff 3 §2). Additiv, layout-neutral.
+  const nid    = node.attrs?.node_id ? ` data-node-id="${esc(String(node.attrs.node_id))}"` : ''
   const inner  = renderInline(node.content ?? [], ctx)
 
   // Page-break Regeln für CHAR / DIA / PAR
@@ -394,7 +396,7 @@ function renderAbsatzNode(
 
   const fullCss = breakCss ? `${css};${breakCss}` : css
 
-  return `<p style="${fullCss}"${kz}>${inner || '&nbsp;'}</p>`
+  return `<p style="${fullCss}"${kz}${nid}>${inner || '&nbsp;'}</p>`
 }
 
 /** Rendert ein vollständiges ProseMirror-Dokument mit Absatz-Support.
@@ -719,7 +721,12 @@ function renderMainScenes(
       }
     }
     const bodyHtml = scene.content ? renderDoc(scene.content, fmtById, fmtByName, ctx) : ''
-    return `${headHtml}\n${bodyHtml}`
+    const inner = `${headHtml}\n${bodyHtml}`
+    // Szenen-Abschnitt fürs DOM-Anchoring (Handoff 3 §2): data-scene-identity-id.
+    // display:contents = layout-/umbruch-neutral (kein Effekt auf @page/PDF); closest() läuft durch.
+    return scene.scene_identity_id
+      ? `<div data-scene-identity-id="${esc(String(scene.scene_identity_id))}" style="display:contents">${inner}</div>`
+      : inner
   }).join('\n')
 }
 

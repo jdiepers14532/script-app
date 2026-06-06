@@ -77,6 +77,7 @@ import { planungKiRouter } from './routes/planung-ki'
 import { importJobsRouter } from './routes/import-jobs'
 import { beziehungstypenRouter, beziehungenRouter } from './routes/beziehungen'
 import { anmerkungenRouter, ankerRouter } from './routes/anmerkungen'
+import { lesemodusRouter } from './routes/lesemodus'
 
 // Load .env from project root or backend dir
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') })
@@ -242,6 +243,7 @@ app.use('/api/beziehungen', beziehungenRouter)
 // Anmerkungen-Hub (v196): Anker-Fundament + Anmerkungs-Service
 app.use('/api/anmerkungen', anmerkungenRouter)
 app.use('/api/anker', ankerRouter)
+app.use('/api/lesemodus', lesemodusRouter)
 app.use('/api/notifications', notificationsRouter)
 app.use('/api/admin', dokAdminRouter)
 app.use('/api/autocomplete', autocompleteRouter)
