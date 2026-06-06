@@ -891,25 +891,59 @@ export default function ScriptPage() {
     setSelectedFolgeNummer(next)
   }, [])
 
+  // Nächste/vorherige Szene, die mindestens eine Figur der aktuellen Szene enthält
+  // (egal welche — je nachdem welche Szene in der Richtung früher kommt).
+  const navigateSzeneMitFigur = useCallback((dir: 1 | -1) => {
+    const list = szenenRef.current
+    const curId = selectedSzeneIdRef.current
+    if (!list.length || curId == null) return
+    const idx = list.findIndex(s => s.id === curId)
+    if (idx === -1) return
+    const parse = (s: any): string[] =>
+      String(s?.rollen_names ?? '').split(/[,;]/).map(x => x.trim().toLowerCase()).filter(Boolean)
+    const curFigs = new Set(parse(list[idx]))
+    if (!curFigs.size) { navigateSzene(dir); return }  // keine Figuren → normale Navigation
+    for (let i = idx + dir; i >= 0 && i < list.length; i += dir) {
+      if (parse(list[i]).some(f => curFigs.has(f))) {
+        setSelectedSzeneId(list[i].id)
+        navRestored.current = true
+        const produktionId = selectedProduktionIdRef.current
+        if (produktionId)
+          api.updateSettings({ ui_settings: {
+            last_produktion_id: produktionId,
+            last_folge_nummer: selectedFolgeNummerRef.current,
+            last_stage_id: selectedStageIdRef.current,
+            last_szene_id: list[i].id,
+          }}).catch(() => {})
+        return
+      }
+    }
+  }, [])
+
   // Keyboard navigation: ←→ = Szene · Alt+Bild = Szene · Alt+Shift+Bild = Folge · Strg+G = Gehe zu Szene
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       const tag = (document.activeElement?.tagName || '').toLowerCase()
       const isEditable = ['input', 'textarea', 'select'].includes(tag) || !!document.activeElement?.getAttribute('contenteditable')
 
-      // F6 / Shift+F6 — Fokus zyklisch zwischen Szenenliste-Suche und Editoren
+      // F6 / Shift+F6 — Fokus zyklisch: Szenenliste → Szenenkopf → Editor(en)
       if (e.key === 'F6') {
         e.preventDefault()
-        const targets: HTMLElement[] = []
+        const regions: HTMLElement[] = []
         const search = document.querySelector('input[placeholder^="Szene"]') as HTMLElement | null
-        if (search) targets.push(search)
-        document.querySelectorAll('.ProseMirror').forEach(el => targets.push(el as HTMLElement))
-        if (!targets.length) return
+        if (search) regions.push(search)                                                  // 1. Szenenliste
+        document.querySelectorAll('.detail-head').forEach(el => regions.push(el as HTMLElement))  // 2. Szenenkopf
+        document.querySelectorAll('.ProseMirror').forEach(el => regions.push(el as HTMLElement))  // 3. Editor(en)
+        if (!regions.length) return
         const active = document.activeElement as HTMLElement | null
-        const cur = targets.findIndex(t => t === active || t.contains(active))
+        const cur = regions.findIndex(r => r === active || r.contains(active))
         const dir = e.shiftKey ? -1 : 1
-        const next = (cur + dir + targets.length) % targets.length
-        targets[next].focus()
+        const target = regions[(cur + dir + regions.length) % regions.length]
+        const focusable = target.matches('input,textarea,[contenteditable]')
+          ? target
+          : target.querySelector<HTMLElement>('input,textarea,select,button,[contenteditable],[tabindex]:not([tabindex="-1"])')
+        if (focusable) focusable.focus()
+        else { target.tabIndex = -1; target.focus() }
         return
       }
 
@@ -918,6 +952,10 @@ export default function ScriptPage() {
         if (!isEditable) { e.preventDefault(); setGotoOpen(true) }
         return
       }
+
+      // Strg/Cmd+Shift+Bild auf/ab — nächste/vorherige Szene mit aktiver Figur
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && e.code === 'PageUp')   { e.preventDefault(); navigateSzeneMitFigur(-1); return }
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && !e.altKey && e.code === 'PageDown') { e.preventDefault(); navigateSzeneMitFigur(1);  return }
 
       // Szene wechseln: Alt+Bild auf/ab (auch im Editor). Mac-Laptop-Alias ⌘+⌥+↑/↓.
       // NICHT Strg+Bild — browserreserviert für Tab-Wechsel (nicht abfangbar).

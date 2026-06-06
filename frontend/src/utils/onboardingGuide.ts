@@ -164,6 +164,16 @@ function buildSteps() {
         align: 'start' as const,
       },
     },
+    // 11 — Tastenkürzel
+    {
+      element: 'header.topbar',
+      popover: {
+        title: '⌨️ Tastenkürzel',
+        description: 'Schneller arbeiten mit der Tastatur:<br><br>⌨️ <strong>?</strong> öffnet die komplette Kürzel-Übersicht<br>🔎 <strong>Strg/⌘ + K</strong> öffnet die Befehlspalette (durchsuchbar, jede Zeile zeigt ihr Kürzel)<br>🎬 <strong>Alt + Bild ↑/↓</strong> wechselt die Szene, <strong>Alt + Shift + Bild</strong> die Folge<br><br><em>Hinweis: Die Taste <strong>?</strong> funktioniert nur außerhalb von Eingabe- und Textfeldern. Die volle Liste steht auch unter /hilfe → „Tastenkürzel".</em>',
+        side: 'bottom' as const,
+        align: 'start' as const,
+      },
+    },
     // A — Sichtbarkeit
     {
       element: () => {
