@@ -391,6 +391,18 @@ pdfExportProfilRouter.put('/:id', async (req, res) => {
   }
 })
 
+// DELETE /api/pdf-export-profil/:id
+// verteiler.pdf_export_profil_id ist FK ON DELETE SET NULL → Löschen ist sicher.
+pdfExportProfilRouter.delete('/:id', async (req, res) => {
+  try {
+    const r = await pool.query(`DELETE FROM pdf_export_profil WHERE id = $1`, [req.params.id])
+    if (r.rowCount === 0) return res.status(404).json({ error: 'PDF-Profil nicht gefunden' })
+    res.status(204).send()
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
 // ══════════════════════════════════════════════════════════════════════════════
 // distributionenRouter — /api/distributionen
 // ══════════════════════════════════════════════════════════════════════════════
