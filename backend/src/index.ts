@@ -517,6 +517,8 @@ async function runMigrations() {
     // Weg B: Content-Anker auf scene_identity_id (Pflicht) + block_index + Quote; node_id optional
     // (v198 ist im Anmerkungs-Paket für Handoff 6 reserviert → Bewertungs-Freigabe; hier übersprungen)
     'v199_anker_scene_primary.sql',
+    // Verteiler-System: Verteiler, Distribution, PDF-Export-Profil, Druck-Job (Paket v118 → umnummeriert auf v200, v118 war belegt)
+    'v200_verteiler_system.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
