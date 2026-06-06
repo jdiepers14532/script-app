@@ -510,6 +510,8 @@ async function runMigrations() {
     'v195_fassungen_ueberschreibschutz.sql',
     // Anmerkungen-Hub Schritt 1: Anker-Fundament + Anmerkungs-System + fn_werkstufe_sichtbar
     'v196_anker_anmerkungen.sql',
+    // Bulk-Import: mehrere Dokumente gleichzeitig (import_batches + import_batch_jobs)
+    'v197_import_batches.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

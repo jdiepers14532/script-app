@@ -55,7 +55,9 @@ export function parseFilename(filename: string): FilenameMeta {
 
 // ─── Patterns ───────────────────────────────────────────
 
-const SCENE_NUM_RE = /^(\d{4})\.(\d{1,3})\s*(.*)/
+// (\d{4})=Episode, (\d{1,3})=Szene, optionaler ([A-Z])=Suffix (nur wenn Trennzeichen folgt,
+// damit OCR-Merges wie "4402.10Außendreh" nicht das "A" als Suffix verschlucken), (.*)=Rest/Location
+const SCENE_NUM_RE = /^(\d{4})\.(\d{1,3})([A-Z](?=\s|$))?\s*(.*)/
 const INT_EXT_SPIELTAG_RE = /^([IE])\/([TNAD])(\d+)$/
 const DURATION_RE = /^(\d{1,2}):(\d{2})$/
 const FOOTER_STAND_RE = /^Stand:\s+\d{2}\.\d{2}\.\d{4}\s+\d{2}:\d{2}$/
@@ -410,7 +412,7 @@ function findContentStart(lines: string[]): number {
     if (t === 'Memo') return i
     const numM = SCENE_NUM_RE.exec(t)
     if (numM) {
-      const trailing = numM[3]?.trim() || ''
+      const trailing = numM[4]?.trim() || ''
       // Accept: scene number alone on line (pdftotext) OR ending with INT/EXT code (bbox)
       if (!trailing || INT_EXT_AT_END_RE.test(t)) return i
       // Skip: outline entries (scene number + sentence text, no INT/EXT at end)
@@ -440,7 +442,7 @@ function sceneNumTrailingIsFlow(line: string): boolean {
   const t = line.trim()
   const m = SCENE_NUM_RE.exec(t)
   if (!m) return false
-  const trailing = (m[3] || '').trim()
+  const trailing = (m[4] || '').trim()
   if (!trailing) return false                       // bare number → not flow text
   if (INT_EXT_AT_END_RE.test(t)) return false        // header tail (bbox)
   if (DURATION_RE.test(trailing)) return false       // header tail (duration)
@@ -472,7 +474,7 @@ function isSceneHeaderAt(lines: string[], idx: number, ctx?: SceneCtx): boolean 
   if (!m) return false
   const epNr = parseInt(m[1], 10)
   const scNr = parseInt(m[2], 10)
-  const trailing = (m[3] || '').trim()
+  const trailing = (m[4] || '').trim()
 
   // Tail present → accept only a header-like tail (INT/EXT-end, duration, location
   // keyword), reject running sentences. A header keeps its strong tail even when the
@@ -575,6 +577,7 @@ const STOCKSHOT_RE = /archiv\s*-?\s*bild|stock\s*-?\s*shot|e[\s-]*shot|estab+l+i
 interface SceneHeader {
   episodeNr: number
   sceneNr: number
+  sceneNrSuffix?: string
   ort_name: string
   int_ext: 'INT' | 'EXT' | 'INT/EXT'
   tageszeit: 'TAG' | 'NACHT' | 'ABEND' | 'DÄMMERUNG'
@@ -642,7 +645,8 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
 
   const episodeNr = parseInt(numM[1], 10)
   const sceneNr = parseInt(numM[2], 10)
-  let locationOnSameLine = numM[3]?.trim() || ''
+  const sceneNrSuffix = numM[3] || undefined
+  let locationOnSameLine = numM[4]?.trim() || ''
 
   // bbox output: scene number + location + INT/EXT on one line: "4402.15 Außendreh / A. D. Pferdehof E/T4"
   // Extract the trailing INT/EXT code from locationOnSameLine so int_ext/tageszeit/spieltag are set correctly.
@@ -925,7 +929,7 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
   }
 
   return {
-    episodeNr, sceneNr, ort_name, int_ext, tageszeit, spieltag,
+    episodeNr, sceneNr, sceneNrSuffix, ort_name, int_ext, tageszeit, spieltag,
     charaktere, zusammenfassung: finalZusammenfassung, zusammenfassungLines, dauer_sekunden, komparsen, hinweise,
     headerEndIdx: i,
     isWechselschnitt,
@@ -1551,6 +1555,7 @@ export function parseRoteRosen(rawText: string, ocrMode = false, layout?: BboxLa
     const sceneKey = `${header.episodeNr}.${header.sceneNr}`
     return {
       nummer: header.sceneNr,
+      nummerSuffix: header.sceneNrSuffix,
       episodeNr: header.episodeNr,
       int_ext: finalIntExt,
       tageszeit: header.tageszeit,
@@ -1711,7 +1716,8 @@ export function parseRoteRosen(rawText: string, ocrMode = false, layout?: BboxLa
     const byKey = new Map<string, { idx: number; score: number }>()
     for (let idx = 0; idx < szenen.length; idx++) {
       const s = szenen[idx]
-      const key = isMultiEpisode ? `${s.episodeNr ?? 0}:${s.nummer}` : String(s.nummer)
+      const sfx = s.nummerSuffix ?? ''
+      const key = isMultiEpisode ? `${s.episodeNr ?? 0}:${s.nummer}${sfx}` : `${s.nummer}${sfx}`
       const score =
         s.textelemente.length * 20 +
         (s.zusammenfassung?.length || 0) +

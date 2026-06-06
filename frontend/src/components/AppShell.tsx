@@ -19,6 +19,8 @@ import type { WunschNotification, WunschDialoge } from '../sw-ui'
 import { api } from '../api/client'
 import Tooltip from './Tooltip'
 import AnsichtsModal from './AnsichtsModal'
+import CommandPalette, { type Command } from './CommandPalette'
+import ShortcutCheatSheet from './ShortcutCheatSheet'
 import FarbschemaModal from './FarbschemaModal'
 import type { BgPalette, FontOption } from './appShellConstants'
 import { LIGHT_PALETTES, DARK_PALETTES, INTERFACE_FONTS, SCRIPT_FONTS, FONT_SIZES, INTERFACE_FONT_SIZES, CUSTOM_IDX, resolveColorScheme } from './appShellConstants'
@@ -257,6 +259,8 @@ export default function AppShell({
   const [pendingFreigabenCount, setPendingFreigabenCount] = useState(0)
   const [ansichtsModalOpen, setAnsichtsModalOpen] = useState(false)
   const [farbschemaOpen, setFarbschemaOpen] = useState(false)
+  const [paletteOpen, setPaletteOpen] = useState(false)
+  const [cheatSheetOpen, setCheatSheetOpen] = useState(false)
   const [currentUser, setCurrentUser] = useState<{ username?: string; email?: string; user_id?: string } | null>(null)
   const [noAppAccess, setNoAppAccess] = useState<{ name: string; email: string } | null>(null)
   const [sendedatum, setSendedatum] = useState<{ datum: string; ist_ki_prognose: boolean } | null>(null)
@@ -713,6 +717,24 @@ export default function AppShell({
       if (matchesShortcut('viewSettings', e)) {
         e.preventDefault()
         setAnsichtsModalOpen(v => !v)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [])
+
+  // ── Befehlspalette (Strg/Cmd+K) + Cheat-Sheet (?) ────────────────────────
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const tag = (document.activeElement?.tagName || '').toLowerCase()
+      const isEditable = ['input', 'textarea', 'select'].includes(tag) || !!document.activeElement?.getAttribute('contenteditable')
+      // Mod+K — ohne Shift/Alt (Strg+Shift+K ist Bereich Konzept)
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && !e.altKey && e.code === 'KeyK') {
+        e.preventDefault(); setPaletteOpen(v => !v); return
+      }
+      // ? — Kürzel-Übersicht (nicht in Eingabefeldern)
+      if (e.key === '?' && !e.ctrlKey && !e.metaKey && !e.altKey && !isEditable) {
+        e.preventDefault(); setCheatSheetOpen(true)
       }
     }
     window.addEventListener('keydown', handler)
@@ -1254,6 +1276,33 @@ export default function AppShell({
             {farbschemaOpen && (
               <FarbschemaModal onClose={() => setFarbschemaOpen(false)} />
             )}
+            {paletteOpen && (
+              <CommandPalette
+                onClose={() => setPaletteOpen(false)}
+                commands={[
+                  { id: 'nav-episoden',   group: 'Gehe zu', label: 'Episoden',            hint: sc('navEpisoden'),            keywords: 'folge szene', run: () => navigate('/') },
+                  { id: 'nav-rollen',     group: 'Gehe zu', label: 'Rollen',              hint: sc('navRollen'),              keywords: 'figuren', run: () => navigate('/rollen') },
+                  { id: 'nav-komparsen',  group: 'Gehe zu', label: 'Komparsen',           hint: sc('navKomparsen'),           run: () => navigate('/komparsen') },
+                  { id: 'nav-motive',     group: 'Gehe zu', label: 'Motive',              hint: sc('navMotive'),              keywords: 'orte', run: () => navigate('/motive') },
+                  { id: 'nav-statistik',  group: 'Gehe zu', label: 'Statistik',           hint: sc('navStatistik'),           run: () => navigate('/statistik') },
+                  { id: 'nav-besetzung',  group: 'Gehe zu', label: 'Besetzungsmatrix',    hint: sc('navBesetzung'),           run: () => navigate('/besetzung') },
+                  { id: 'nav-freidok',    group: 'Gehe zu', label: 'Freie Dokumente',     hint: sc('navFreieDokumente'),      run: () => navigate('/freie-dokumente') },
+                  ...(hasDkAccess ? [{ id: 'nav-dk', group: 'Gehe zu', label: 'Drehbuchkoordination', hint: sc('navDrehbuchkoordination'), run: () => navigate('/drehbuchkoordination') } as Command] : []),
+                  { id: 'nav-ntliste',    group: 'Gehe zu', label: 'NT-Liste',            hint: sc('navNtListe'),             run: () => navigate('/nt-liste') },
+                  ...(hasDkAccess ? [{ id: 'nav-freigaben', group: 'Gehe zu', label: 'Freigaben', hint: sc('navFreigaben'), run: () => navigate('/freigaben') } as Command] : []),
+                  { id: 'nav-handbuch',   group: 'Gehe zu', label: 'Handbuch',            hint: sc('navHandbuch'),            keywords: 'hilfe', run: () => navigate('/hilfe') },
+                  { id: 'act-export',     group: 'Aktion',  label: 'Exportieren …',       hint: sc('navExport'),              keywords: 'pdf fountain fdx', run: () => window.dispatchEvent(new CustomEvent('open-export-dialog')) },
+                  { id: 'act-goto',       group: 'Aktion',  label: 'Gehe zu Szene …',     hint: sc('gotoSzene'),              keywords: 'springen szene nummer', run: () => window.dispatchEvent(new CustomEvent('sw-cmd-goto-szene')) },
+                  { id: 'act-ansicht',    group: 'Aktion',  label: 'Ansichts-Einstellungen', hint: sc('viewSettings'),        keywords: 'theme darstellung schrift', run: () => setAnsichtsModalOpen(true) },
+                  { id: 'act-focus',      group: 'Aktion',  label: 'Fokus-Modus',         hint: sc('focusMode'),              keywords: 'konzentriert vollbild', run: () => toggle() },
+                  { id: 'act-cheatsheet', group: 'Aktion',  label: 'Tastenkürzel-Übersicht', hint: '?',                       keywords: 'shortcuts hilfe', run: () => setCheatSheetOpen(true) },
+                  { id: 'ber-script',  group: 'Bereich', label: 'Bereich Script',  hint: sc('bereichScript'), run: () => navigate('/') },
+                  ...(bereichAccess.konzept ? [{ id: 'ber-konzept', group: 'Bereich', label: 'Bereich Konzept', hint: sc('bereichKonzept'), run: () => navigate('/planung') } as Command] : []),
+                  ...(bereichAccess.analyse ? [{ id: 'ber-analyse', group: 'Bereich', label: 'Bereich Analyse', hint: sc('bereichAnalyse'), run: () => navigate('/analysis') } as Command] : []),
+                ]}
+              />
+            )}
+            {cheatSheetOpen && <ShortcutCheatSheet onClose={() => setCheatSheetOpen(false)} />}
           </UserPrefsContext.Provider>
         </TweaksContext.Provider>
         </ToastContext.Provider>

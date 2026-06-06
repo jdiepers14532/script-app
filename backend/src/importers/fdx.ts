@@ -163,8 +163,11 @@ export function parseFdx(xmlContent: string): ImportResult {
     const text = extractText(para)
 
     if (ptype === 'Scene Heading') {
-      const numStr = para['@_Number'] ?? '0'
-      const nummer = parseInt(numStr, 10) || 0
+      const numStr = String(para['@_Number'] ?? '0')
+      // FDX-Szenennummern können einen Suffix tragen (Shooting Scripts: "12A", "12B")
+      const numM = numStr.match(/^(\d+)\s*([A-Za-z]*)$/)
+      const nummer = numM ? (parseInt(numM[1], 10) || 0) : (parseInt(numStr, 10) || 0)
+      const nummerSuffix = numM && numM[2] ? numM[2].toUpperCase() : undefined
 
       if (currentScene) {
         szenen.push(currentScene)
@@ -176,6 +179,7 @@ export function parseFdx(xmlContent: string): ImportResult {
 
       currentScene = {
         nummer,
+        nummerSuffix,
         int_ext: heading.int_ext,
         tageszeit: heading.tageszeit,
         ort_name: heading.ort_name || text,

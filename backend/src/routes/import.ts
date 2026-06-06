@@ -527,57 +527,80 @@ importRouter.post('/preview', upload.single('file'), async (req, res) => {
   }
 })
 
-// POST /api/import/commit — Full import into DB (transactional, bulk inserts)
-importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ error: 'Keine Datei hochgeladen' })
-
-    const produktion_id = req.body.produktion_id
-    const folge_nummer = parseInt(req.body.folge_nummer)
-
-    if (!produktion_id || isNaN(folge_nummer)) {
-      return res.status(400).json({ error: 'produktion_id und folge_nummer erforderlich' })
+// ── Shared parseOpts builder (used by /preview, /commit wrapper) ──
+export function buildParseOptsFromBody(body: any): ParseOptions {
+  const parseOpts: ParseOptions = {}
+  if (body.pdf_method === 'mistral') parseOpts.pdfMethod = 'mistral'
+  if (body.pdf_crop_left || body.pdf_crop_right || body.pdf_crop_bottom || body.pdf_page_from || body.pdf_page_to) {
+    parseOpts.pdfCrop = {
+      cropLeft: parseInt(body.pdf_crop_left || '0', 10),
+      cropRight: parseInt(body.pdf_crop_right || '0', 10),
+      cropBottom: parseInt(body.pdf_crop_bottom || '0', 10),
+      ...(body.pdf_page_from ? { pageFrom: parseInt(body.pdf_page_from, 10) } : {}),
+      ...(body.pdf_page_to ? { pageTo: parseInt(body.pdf_page_to, 10) } : {}),
     }
+  } else if (body.pdf_crop_percent) {
+    parseOpts.pdfCropPercent = parseInt(body.pdf_crop_percent, 10)
+  }
+  return parseOpts
+}
 
-    let stage_type = req.body.stage_type || 'draft'
-    const validStageTypes = ['expose', 'treatment', 'draft', 'final']
-    if (!validStageTypes.includes(stage_type)) {
-      return res.status(400).json({ error: `Ungültiger stage_type: ${stage_type}` })
-    }
+// ── Core import logic — reused by /commit route AND the bulk batch worker ──
+export interface CommitImportInput {
+  buffer: Buffer
+  originalname: string
+  produktion_id: string
+  folge_nummer: number
+  stage_type?: string | null
+  user: { user_id: string; name?: string | null }
+  parseOpts?: ParseOptions
+  episodeFilter?: number | null
+  importLabel?: string | null
+  importSichtbarkeit?: string | null
+  standDatum?: string | null
+  saveMetadata?: boolean
+  sceneOverrides?: Record<number, Record<string, any>>
+  nonSceneElementsOverride?: any[]
+}
 
-    // ── Strip watermark + build parseOpts ──
-    const isPdf = req.file.originalname.toLowerCase().endsWith('.pdf')
-    let parseBuffer = req.file.buffer
-    if (!isPdf) {
-      parseBuffer = Buffer.from(stripWatermark(req.file.buffer.toString('utf8')), 'utf8')
-    }
+// Result mirrors the legacy /commit JSON response.
+export async function runCommitImport(input: CommitImportInput) {
+  const originalname = input.originalname
+  const fileBuffer = input.buffer
+  const produktion_id = input.produktion_id
+  const folge_nummer = input.folge_nummer
+  const userObj = input.user
+  const parseOpts: ParseOptions = input.parseOpts || {}
+  const episodeFilter = input.episodeFilter ?? null
 
-    const parseOpts: ParseOptions = {}
-    if (req.body.pdf_method === 'mistral') parseOpts.pdfMethod = 'mistral'
-    if (req.body.pdf_crop_left || req.body.pdf_crop_right || req.body.pdf_crop_bottom || req.body.pdf_page_from || req.body.pdf_page_to) {
-      parseOpts.pdfCrop = {
-        cropLeft: parseInt(req.body.pdf_crop_left || '0', 10),
-        cropRight: parseInt(req.body.pdf_crop_right || '0', 10),
-        cropBottom: parseInt(req.body.pdf_crop_bottom || '0', 10),
-        ...(req.body.pdf_page_from ? { pageFrom: parseInt(req.body.pdf_page_from, 10) } : {}),
-        ...(req.body.pdf_page_to ? { pageTo: parseInt(req.body.pdf_page_to, 10) } : {}),
-      }
-    } else if (req.body.pdf_crop_percent) {
-      parseOpts.pdfCropPercent = parseInt(req.body.pdf_crop_percent, 10)
-    }
+  if (!produktion_id || isNaN(folge_nummer)) {
+    throw new Error('produktion_id und folge_nummer erforderlich')
+  }
+
+  let stage_type = input.stage_type || 'draft'
+  const validStageTypes = ['expose', 'treatment', 'draft', 'final']
+  if (!validStageTypes.includes(stage_type)) {
+    throw new Error(`Ungültiger stage_type: ${stage_type}`)
+  }
+
+  // ── Strip watermark (text formats only — PDFs are binary) ──
+  const isPdf = originalname.toLowerCase().endsWith('.pdf')
+  let parseBuffer = fileBuffer
+  if (!isPdf) {
+    parseBuffer = Buffer.from(stripWatermark(fileBuffer.toString('utf8')), 'utf8')
+  }
 
     // ── Parse — use cache from /preview if available ──
     const cacheKey = makeParseKey(parseBuffer, parseOpts)
     let result = cacheGet(cacheKey)
     if (!result) {
-      result = await parseScript(req.file.originalname, parseBuffer, parseOpts)
+      result = await parseScript(originalname, parseBuffer, parseOpts)
       cacheSet(cacheKey, result)
     }
 
     // ── Episode filter for block (multi-episode) imports ──
-    // When episode_filter is provided, restrict result.szenen to that episode.
-    if (req.body.episode_filter) {
-      const episodeFilter = parseInt(req.body.episode_filter, 10)
+    // When episodeFilter is provided, restrict result.szenen to that episode.
+    if (episodeFilter != null) {
       if (!isNaN(episodeFilter) && result.perEpisode) {
         const epData = result.perEpisode.find((e: any) => e.episodeNr === episodeFilter)
         if (epData) {
@@ -599,29 +622,29 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
     }
 
     // Auto-detect stage_type from Rote-Rosen metadata if not explicitly set
-    if (result.meta.roteRosenMeta && !req.body.stage_type) {
+    if (result.meta.roteRosenMeta && !input.stage_type) {
       const rrDocType = result.meta.roteRosenMeta.document_type
       if (rrDocType === 'treatment') stage_type = 'treatment'
       else if (rrDocType === 'drehbuch') stage_type = 'draft'
     }
 
-    const fileMeta  = extractFileMetadata(req.file.originalname, req.file.buffer)
-    const filenameMeta = parseFilename(req.file.originalname)
-    const saveMetadata = req.body.save_metadata === 'true'
+    const fileMeta  = extractFileMetadata(originalname, fileBuffer)
+    const filenameMeta = parseFilename(originalname)
+    const saveMetadata = input.saveMetadata === true
 
     const metaJson: Record<string, any> = {
-      source_filename: req.file.originalname,
+      source_filename: originalname,
       imported_at: new Date().toISOString(),
-      imported_by: req.user!.name || req.user!.user_id,
+      imported_by: userObj.name || userObj.user_id,
     }
     if (saveMetadata && Object.keys(fileMeta).length > 0) metaJson.import_metadata = fileMeta
     if (Object.keys(filenameMeta).length > 0) metaJson.filename_metadata = filenameMeta
     if (result.meta.roteRosenMeta) metaJson.rote_rosen = result.meta.roteRosenMeta
 
     // Fassungslabel + Sichtbarkeit optional aus dem Import-Formular
-    const importLabel: string | null = req.body.import_label || null
-    const importSichtbarkeit: string = ['autoren', 'produktion'].includes(req.body.import_sichtbarkeit) ? req.body.import_sichtbarkeit : 'autoren'
-    const standDatum = req.body.stand_datum || filenameMeta.fassungsdatum || null
+    const importLabel: string | null = input.importLabel || null
+    const importSichtbarkeit: string = ['autoren', 'produktion'].includes(input.importSichtbarkeit || '') ? input.importSichtbarkeit! : 'autoren'
+    const standDatum = input.standDatum || filenameMeta.fassungsdatum || null
 
     const stageToDocTyp: Record<string, string> = {
       treatment: 'storyline', draft: 'drehbuch', expose: 'notiz', final: 'drehbuch',
@@ -673,16 +696,13 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
         ].filter(Boolean))
     )
 
-    // ── Parse frontend scene overrides ──
-    let sceneOverrides: Record<number, Record<string, any>> = {}
-    if (req.body.scene_overrides) {
-      try { sceneOverrides = JSON.parse(req.body.scene_overrides) } catch {}
-    }
+    // ── Frontend scene overrides (empty for bulk batch imports) ──
+    const sceneOverrides: Record<number, Record<string, any>> = input.sceneOverrides || {}
 
     // ── Pre-compute all scene data in memory ──
     const formatMap: Record<string, string> = { 'Drehbuch': 'drehbuch', 'Storyline': 'storyline', 'Notiz': 'notiz' }
     type SceneData = {
-      sortOrder: number; sceneNummer: any; intExt: any; tageszeit: any; ortName: any
+      sortOrder: number; sceneNummer: any; sceneNummerSuffix: string | null; intExt: any; tageszeit: any; ortName: any
       spieltag: any; zusammenfassung: any; szeneninfo: any; stoppzeitSek: any
       sceneFormat: string; sondertyp: string | null; pmNodes: any[]; pageLength: number
       charaktere: string[]; komparsen: string[]; wechselschnittPartner: number[]
@@ -702,6 +722,7 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       sceneDataList.push({
         sortOrder: idx,
         sceneNummer: szene.nummer,
+        sceneNummerSuffix: szene.nummerSuffix ?? null,
         intExt: ov.int_ext ?? szene.int_ext ?? null,
         tageszeit: ov.tageszeit ?? szene.tageszeit ?? null,
         ortName: (ov.ort_name ?? szene.ort_name) || null,
@@ -722,14 +743,11 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
     // ── Pre-compute non-scene elements ──
     const allNonScene: Array<{ type: string; label: string; content: string }> = []
     if (result.nonSceneElements) allNonScene.push(...result.nonSceneElements)
-    if (req.body.non_scene_elements) {
-      try {
-        const frontendNonScene = JSON.parse(req.body.non_scene_elements)
-        const existingTypes = new Set(allNonScene.map(e => e.type))
-        for (const elem of frontendNonScene) {
-          if (!existingTypes.has(elem.type)) allNonScene.push(elem)
-        }
-      } catch {}
+    if (input.nonSceneElementsOverride && Array.isArray(input.nonSceneElementsOverride)) {
+      const existingTypes = new Set(allNonScene.map(e => e.type))
+      for (const elem of input.nonSceneElementsOverride) {
+        if (!existingTypes.has(elem.type)) allNonScene.push(elem)
+      }
     }
     type NonSceneData = { pmNodes: any[]; pageLength: number; elemType: string; label: string; sortOrder: number }
     const nonSceneDataList: NonSceneData[] = allNonScene.map((elem, nsIdx) => {
@@ -738,8 +756,8 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       return { pmNodes, pageLength: Math.round(calcPageLength(pmNodes)), elemType, label: elem.label, sortOrder: -(allNonScene.length - nsIdx) }
     })
 
-    const userName = req.user!.name || req.user!.user_id
-    const fileHash = crypto.createHash('sha256').update(req.file.buffer).digest('hex')
+    const userName = userObj.name || userObj.user_id
+    const fileHash = crypto.createHash('sha256').update(fileBuffer).digest('hex')
 
     // ── BEGIN TRANSACTION ──
     const client = await pool.connect()
@@ -779,7 +797,7 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       const werkRow = (await client.query(
         `INSERT INTO werkstufen (folge_id, typ, version_nummer, label, sichtbarkeit, erstellt_von, stand_datum, meta_json)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
-        [folgeId, docTyp, (maxVerRow?.m ?? 0) + 1, importLabel, importSichtbarkeit, req.user!.user_id, standDatum, JSON.stringify(metaJson)]
+        [folgeId, docTyp, (maxVerRow?.m ?? 0) + 1, importLabel, importSichtbarkeit, userObj.user_id, standDatum, JSON.stringify(metaJson)]
       )).rows[0]
       werkstufeId = werkRow.id
 
@@ -789,35 +807,35 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       const sceneCount = sceneDataList.length
       let sceneIdentityIds: string[] = new Array(sceneCount).fill(null)
       if (sceneCount > 0) {
-        // Step 1: find existing identities for each scene_nummer in this folge
+        // Step 1: find existing identities, gematcht auf (scene_nummer, scene_nummer_suffix).
+        // Der Suffix gehört zum Match-Key, damit "12" und "12A" getrennte Identities behalten
+        // und ein importiertes "12" nicht versehentlich eine "12A"-Identity übernimmt.
         const sceneNummern = sceneDataList
           .map(s => s.sceneNummer)
           .filter((n): n is number => n != null)
-        const existingByNummer = new Map<number, string>()
+        const existingByKey = new Map<string, string>()
         if (sceneNummern.length > 0) {
-          // Nur suffixlose Identities matchen: Importierte Szenen tragen nie einen Suffix
-          // (Parser liefern scene_nummer als reine Zahl), daher darf ein importiertes "12"
-          // nicht versehentlich eine im Editor angelegte "12A"-Identity übernehmen.
           const existResult = await client.query(
-            `SELECT DISTINCT ON (ds.scene_nummer) ds.scene_nummer, si.id
+            `SELECT DISTINCT ON (ds.scene_nummer, COALESCE(ds.scene_nummer_suffix, ''))
+                    ds.scene_nummer, COALESCE(ds.scene_nummer_suffix, '') AS suffix, si.id
              FROM scene_identities si
              JOIN dokument_szenen ds ON ds.scene_identity_id = si.id
              WHERE si.folge_id = $1
                AND ds.scene_nummer = ANY($2::int[])
-               AND COALESCE(ds.scene_nummer_suffix, '') = ''
                AND ds.geloescht = false
-             ORDER BY ds.scene_nummer, si.id`,
+             ORDER BY ds.scene_nummer, COALESCE(ds.scene_nummer_suffix, ''), si.id`,
             [folgeId, sceneNummern]
           )
-          for (const row of existResult.rows) existingByNummer.set(row.scene_nummer, row.id)
+          for (const row of existResult.rows) existingByKey.set(`${row.scene_nummer}|${row.suffix}`, row.id)
         }
 
         // Step 2: assign existing ids; collect indices that need new identities
         const newIndices: number[] = []
         for (let i = 0; i < sceneDataList.length; i++) {
           const n = sceneDataList[i].sceneNummer
-          if (n != null && existingByNummer.has(n)) {
-            sceneIdentityIds[i] = existingByNummer.get(n)!
+          const key = `${n}|${sceneDataList[i].sceneNummerSuffix ?? ''}`
+          if (n != null && existingByKey.has(key)) {
+            sceneIdentityIds[i] = existingByKey.get(key)!
           } else {
             newIndices.push(i)
           }
@@ -844,13 +862,14 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
           `INSERT INTO dokument_szenen (
              werkstufe_id, scene_identity_id, sort_order, scene_nummer,
              int_ext, tageszeit, ort_name, zusammenfassung, content,
-             spieltag, stoppzeit_sek, szeneninfo, format, geloescht, updated_by, page_length, sondertyp
+             spieltag, stoppzeit_sek, szeneninfo, format, geloescht, updated_by, page_length, sondertyp,
+             scene_nummer_suffix
            )
            SELECT $1, unnest($2::uuid[]), unnest($3::int[]), unnest($4::int[]),
                   unnest($5::text[]), unnest($6::text[]), unnest($7::text[]), unnest($8::text[]),
                   unnest($9::text[])::jsonb, unnest($10::int[]), unnest($11::int[]),
                   unnest($12::text[]), unnest($13::text[]), false, $14,
-                  unnest($15::int[]), unnest($16::text[])
+                  unnest($15::int[]), unnest($16::text[]), unnest($17::text[])
            RETURNING id`,
           [
             werkstufeId,
@@ -869,6 +888,7 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
             userName,
             sceneDataList.map(s => s.pageLength),
             sceneDataList.map(s => s.sondertyp),
+            sceneDataList.map(s => s.sceneNummerSuffix ?? null),
           ]
         )
         dokSzeneIds = dsResult.rows.map((r: any) => r.id)
@@ -998,7 +1018,7 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
               originalNames.map((_: string, i: number) => JSON.stringify({
                 import_auto_created: true,
                 ...(isKomparseFlags[i] ? { is_komparse: true } : {}),
-                import_source: req.file!.originalname,
+                import_source: originalname,
               })),
             ]
           )).rows
@@ -1181,7 +1201,7 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
                 `INSERT INTO motive (produktion_id, name, typ, drehort_id, ist_studio, meta_json)
                  VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
                 [produktion_id, motivName, motivTyp, untermotivName ? null : drehortId, istStudio,
-                 JSON.stringify({ import_auto_created: true, import_source: req.file!.originalname })]
+                 JSON.stringify({ import_auto_created: true, import_source: originalname })]
               )).rows[0]
               motiveCreated++
             } else if (drehortId && !untermotivName) {
@@ -1206,7 +1226,7 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
                   `INSERT INTO motive (produktion_id, name, typ, parent_id, drehort_id, ist_studio, meta_json)
                    VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id`,
                   [produktion_id, untermotivName, motivTyp, motivId, drehortId, istStudio,
-                   JSON.stringify({ import_auto_created: true, import_source: req.file!.originalname })]
+                   JSON.stringify({ import_auto_created: true, import_source: originalname })]
                 )).rows[0]
                 motiveCreated++
               } else if (drehortId) {
@@ -1233,19 +1253,19 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
     const uploadDir = path.join(UPLOAD_BASE, produktion_id, String(folge_nummer))
     try {
       fs.mkdirSync(uploadDir, { recursive: true })
-      const ext = path.extname(req.file.originalname) || '.bin'
+      const ext = path.extname(originalname) || '.bin'
       const archivePath = path.join(uploadDir, `${werkstufeId}${ext}`)
-      fs.writeFileSync(archivePath, req.file.buffer)
+      fs.writeFileSync(archivePath, fileBuffer)
       const relPath = path.join(produktion_id, String(folge_nummer), `${werkstufeId}${ext}`)
       await query(
         `UPDATE werkstufen SET original_datei = $1, original_dateiname = $2, datei_hash = $3, datei_groesse = $4 WHERE id = $5`,
-        [relPath, req.file.originalname, fileHash, req.file.buffer.length, werkstufeId]
+        [relPath, originalname, fileHash, fileBuffer.length, werkstufeId]
       )
     } catch (archiveErr) {
       console.error('[Import] File archive failed (non-fatal):', archiveErr)
       await query(
         `UPDATE werkstufen SET original_dateiname = $1, datei_hash = $2, datei_groesse = $3 WHERE id = $4`,
-        [req.file.originalname, fileHash, req.file.buffer.length, werkstufeId]
+        [originalname, fileHash, fileBuffer.length, werkstufeId]
       ).catch(() => {})
     }
 
@@ -1287,7 +1307,7 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
           await recalcPageNumbers(werkstufeId)
           await query(
             `UPDATE werkstufen SET seitenzahlen_gesperrt = TRUE, gesperrt_am = NOW(), gesperrt_von = $1 WHERE id = $2`,
-            [req.user!.name || req.user!.user_id, werkstufeId]
+            [userObj.name || userObj.user_id, werkstufeId]
           )
           produktionsfassungLocked = true
         }
@@ -1327,7 +1347,7 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       console.error('[Import] Stimmungen auto-add failed (non-fatal):', e)
     }
 
-    res.json({
+    return {
       folge_id: folgeId,
       folge_nummer,
       werkstufe_id: werkstufeId,
@@ -1340,7 +1360,46 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       metadata_saved: saveMetadata && Object.keys(fileMeta).length > 0,
       unbekannte_stimmungen: unbekannteStimmungen,
       produktionsfassung_locked: produktionsfassungLocked,
+    }
+}
+
+// POST /api/import/commit — Full single-file import into DB (thin wrapper around runCommitImport)
+importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Keine Datei hochgeladen' })
+
+    const produktion_id = req.body.produktion_id
+    const folge_nummer = parseInt(req.body.folge_nummer)
+    if (!produktion_id || isNaN(folge_nummer)) {
+      return res.status(400).json({ error: 'produktion_id und folge_nummer erforderlich' })
+    }
+
+    let sceneOverrides: Record<number, Record<string, any>> = {}
+    if (req.body.scene_overrides) {
+      try { sceneOverrides = JSON.parse(req.body.scene_overrides) } catch {}
+    }
+    let nonSceneElementsOverride: any[] | undefined
+    if (req.body.non_scene_elements) {
+      try { nonSceneElementsOverride = JSON.parse(req.body.non_scene_elements) } catch {}
+    }
+
+    const result = await runCommitImport({
+      buffer: req.file.buffer,
+      originalname: req.file.originalname,
+      produktion_id,
+      folge_nummer,
+      stage_type: req.body.stage_type,
+      user: req.user!,
+      parseOpts: buildParseOptsFromBody(req.body),
+      episodeFilter: req.body.episode_filter ? parseInt(req.body.episode_filter, 10) : null,
+      importLabel: req.body.import_label || null,
+      importSichtbarkeit: req.body.import_sichtbarkeit,
+      standDatum: req.body.stand_datum || null,
+      saveMetadata: req.body.save_metadata === 'true',
+      sceneOverrides,
+      nonSceneElementsOverride,
     })
+    res.json(result)
   } catch (err) {
     console.error('Import commit error:', err)
     res.status(500).json({ error: String(err) })

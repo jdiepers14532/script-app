@@ -21,6 +21,7 @@ export interface Textelement {
 
 export interface ParsedScene {
   nummer: number
+  nummerSuffix?: string  // Szenennummer-Suffix, z.B. "A" in "12A" (US-Shooting-Scripts/FDX); leer/undefined sonst
   episodeNr?: number   // set for multi-episode (block) imports
   int_ext: 'INT' | 'EXT' | 'INT/EXT'
   tageszeit: 'TAG' | 'NACHT' | 'ABEND' | 'DÄMMERUNG'

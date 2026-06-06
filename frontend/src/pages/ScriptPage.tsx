@@ -897,6 +897,22 @@ export default function ScriptPage() {
       const tag = (document.activeElement?.tagName || '').toLowerCase()
       const isEditable = ['input', 'textarea', 'select'].includes(tag) || !!document.activeElement?.getAttribute('contenteditable')
 
+      // F6 / Shift+F6 — Fokus zyklisch zwischen Szenenliste-Suche und Editoren
+      if (e.key === 'F6') {
+        e.preventDefault()
+        const targets: HTMLElement[] = []
+        const search = document.querySelector('input[placeholder^="Szene"]') as HTMLElement | null
+        if (search) targets.push(search)
+        document.querySelectorAll('.ProseMirror').forEach(el => targets.push(el as HTMLElement))
+        if (!targets.length) return
+        const active = document.activeElement as HTMLElement | null
+        const cur = targets.findIndex(t => t === active || t.contains(active))
+        const dir = e.shiftKey ? -1 : 1
+        const next = (cur + dir + targets.length) % targets.length
+        targets[next].focus()
+        return
+      }
+
       // Strg+G — Gehe zu Szene Dialog
       if (e.ctrlKey && !e.altKey && !e.shiftKey && e.code === 'KeyG') {
         if (!isEditable) { e.preventDefault(); setGotoOpen(true) }
@@ -926,6 +942,13 @@ export default function ScriptPage() {
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, []) // empty deps — all state accessed via live refs; setGotoOpen ist stabil
+
+  // „Gehe zu Szene" aus der Befehlspalette (Strg+K) → Dialog öffnen
+  useEffect(() => {
+    const handler = () => setGotoOpen(true)
+    window.addEventListener('sw-cmd-goto-szene', handler)
+    return () => window.removeEventListener('sw-cmd-goto-szene', handler)
+  }, [])
 
   // Drag-to-resize (Mouse + Touch)
   const onDragStart = useCallback((e: React.MouseEvent | React.TouchEvent) => {
