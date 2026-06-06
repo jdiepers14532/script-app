@@ -175,13 +175,25 @@ verteilerRouter.put('/:id', async (req, res) => {
 })
 
 // DELETE /api/verteiler/:id
+// distribution.verteiler_id ist FK OHNE ON DELETE CASCADE (Historie-Schutz im DDL),
+// daher Distributionen explizit vorab löschen (empfaenger/druck_job cascaden), dann
+// den Verteiler (mitglieder cascaden). Hard-Delete inkl. Versand-Historie dieses
+// Verteilers. (Soft-Delete via aktiv=false bleibt als Alternative bestehen.)
 verteilerRouter.delete('/:id', async (req, res) => {
+  const client = await pool.connect()
   try {
-    const r = await pool.query(`DELETE FROM verteiler WHERE id = $1`, [req.params.id])
-    if (r.rowCount === 0) return res.status(404).json({ error: 'Verteiler nicht gefunden' })
+    await client.query('BEGIN')
+    const ex = await client.query(`SELECT id FROM verteiler WHERE id = $1`, [req.params.id])
+    if (ex.rowCount === 0) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Verteiler nicht gefunden' }) }
+    await client.query(`DELETE FROM distribution WHERE verteiler_id = $1`, [req.params.id])
+    await client.query(`DELETE FROM verteiler WHERE id = $1`, [req.params.id])
+    await client.query('COMMIT')
     res.status(204).send()
   } catch (err) {
+    await client.query('ROLLBACK')
     res.status(500).json({ error: String(err) })
+  } finally {
+    client.release()
   }
 })
 
