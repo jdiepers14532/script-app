@@ -123,6 +123,7 @@ export const DEFAULT_TWEAKS: TweakState = {
   episodenWechselErsteSzene: true,
   letzteSzeneProEpisodeMerken: false,
   suffixStickyEnabled: true,
+  cheatSheetView: 'liste',
 }
 
 function resolvePalette(tweaks: TweakState, mode: 'light' | 'dark'): BgPalette {
@@ -672,6 +673,7 @@ export default function AppShell({
           charAcStyle: (['inline', 'menu'] as const).includes(s.charAcStyle) ? s.charAcStyle : 'menu',
           episodenWechselErsteSzene: typeof s.episodenWechselErsteSzene === 'boolean' ? s.episodenWechselErsteSzene : true,
           letzteSzeneProEpisodeMerken: typeof s.letzteSzeneProEpisodeMerken === 'boolean' ? s.letzteSzeneProEpisodeMerken : false,
+          cheatSheetView: (['liste', 'grafik'] as const).includes(s.cheatSheetView) ? s.cheatSheetView : 'liste',
         }))
       }
     }).catch(() => {}).finally(() => {
@@ -1295,6 +1297,9 @@ export default function AppShell({
                 groups={buildShortcutGroups(sc, isMac ? '⌘' : 'Strg', isMac ? '⌥' : 'Alt')}
                 onClose={() => setCheatSheetOpen(false)}
                 subtitle={`${isMac ? '⌘' : 'Strg'}+K öffnet die Befehlspalette · volle Liste unter /hilfe → Tastenkürzel`}
+                graphicSrc="/tastatur-kurzbefehle.svg"
+                view={tweaks.cheatSheetView}
+                onViewChange={(v) => set('cheatSheetView', v)}
               />
             )}
           </UserPrefsContext.Provider>

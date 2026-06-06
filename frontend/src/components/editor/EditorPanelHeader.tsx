@@ -4,6 +4,7 @@ import type { WerkstufeMeta, SaveStatus } from '../../hooks/useDokument'
 import Tooltip from '../Tooltip'
 import { api, clearCacheByPrefix } from '../../api/client'
 import { useTerminologie } from '../../sw-ui'
+import { useShortcut } from '../../hooks/useShortcut'
 import ChecklistenModal from '../ChecklistenModal'
 
 const SICHTBARKEIT_ICONS: Record<string, React.ReactNode> = {
@@ -61,6 +62,7 @@ export default function EditorPanelHeader({
   onDiffRequest, onChangeSceneFormat, saveStatus, updatedBy, updatedAt, collabSlot, verlaufSlot, rightSlot,
 }: Props) {
   const { t } = useTerminologie()
+  const { label: sc } = useShortcut()
   const typLabels: Record<string, string> = {
     drehbuch: t('drehbuch'),
     storyline: 'Storyline',
@@ -175,6 +177,7 @@ export default function EditorPanelHeader({
 
       {/* Werkstufen-Selector */}
       <div style={{ position: 'relative' }}>
+        <Tooltip text={`Werkstufe wählen — Storyline · ${t('drehbuch')} · Dokument\nWechseln: ${sc('werkstufePrev')} / ${sc('werkstufeNext')}`}>
         <button
           onClick={() => setShowMenu(v => !v)}
           style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'transparent', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}
@@ -182,6 +185,7 @@ export default function EditorPanelHeader({
           {typLabel}
           <ChevronDown size={11} style={{ color: 'var(--text-muted)' }} />
         </button>
+        </Tooltip>
         {showMenu && (
           <>
             <div style={{ position: 'fixed', inset: 0, zIndex: 98 }} onClick={() => setShowMenu(false)} />
@@ -246,6 +250,7 @@ export default function EditorPanelHeader({
 
       {/* Version badge — klickbar, öffnet Werkfassung-Dropdown */}
       {selectedWerk && (
+        <Tooltip text={`Fassung wählen — Version der aktuellen Werkstufe\nWechseln: ${sc('fassungPrev')} / ${sc('fassungNext')}`}>
         <button
           onClick={() => setShowMenu(v => !v)}
           style={{ display: 'flex', alignItems: 'center', gap: 3, padding: '4px 7px', border: '1px solid var(--border)', borderRadius: 6, background: 'transparent', cursor: 'pointer', fontFamily: 'inherit', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}
@@ -253,6 +258,7 @@ export default function EditorPanelHeader({
           {versionLabel}
           <ChevronDown size={11} style={{ color: 'var(--text-muted)' }} />
         </button>
+        </Tooltip>
       )}
 
       {/* Seitenzahlen-Lock-Badge */}

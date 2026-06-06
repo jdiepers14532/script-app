@@ -39,6 +39,6 @@ export { injectMagicCSS, fireMagicConfetti, fireSparkles, MAGIC_COLORS, MAGIC_CS
 export { CommandPalette } from './keymap/CommandPalette';
 export type { Command } from './keymap/CommandPalette';
 export { ShortcutCheatSheet } from './keymap/ShortcutCheatSheet';
-export type { ShortcutGroup, ShortcutRow } from './keymap/ShortcutCheatSheet';
+export type { ShortcutGroup, ShortcutRow, CheatSheetView } from './keymap/ShortcutCheatSheet';
 export { useKeymapHotkeys } from './keymap/useKeymapHotkeys';
 export type { KeymapHotkeyHandlers } from './keymap/useKeymapHotkeys';

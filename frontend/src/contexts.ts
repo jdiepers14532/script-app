@@ -161,6 +161,8 @@ export interface TweakState {
   letzteSzeneProEpisodeMerken: boolean
   /** Sticky Suffix: Suffix der letzten Zeile einer Figur (NT/VO/OFF) bei der nächsten Zeile automatisch vorschlagen */
   suffixStickyEnabled: boolean
+  /** Zuletzt gewählte Ansicht der Kürzel-Übersicht (?): Liste oder druckbare Grafik */
+  cheatSheetView: 'liste' | 'grafik'
 }
 interface TweaksContextType {
   tweaks: TweakState

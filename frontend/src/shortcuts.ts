@@ -222,6 +222,36 @@ export const SHORTCUT_DEFS: Record<string, ShortcutDef> = {
     label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+Shift+Bild auf`,
   },
 
+  // Werkstufe wechseln (typ-Gruppe: Storyline ↔ Drehbuch ↔ Dokument): Alt+↑/↓.
+  // Vertikale Achse = durch Stände desselben Inhalts blättern (horizontal ←/→ = Szene).
+  // Frei auf allen Layouts: nur Alt+←/→ ist browserreserviert (Zurück/Vorwärts), Alt+↑/↓ nicht.
+  // Funktioniert auch im Editor (kein isEditable-Guard). ⌘+⌥+↑/↓ bleibt Szenen-Mac-Alias
+  // (wird im ScriptPage-Handler vor diesen Checks via metaKey abgefangen).
+  werkstufePrev: {
+    codes: ['ArrowUp'],
+    altKey: true,
+    label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+↑`,
+  },
+  werkstufeNext: {
+    codes: ['ArrowDown'],
+    altKey: true,
+    label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+↓`,
+  },
+
+  // Fassung wechseln (version_nummer innerhalb der aktuellen Werkstufe): Alt+Shift+↑/↓.
+  fassungPrev: {
+    codes: ['ArrowUp'],
+    altKey: true,
+    shiftKey: true,
+    label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+Shift+↑`,
+  },
+  fassungNext: {
+    codes: ['ArrowDown'],
+    altKey: true,
+    shiftKey: true,
+    label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+Shift+↓`,
+  },
+
 }
 
 // ── Hilfsfunktionen (pure, kein React) ────────────────────────────────────────

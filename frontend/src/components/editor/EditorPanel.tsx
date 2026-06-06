@@ -30,6 +30,8 @@ interface Props {
   folgeNummer: number | null
   folgeId: number | null
   werkstufen: WerkstufeMeta[]
+  /** Nur das dominante Panel reagiert auf die globalen Werkstufe-/Fassung-Tastaturkürzel */
+  isDominant?: boolean
   formatElements?: any[]
   defaultTyp?: string
   selectedSzeneId?: number | string | null
@@ -51,7 +53,7 @@ interface Props {
 }
 
 export default function EditorPanel({
-  produktionId, folgeNummer, folgeId, werkstufen, formatElements = [],
+  produktionId, folgeNummer, folgeId, werkstufen, isDominant, formatElements = [],
   defaultTyp, selectedSzeneId, sceneIdentityId, useDokumentSzenen, activateWerkId,
   onCreateWerkstufe, onReloadWerkstufen,
   onNavigateNext, onNavigatePrev, onWerkstufSelected, onNewWerkCreated, onSzenesNeedReload,
@@ -249,6 +251,46 @@ export default function EditorPanel({
 
   // Report werkstufId changes to parent
   useEffect(() => { onWerkstufSelected?.(selectedWerkId) }, [selectedWerkId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Werkstufe / Fassung per Tastatur wechseln (nur dominantes Panel) ─────────
+  // Alt+↑/↓ → Werkstufe (typ-Gruppe: Storyline ↔ Drehbuch ↔ Dokument)
+  // Alt+Shift+↑/↓ → Fassung (version_nummer innerhalb der aktuellen Werkstufe)
+  // ScriptPage feuert sw-cmd-werkstufe / sw-cmd-fassung mit detail = -1 (auf) | +1 (ab).
+  // Reihenfolge wie im Werkstufen-Dropdown (neueste Fassung oben), kein Wrap an den Grenzen.
+  const werkNavRef = useRef({ werkstufen, selectedWerkId, isDominant })
+  werkNavRef.current = { werkstufen, selectedWerkId, isDominant }
+  useEffect(() => {
+    const switchWerkstufe = (dir: number) => {
+      const { werkstufen: ws, selectedWerkId: cur, isDominant: dom } = werkNavRef.current
+      if (!dom || ws.length === 0) return
+      const curWerk = ws.find(w => w.id === cur)
+      if (!curWerk) return
+      const typen: string[] = []
+      for (const w of ws) if (!typen.includes(w.typ)) typen.push(w.typ)
+      const nextTyp = typen[typen.indexOf(curWerk.typ) + dir]
+      if (nextTyp == null) return  // an der Grenze
+      const pool = ws.filter(w => w.typ === nextTyp).sort((a, b) => b.version_nummer - a.version_nummer)
+      const target = pool.find(w => (w.szenen_count ?? 0) > 0) ?? pool[0]
+      if (target) setSelectedWerkId(target.id)
+    }
+    const switchFassung = (dir: number) => {
+      const { werkstufen: ws, selectedWerkId: cur, isDominant: dom } = werkNavRef.current
+      if (!dom) return
+      const curWerk = ws.find(w => w.id === cur)
+      if (!curWerk) return
+      const pool = ws.filter(w => w.typ === curWerk.typ).sort((a, b) => b.version_nummer - a.version_nummer)
+      const target = pool[pool.findIndex(w => w.id === cur) + dir]
+      if (target) setSelectedWerkId(target.id)
+    }
+    const onWerk = (e: Event) => switchWerkstufe((e as CustomEvent).detail as number)
+    const onFass = (e: Event) => switchFassung((e as CustomEvent).detail as number)
+    window.addEventListener('sw-cmd-werkstufe', onWerk)
+    window.addEventListener('sw-cmd-fassung', onFass)
+    return () => {
+      window.removeEventListener('sw-cmd-werkstufe', onWerk)
+      window.removeEventListener('sw-cmd-fassung', onFass)
+    }
+  }, [])
 
   // Neue Werkstufe: confirm handler
   const handleNeueFassungConfirm = useCallback(async (params: NeueWerkstufeParams) => {

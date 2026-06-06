@@ -25,6 +25,8 @@ export function buildShortcutGroups(
         { keys: `${label('scenePrev')} / ${label('sceneNext')}`, desc: 'Szene wechseln (auch im Editor)' },
         { keys: `${mod}+${alt}+↑ / ↓`, desc: 'Szene wechseln (Laptop-Alias, v. a. Mac)' },
         { keys: `${label('folgePrev')} / ${label('folgeNext')}`, desc: 'Folge wechseln' },
+        { keys: `${label('werkstufePrev')} / ${label('werkstufeNext')}`, desc: 'Werkstufe wechseln (Storyline ↔ Drehbuch ↔ Dokument)' },
+        { keys: `${label('fassungPrev')} / ${label('fassungNext')}`, desc: 'Fassung wechseln (Version der aktuellen Werkstufe)' },
         { keys: `${mod}+Shift+Bild auf/ab`, desc: 'Szene mit einer Figur der aktuellen Szene' },
         { keys: label('gotoSzene'), desc: 'Gehe zu Szene …' },
         { keys: 'Mausrad am Rand', desc: 'Overscroll → vorherige / nächste Szene' },

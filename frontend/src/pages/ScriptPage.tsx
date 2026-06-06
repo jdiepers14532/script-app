@@ -295,6 +295,7 @@ function DockedEditorPanels({ produktionId, folgeNummer, freiDokFolgeId, folgeId
             folgeNummer={folgeNummer}
             folgeId={folgeId}
             werkstufen={werkstufen}
+            isDominant={showLeft && !showRight}
             defaultTyp={showBoth ? "storyline" : undefined}
             selectedSzeneId={selectedSzeneId}
             sceneIdentityId={sceneIdentityId}
@@ -360,6 +361,7 @@ function DockedEditorPanels({ produktionId, folgeNummer, freiDokFolgeId, folgeId
             folgeNummer={folgeNummer}
             folgeId={folgeId}
             werkstufen={werkstufen}
+            isDominant={showRight}
             defaultTyp="drehbuch"
             selectedSzeneId={selectedSzeneId}
             sceneIdentityId={sceneIdentityId}
@@ -966,6 +968,14 @@ export default function ScriptPage() {
       // Folge wechseln: Alt+Shift+Bild auf/ab. Mac-Alias ⌘+⌥+Shift+↑/↓.
       if (matchesShortcut('folgePrev', e) || (macArrowAlias && e.shiftKey && e.code === 'ArrowUp'))   { e.preventDefault(); navigateFolge(-1); return }
       if (matchesShortcut('folgeNext', e) || (macArrowAlias && e.shiftKey && e.code === 'ArrowDown')) { e.preventDefault(); navigateFolge(1);  return }
+
+      // Werkstufe wechseln: Alt+↑/↓ · Fassung wechseln: Alt+Shift+↑/↓ (auch im Editor).
+      // !e.metaKey trennt sauber vom Szenen-/Folgen-Mac-Alias (⌘+⌥+↑/↓), der oben bereits returnt.
+      // Das dominante EditorPanel hört auf diese Events und navigiert seinen selectedWerkId.
+      if (!e.metaKey && matchesShortcut('fassungPrev', e))   { e.preventDefault(); window.dispatchEvent(new CustomEvent('sw-cmd-fassung',   { detail: -1 })); return }
+      if (!e.metaKey && matchesShortcut('fassungNext', e))   { e.preventDefault(); window.dispatchEvent(new CustomEvent('sw-cmd-fassung',   { detail:  1 })); return }
+      if (!e.metaKey && matchesShortcut('werkstufePrev', e)) { e.preventDefault(); window.dispatchEvent(new CustomEvent('sw-cmd-werkstufe', { detail: -1 })); return }
+      if (!e.metaKey && matchesShortcut('werkstufeNext', e)) { e.preventDefault(); window.dispatchEvent(new CustomEvent('sw-cmd-werkstufe', { detail:  1 })); return }
 
       if (!['ArrowLeft', 'ArrowRight'].includes(e.key)) return
       if (isEditable) return

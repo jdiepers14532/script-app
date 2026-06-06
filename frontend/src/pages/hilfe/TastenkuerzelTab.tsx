@@ -29,7 +29,7 @@ export default function TastenkuerzelTab() {
           <Kbd>{mod}+K</Kbd> als durchsuchbare Befehlspalette. Die Belegung folgt der{' '}
           <strong>physischen Tastenposition</strong> (QWERTZ und QWERTY automatisch erkannt).
           {isMac ? ' Auf dem Mac werden ⌘/⌥ angezeigt.' : ' Auf dem Mac stehen ⌘/⌥ statt Strg/Alt.'}
-          {' '}Druckbare Grafik im Repo: <code>tastatur-kurzbefehle.svg</code>.
+          {' '}Eine druckbare Grafik findest du im Overlay <Kbd>?</Kbd> unter dem Register „Grafik".
         </p>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 16, marginTop: 16 }}>
