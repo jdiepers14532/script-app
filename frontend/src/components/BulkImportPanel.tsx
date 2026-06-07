@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
-import { UploadCloud, X, CheckCircle, AlertTriangle, RefreshCw, FileText, Loader2, Trash2, Info } from 'lucide-react'
+import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
+import { UploadCloud, X, CheckCircle, AlertTriangle, RefreshCw, FileText, Loader2, Trash2, Info, Lock } from 'lucide-react'
 import Tooltip from './Tooltip'
+import { api } from '../api/client'
 
 // Kleines Info-Icon mit Tooltip — für Felder, deren Funktion nicht selbsterklärend ist.
 function InfoDot({ text, placement }: { text: string; placement?: 'top' | 'bottom' | 'right' }) {
@@ -22,6 +23,7 @@ const FORMAT_LABELS: Record<string, string> = {
 }
 
 interface StageType { value: string; label: string }
+interface StageLabel { id: number; name: string; is_produktionsfassung?: boolean; sort_order?: number }
 
 interface BatchJob {
   id: string
@@ -32,6 +34,7 @@ interface BatchJob {
   folge_nummer: number | null
   stage_type: string
   import_label?: string | null
+  import_sichtbarkeit?: string
   status: 'wartet' | 'parst' | 'fertig' | 'fehler' | 'uebersprungen'
   fehler_text?: string | null
   werkstufe_id?: string | null
@@ -52,10 +55,12 @@ type Phase = 'select' | 'assign' | 'progress'
 export default function BulkImportPanel({
   produktionId,
   stageTypes,
+  stageLabels = [],
   onImported,
 }: {
   produktionId: string | null
   stageTypes: StageType[]
+  stageLabels?: StageLabel[]
   onImported?: () => void
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -63,12 +68,44 @@ export default function BulkImportPanel({
   const [dragging, setDragging] = useState(false)
   const [files, setFiles] = useState<File[]>([])
   const [saveMetadata, setSaveMetadata] = useState(false)
+  // Globale Defaults (Seite 1) — werden in den User-Settings persistiert und auf alle Folgen vorbelegt.
   const [sichtbarkeit, setSichtbarkeit] = useState('autoren')
+  const [globalLabel, setGlobalLabel] = useState<string | null>(null)
   const [pdfMistral, setPdfMistral] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [batch, setBatch] = useState<Batch | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Das Produktionsfassungs-Label sperrt beim Import die Werkstufe (read-only). Bei mehreren
+  // gilt das mit der höchsten sort_order. null = keines definiert. (Analog Einzelimport.)
+  const lockLabel = useMemo(() => {
+    const cands = stageLabels.filter(sl => sl.is_produktionsfassung)
+    if (cands.length === 0) return null
+    return cands.reduce((a, b) => ((b.sort_order ?? 0) > (a.sort_order ?? 0) ? b : a))
+  }, [stageLabels])
+  const isLockLabel = useCallback((name?: string | null) => !!name && !!lockLabel && name === lockLabel.name, [lockLabel])
+
+  // Globale Defaults aus User-Settings laden (einmalig) und bei Änderung debounced speichern.
+  const defaultsLoaded = useRef(false)
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => {
+    if (defaultsLoaded.current) return
+    defaultsLoaded.current = true
+    api.getSettings().then((s: any) => {
+      const ui = s?.ui_settings || {}
+      if (ui.last_import_label) setGlobalLabel(ui.last_import_label)
+      if (ui.last_import_sichtbarkeit) setSichtbarkeit(ui.last_import_sichtbarkeit)
+    }).catch(() => {})
+  }, [])
+  useEffect(() => {
+    if (!defaultsLoaded.current) return
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    saveTimer.current = setTimeout(() => {
+      api.updateSettings({ ui_settings: { last_import_label: globalLabel || null, last_import_sichtbarkeit: sichtbarkeit } }).catch(() => {})
+    }, 600)
+    return () => { if (saveTimer.current) clearTimeout(saveTimer.current) }
+  }, [globalLabel, sichtbarkeit])
 
   const coarse = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches
   const inputStyle = { padding: coarse ? '11px 12px' : '8px 10px', borderRadius: 6, border: '1px solid #e0e0e0', fontSize: 14 }
@@ -111,6 +148,7 @@ export default function BulkImportPanel({
       fd.append('produktion_id', produktionId)
       fd.append('save_metadata', String(saveMetadata))
       fd.append('import_sichtbarkeit', sichtbarkeit)
+      if (globalLabel) fd.append('import_label', globalLabel)
       if (pdfMistral) fd.append('pdf_method', 'mistral')
       for (const f of files) fd.append('files', f)
       const res = await fetch('/api/import/batch', { method: 'POST', body: fd, credentials: 'include' })
@@ -126,8 +164,27 @@ export default function BulkImportPanel({
   }
 
   // ── Zuordnung bearbeiten ──
+  // Lock-Kopplung wie im Einzelimport: Produktionsfassungs-Label ⇄ Stufe „gelockt" (final).
   const updateJob = (id: string, patch: Partial<BatchJob>) => {
-    setBatch(b => b ? { ...b, jobs: b.jobs.map(j => j.id === id ? { ...j, ...patch } : j) } : b)
+    setBatch(b => {
+      if (!b) return b
+      return {
+        ...b,
+        jobs: b.jobs.map(j => {
+          if (j.id !== id) return j
+          const next = { ...j, ...patch }
+          if ('import_label' in patch) {
+            if (isLockLabel(patch.import_label)) next.stage_type = 'final'
+            else if (j.stage_type === 'final') next.stage_type = 'draft'
+          }
+          if ('stage_type' in patch) {
+            if (patch.stage_type === 'final' && lockLabel) next.import_label = lockLabel.name
+            else if (patch.stage_type !== 'final' && isLockLabel(j.import_label)) next.import_label = null
+          }
+          return next
+        }),
+      }
+    })
   }
 
   const handleStart = async () => {
@@ -137,7 +194,7 @@ export default function BulkImportPanel({
       // 1. Zuordnung speichern
       const putRes = await fetch(`/api/import/batch/${batch.id}/zuordnung`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-        body: JSON.stringify({ jobs: batch.jobs.map(j => ({ id: j.id, folge_nummer: j.folge_nummer, stage_type: j.stage_type, import_label: j.import_label || null })) }),
+        body: JSON.stringify({ jobs: batch.jobs.map(j => ({ id: j.id, folge_nummer: j.folge_nummer, stage_type: j.stage_type, import_label: j.import_label || null, import_sichtbarkeit: j.import_sichtbarkeit || 'autoren' })) }),
       })
       const putData = await putRes.json()
       if (!putRes.ok) throw new Error(putData.error || 'Zuordnung fehlgeschlagen')
@@ -282,14 +339,33 @@ export default function BulkImportPanel({
               <InfoDot text={`Gilt für alle PDFs im Batch: liest sie per Mistral-OCR statt einfacher Textextraktion ein — robuster bei Scans und schwierigen Layouts, aber langsamer.`} placement="bottom" />
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              Fassung:
+              <select value={globalLabel ?? ''} onChange={e => setGlobalLabel(e.target.value || null)} style={{ ...inputStyle, color: globalLabel ? '#1565C0' : '#757575' }}>
+                <option value="">Ohne Label</option>
+                {stageLabels.map(sl => (
+                  <option key={sl.id} value={sl.name}>{sl.is_produktionsfassung ? `🔒 ${sl.name}` : sl.name}</option>
+                ))}
+              </select>
+              <InfoDot text={`Globale Fassungs-Label-Vorgabe für alle Folgen (auf Seite 2 pro Folge überschreibbar).\nQuelle: die in der Drehbuchkoordination festgelegten Labels.\nLabels mit 🔒 sind Produktionsfassungen — ihre Wahl sperrt die Werkstufe beim Import (read-only).`} placement="bottom" />
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               Sichtbarkeit:
               <select value={sichtbarkeit} onChange={e => setSichtbarkeit(e.target.value)} style={inputStyle}>
                 <option value="autoren">Autoren</option>
                 <option value="produktion">Produktion</option>
               </select>
-              <InfoDot text={`Gilt für alle importierten Werkstufen:\n• Autoren — nur das Autorenteam (Standard).\n• Produktion — auch für die Produktion freigegeben.`} placement="bottom" />
+              <InfoDot text={`Globale Sichtbarkeit für alle Folgen (auf Seite 2 pro Folge überschreibbar):\n• Autoren — nur das Autorenteam (Standard).\n• Produktion — auch für die Produktion freigegeben.`} placement="bottom" />
             </label>
           </div>
+
+          {isLockLabel(globalLabel) && (
+            <div style={{ marginBottom: 16, padding: '10px 12px', borderRadius: 8, background: '#FFF3E0', border: '1px solid #FFB74D', fontSize: 12, color: '#7a5c00', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+              <Lock size={14} style={{ flexShrink: 0, marginTop: 1, color: '#E65100' }} />
+              <span>
+                <strong>Produktionsfassung gewählt:</strong> Alle Folgen werden als „gelockt" importiert und sofort gesperrt (read-only, danach nur noch Revisionen). Auf Seite 2 kannst du das pro Folge wieder zurücknehmen.
+              </span>
+            </div>
+          )}
 
           {error && <ErrorLine text={error} />}
           {oversize && <ErrorLine text={`„${oversize.name}" überschreitet ${MAX_FILE_MB} MB.`} />}
@@ -310,10 +386,10 @@ export default function BulkImportPanel({
         <div>
           <h3 style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>Zuordnung prüfen</h3>
           <p style={{ fontSize: 13, color: '#757575', marginBottom: 16 }}>
-            Folge-Nummer und Stufe wurden aus den Dateinamen geraten — bitte kontrollieren.
+            Folge-Nummer und Stufe wurden aus den Dateinamen geraten, Fassung und Sichtbarkeit aus der globalen Wahl vorbelegt — pro Folge überschreibbar.
           </p>
           <div style={{ border: '1px solid #e0e0e0', borderRadius: 8, overflow: 'hidden', marginBottom: 16 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,2fr) 64px 90px 1fr 120px', gap: 8, padding: '8px 12px', background: '#f5f5f5', fontSize: 11, fontWeight: 600, color: '#757575' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.5fr) 48px 58px 1fr 1fr 96px', gap: 8, padding: '8px 12px', background: '#f5f5f5', fontSize: 11, fontWeight: 600, color: '#757575' }}>
               <span>Datei</span>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                 Format <InfoDot text="Automatisch erkanntes Dateiformat (Final Draft, Fountain, Word, PDF …)." placement="bottom" />
@@ -322,14 +398,17 @@ export default function BulkImportPanel({
                 Folge <InfoDot text="Zielfolge, in die diese Datei importiert wird. Aus dem Dateinamen geraten — bitte prüfen. Pflichtfeld." placement="bottom" />
               </span>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                Stufe <InfoDot text={`Werkstufe, die angelegt wird (Exposé, Storyline, Drehbuch-Entwurf …).`} placement="bottom" />
+                Stufe <InfoDot text={`Werkstufe, die angelegt wird (Exposé, Storyline, Drehbuch-Entwurf, gelockt). Aus dem Dateinamen geraten — bitte prüfen.`} placement="bottom" />
               </span>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
-                Label (optional) <InfoDot text={`Fassungs-Label für die Werkstufe (z. B. „Rohfassung"). Kann leer bleiben und später gesetzt werden.`} placement="bottom" />
+                Fassung <InfoDot text={`Fassungs-Label aus der Drehbuchkoordination (vorbelegt mit der globalen Wahl von Seite 1, hier pro Folge überschreibbar). 🔒 = Produktionsfassung, sperrt die Werkstufe.`} placement="bottom" />
+              </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                Sichtbar <InfoDot text={`Wer die Folge sehen darf (vorbelegt mit der globalen Wahl von Seite 1, hier pro Folge überschreibbar): Autoren oder Produktion.`} placement="bottom" />
               </span>
             </div>
             {batch.jobs.map(job => (
-              <div key={job.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(0,2fr) 64px 90px 1fr 120px', gap: 8, padding: '8px 12px', borderTop: '1px solid #f0f0f0', alignItems: 'center', fontSize: 13 }}>
+              <div key={job.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.5fr) 48px 58px 1fr 1fr 96px', gap: 8, padding: '8px 12px', borderTop: '1px solid #f0f0f0', alignItems: 'center', fontSize: 13 }}>
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={job.dateiname}>{job.dateiname}</span>
                 <span style={{ fontSize: 11, color: '#757575' }}>{FORMAT_LABELS[job.format || 'unknown'] || job.format}</span>
                 <input
@@ -339,12 +418,29 @@ export default function BulkImportPanel({
                   placeholder="Nr."
                 />
                 <select value={job.stage_type} onChange={e => updateJob(job.id, { stage_type: e.target.value })} style={{ ...inputStyle, width: '100%' }}>
-                  {stageTypes.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                  {stageTypes.map(s => (
+                    // „gelockt" (final) nur wählbar, wenn die Produktion ein Produktionsfassungs-Label hat.
+                    <option key={s.value} value={s.value} disabled={s.value === 'final' && !lockLabel}>{s.label}</option>
+                  ))}
                 </select>
-                <input
-                  type="text" value={job.import_label || ''} onChange={e => updateJob(job.id, { import_label: e.target.value || null })}
-                  style={{ ...inputStyle, width: '100%' }} placeholder="—"
-                />
+                <select
+                  value={job.import_label || ''}
+                  onChange={e => updateJob(job.id, { import_label: e.target.value || null })}
+                  style={{ ...inputStyle, width: '100%', color: isLockLabel(job.import_label) ? '#E65100' : job.import_label ? '#1565C0' : '#999' }}
+                >
+                  <option value="">Ohne Label</option>
+                  {stageLabels.map(sl => (
+                    <option key={sl.id} value={sl.name}>{sl.is_produktionsfassung ? `🔒 ${sl.name}` : sl.name}</option>
+                  ))}
+                </select>
+                <select
+                  value={job.import_sichtbarkeit || 'autoren'}
+                  onChange={e => updateJob(job.id, { import_sichtbarkeit: e.target.value })}
+                  style={{ ...inputStyle, width: '100%' }}
+                >
+                  <option value="autoren">Autoren</option>
+                  <option value="produktion">Produktion</option>
+                </select>
               </div>
             ))}
           </div>

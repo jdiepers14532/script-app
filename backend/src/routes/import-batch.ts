@@ -71,11 +71,26 @@ router.post('/batch', upload.array('files', MAX_FILES_PER_BATCH), async (req, re
       return res.status(400).json({ error: `Batch zu groß (max. ${Math.round(MAX_BATCH_SIZE / 1024 / 1024)} MB gesamt)` })
     }
 
-    // Gemeinsame Optionen (für alle Dateien): save_metadata, sichtbarkeit, pdf_method
+    // Gemeinsame Optionen (für alle Dateien): save_metadata, sichtbarkeit, pdf_method.
+    // Sichtbarkeit + Label sind nur der globale Default — sie werden pro Job gespeichert
+    // (import_batch_jobs.import_sichtbarkeit / import_label) und auf Seite 2 überschreibbar.
+    const globalSichtbarkeit = ['autoren', 'produktion'].includes(req.body.import_sichtbarkeit) ? req.body.import_sichtbarkeit : 'autoren'
+    const globalLabel: string | null = req.body.import_label || null
     const optionen = {
       save_metadata: req.body.save_metadata === 'true',
-      sichtbarkeit: ['autoren', 'produktion'].includes(req.body.import_sichtbarkeit) ? req.body.import_sichtbarkeit : 'autoren',
+      sichtbarkeit: globalSichtbarkeit,
       pdf_method: req.body.pdf_method === 'mistral' ? 'mistral' : undefined,
+    }
+
+    // Ist das globale Label eine Produktionsfassung? Dann werden alle Folgen als „gelockt"
+    // vorbelegt (stage_type='final') — analog zum Einzelimport. Pro Folge korrigierbar.
+    let globalLabelIsLock = false
+    if (globalLabel) {
+      const lockRow = await queryOne(
+        `SELECT 1 FROM stage_labels WHERE produktion_id = $1 AND name = $2 AND is_produktionsfassung = TRUE LIMIT 1`,
+        [produktion_id, globalLabel]
+      )
+      globalLabelIsLock = !!lockRow
     }
 
     const batch = await queryOne(
@@ -92,13 +107,15 @@ router.post('/batch', upload.array('files', MAX_FILES_PER_BATCH), async (req, re
       const file = files[i]
       let format: string | null = null
       try { format = detectFormat(file.originalname, file.buffer).format } catch { format = null }
-      const { folge_nummer, stage_type } = guessFolgeAndStage(file.originalname)
+      const { folge_nummer, stage_type: guessedStage } = guessFolgeAndStage(file.originalname)
+      // Produktionsfassungs-Label global gewählt → „gelockt" vorbelegen, sonst geratene Stufe.
+      const stage_type = globalLabelIsLock ? 'final' : guessedStage
 
       const job = await queryOne(
         `INSERT INTO import_batch_jobs
-           (batch_id, sort_order, dateiname, datei_groesse, format, folge_nummer, stage_type, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'wartet') RETURNING *`,
-        [batch.id, i, file.originalname, file.size, format, folge_nummer, stage_type]
+           (batch_id, sort_order, dateiname, datei_groesse, format, folge_nummer, stage_type, import_label, import_sichtbarkeit, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'wartet') RETURNING *`,
+        [batch.id, i, file.originalname, file.size, format, folge_nummer, stage_type, globalLabel, globalSichtbarkeit]
       )
 
       const safe = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')
@@ -131,10 +148,11 @@ router.put('/batch/:id/zuordnung', async (req, res) => {
       const folge = j.folge_nummer != null && j.folge_nummer !== '' ? parseInt(j.folge_nummer, 10) : null
       const stage = validStages.includes(j.stage_type) ? j.stage_type : 'draft'
       const label = j.import_label || null
+      const sichtbarkeit = ['autoren', 'produktion'].includes(j.import_sichtbarkeit) ? j.import_sichtbarkeit : 'autoren'
       await query(
-        `UPDATE import_batch_jobs SET folge_nummer = $1, stage_type = $2, import_label = $3
-         WHERE id = $4 AND batch_id = $5`,
-        [folge != null && !isNaN(folge) ? folge : null, stage, label, j.id, batch.id]
+        `UPDATE import_batch_jobs SET folge_nummer = $1, stage_type = $2, import_label = $3, import_sichtbarkeit = $4
+         WHERE id = $5 AND batch_id = $6`,
+        [folge != null && !isNaN(folge) ? folge : null, stage, label, sichtbarkeit, j.id, batch.id]
       )
     }
     const updated = await queryOne(`SELECT * FROM import_batches WHERE id = $1`, [req.params.id])
@@ -170,7 +188,7 @@ async function processBatchJob(
       user,
       parseOpts,
       importLabel: job.import_label || null,
-      importSichtbarkeit: optionen.sichtbarkeit || 'autoren',
+      importSichtbarkeit: job.import_sichtbarkeit || optionen.sichtbarkeit || 'autoren',
       saveMetadata: optionen.save_metadata === true,
     })
     await query(
@@ -318,7 +336,7 @@ router.get('/batch/:id', async (req, res) => {
     if (!batch) return res.status(404).json({ error: 'Batch nicht gefunden' })
     const jobs = await query(
       `SELECT id, sort_order, dateiname, datei_groesse, format, folge_nummer, stage_type,
-              import_label, status, fehler_text, werkstufe_id, ergebnis_json, abgeschlossen_am
+              import_label, import_sichtbarkeit, status, fehler_text, werkstufe_id, ergebnis_json, abgeschlossen_am
        FROM import_batch_jobs WHERE batch_id = $1 ORDER BY sort_order`,
       [req.params.id]
     )

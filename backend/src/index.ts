@@ -538,6 +538,8 @@ async function runMigrations() {
     'v200_verteiler_system.sql',
     // Verteiler Schritt 2: published-Flag auf werkstufen (manuelle Veröffentlichung)
     'v201_werkstufen_published.sql',
+    // Bulk-Import: Sichtbarkeit pro Folge (Job) überschreibbar
+    'v202_import_batch_jobs_sichtbarkeit.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

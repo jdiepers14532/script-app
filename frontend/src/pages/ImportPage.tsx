@@ -647,6 +647,7 @@ export default function ImportPage() {
               <BulkImportPanel
                 produktionId={selectedId || null}
                 stageTypes={STAGE_TYPES.map(s => ({ value: s.value, label: s.label }))}
+                stageLabels={stageLabels}
               />
             ) : (
             <>
