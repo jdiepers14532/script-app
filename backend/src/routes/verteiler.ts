@@ -16,6 +16,7 @@ import { authMiddleware } from '../auth'
 import {
   generateToken, portalLink, tokenAblauf,
   resolveKontaktEmail, resolveBesetzung, deriveAnzeigeStatus,
+  sendVerteilerMail, VerteilerMailCtx,
 } from '../lib/verteiler'
 
 const TIER1_ROLES = ['superadmin', 'geschaeftsfuehrung', 'herstellungsleitung', 'hauptbuchhaltung']
@@ -462,8 +463,20 @@ distributionenRouter.post('/:id/resend', async (req, res) => {
   const client = await pool.connect()
   try {
     await client.query('BEGIN')
-    const d = await client.query(`SELECT * FROM distribution WHERE id = $1`, [req.params.id])
-    if (d.rowCount === 0) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Distribution nicht gefunden' }) }
+    // Kontext für die Mail (Betreff/Text aus Verteiler, Meta aus Werkstufe/Folge/Produktion)
+    const ctx = await client.query(
+      `SELECT v.email_betreff, v.email_text, w.typ AS werkstufe_typ, w.version_nummer,
+              f.folge_nummer, p.titel AS produktion_titel
+       FROM distribution d
+       JOIN verteiler v ON v.id = d.verteiler_id
+       JOIN werkstufen w ON w.id = d.werkstufe_id
+       JOIN folgen f ON f.id = w.folge_id
+       LEFT JOIN produktionen p ON p.id = f.produktion_id
+       WHERE d.id = $1`,
+      [req.params.id]
+    )
+    if (ctx.rowCount === 0) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Distribution nicht gefunden' }) }
+    const c = ctx.rows[0]
 
     const luecken = await client.query(
       `SELECT id, email_resolved, name FROM distribution_empfaenger
@@ -471,6 +484,7 @@ distributionenRouter.post('/:id/resend', async (req, res) => {
       [req.params.id]
     )
     const links: Array<{ empfaenger_id: string; email: string; link: string }> = []
+    const mailJobs: Array<VerteilerMailCtx & { empfaengerId: string }> = []
     for (const e of luecken.rows) {
       const { token, hash } = generateToken()
       await client.query(
@@ -480,15 +494,39 @@ distributionenRouter.post('/:id/resend', async (req, res) => {
          WHERE id = $1`,
         [e.id, hash, tokenAblauf()]
       )
-      links.push({ empfaenger_id: e.id, email: e.email_resolved, link: portalLink(token) })
+      const link = portalLink(token)
+      links.push({ empfaenger_id: e.id, email: e.email_resolved, link })
+      mailJobs.push({
+        empfaengerId: e.id, correlationId: e.id, to: e.email_resolved, name: e.name, link,
+        betreff: c.email_betreff, text: c.email_text,
+        produktion: c.produktion_titel, folge: c.folge_nummer,
+        werkstufe: c.werkstufe_typ, version: c.version_nummer,
+      })
     }
     await client.query('COMMIT')
 
-    // TODO Schritt 3: auth mail-send für die neu auf 'queued' gesetzten Empfänger anstoßen.
+    // Mailversand der erneut eingereihten Empfänger; queued -> sent (Fehler gesammelt).
+    let gesendet = 0
+    const versandfehler: Array<{ empfaenger_id: string; error: string }> = []
+    for (const job of mailJobs) {
+      const r = await sendVerteilerMail(job)
+      if (r.ok) {
+        await pool.query(
+          `UPDATE distribution_empfaenger SET zustellung = 'sent', gesendet_am = now()
+           WHERE id = $1 AND zustellung = 'queued'`,
+          [job.empfaengerId]
+        )
+        gesendet++
+      } else {
+        console.error(`[verteiler] resend-Versand fehlgeschlagen (empf ${job.empfaengerId}): ${r.error}`)
+        versandfehler.push({ empfaenger_id: job.empfaengerId, error: r.error || 'unbekannt' })
+      }
+    }
+
     res.json({
       distribution_id: req.params.id,
       erneut_eingereiht: links.length,
-      // Klartext-Links nur zurückgeben (nie gespeichert); in Schritt 3 ersetzt durch Mailversand.
+      gesendet, versandfehler,
       links,
     })
   } catch (err) {
@@ -514,8 +552,11 @@ veroeffentlichenRouter.post('/:id/veroeffentlichen', async (req, res) => {
     await client.query('BEGIN')
 
     const wsRes = await client.query(
-      `SELECT w.id, w.typ, w.version_nummer, f.produktion_id, f.folge_nummer, f.folgen_titel
-       FROM werkstufen w JOIN folgen f ON f.id = w.folge_id WHERE w.id = $1`,
+      `SELECT w.id, w.typ, w.version_nummer, f.produktion_id, f.folge_nummer, f.folgen_titel,
+              p.titel AS produktion_titel
+       FROM werkstufen w JOIN folgen f ON f.id = w.folge_id
+       LEFT JOIN produktionen p ON p.id = f.produktion_id
+       WHERE w.id = $1`,
       [req.params.id]
     )
     if (wsRes.rowCount === 0) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Werkstufe nicht gefunden' }) }
@@ -550,6 +591,8 @@ veroeffentlichenRouter.post('/:id/veroeffentlichen', async (req, res) => {
     const ablauf = tokenAblauf()
     const ergebnis: any[] = []
     const uebersprungen: Array<{ verteiler_id: string; mitglied_id: string; grund: string }> = []
+    // Mailversand erst NACH Commit (Zeilen müssen existieren); Klartext-Token nur hier in-memory.
+    const mailJobs: Array<VerteilerMailCtx & { empfaengerId: string }> = []
 
     for (const v of matchRes.rows) {
       // Idempotenz: jede Veröffentlichung legt eine NEUE distribution an.
@@ -592,7 +635,15 @@ veroeffentlichenRouter.post('/:id/veroeffentlichen', async (req, res) => {
            VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'queued') RETURNING id`,
           [distId, m.id, email, name, sidesFiguren, m.revisions_modus, hash, ablauf]
         )
-        links.push({ empfaenger_id: emp.rows[0].id, email, link: portalLink(token) })
+        const empfId = emp.rows[0].id
+        const link = portalLink(token)
+        links.push({ empfaenger_id: empfId, email, link })
+        mailJobs.push({
+          empfaengerId: empfId, correlationId: empfId, to: email, name, link,
+          betreff: v.email_betreff, text: v.email_text,
+          produktion: ws.produktion_titel, folge: ws.folge_nummer,
+          werkstufe: ws.typ, version: ws.version_nummer,
+        })
       }
 
       ergebnis.push({
@@ -603,13 +654,30 @@ veroeffentlichenRouter.post('/:id/veroeffentlichen', async (req, res) => {
 
     await client.query('COMMIT')
 
-    // TODO Schritt 3: Für alle 'queued' Empfänger den auth mail-send-Aufruf anstoßen
-    //                 (Link-first, editierbarer Text aus dem Verteiler). Bis dahin
-    //                 bleibt es bei zustellung='queued'; Links kommen in der Response.
+    // Mailversand (Link-first) über zentrale auth send-mail; queued -> sent.
+    // Fehler werden gesammelt zurückgegeben (kein stilles Verschlucken), Zeile bleibt 'queued'.
+    let gesendet = 0
+    const versandfehler: Array<{ empfaenger_id: string; error: string }> = []
+    for (const job of mailJobs) {
+      const r = await sendVerteilerMail(job)
+      if (r.ok) {
+        await pool.query(
+          `UPDATE distribution_empfaenger SET zustellung = 'sent', gesendet_am = now()
+           WHERE id = $1 AND zustellung = 'queued'`,
+          [job.empfaengerId]
+        )
+        gesendet++
+      } else {
+        console.error(`[verteiler] Versand fehlgeschlagen (empf ${job.empfaengerId}): ${r.error}`)
+        versandfehler.push({ empfaenger_id: job.empfaengerId, error: r.error || 'unbekannt' })
+      }
+    }
+
     res.status(201).json({
       werkstufe_id: ws.id, published: true,
       folge: ws.folge_nummer, version: ws.version_nummer, typ: ws.typ,
       distributionen: ergebnis,
+      gesendet, versandfehler,
       uebersprungen,
       hinweis: matchRes.rows.length === 0 ? 'Kein passender aktiver Verteiler für diesen Werkstufe-Typ.' : undefined,
     })

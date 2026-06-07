@@ -18,7 +18,7 @@ import * as path from 'path'
 import { pool, queryOne } from '../db'
 import {
   hashToken, generateToken, portalLink, tokenAblauf,
-  DRUCK_FEATURE_ENABLED,
+  DRUCK_FEATURE_ENABLED, sendVerteilerMail,
 } from '../lib/verteiler'
 
 export const verteilerPortalRouter = Router()
@@ -30,6 +30,7 @@ async function ladeEmpfaenger(token: string) {
   const hash = hashToken(token)
   return queryOne(
     `SELECT e.*, d.werkstufe_id, v.name AS verteiler_name, v.pdf_anhang,
+            v.email_betreff, v.email_text,
             w.typ AS werkstufe_typ, w.version_nummer, w.published, w.published_am,
             f.folge_nummer, f.folgen_titel, f.produktion_id,
             p.titel AS produktion_titel
@@ -160,12 +161,29 @@ verteilerPortalRouter.post('/:token/resend', async (req, res) => {
        WHERE id = $1`,
       [e.id, hash, tokenAblauf()]
     )
-    // TODO Schritt 3: auth mail-send an e.email_resolved; Koordination informieren.
+    const link = portalLink(token)
+    // Neuen Link an die hinterlegte E-Mail senden (Link-first); queued -> sent.
+    const r = await sendVerteilerMail({
+      empfaengerId: e.id, correlationId: e.id, to: e.email_resolved, name: e.name, link,
+      betreff: e.email_betreff, text: e.email_text,
+      produktion: e.produktion_titel, folge: e.folge_nummer,
+      werkstufe: e.werkstufe_typ, version: e.version_nummer,
+    } as any)
+    if (r.ok) {
+      await pool.query(
+        `UPDATE distribution_empfaenger SET zustellung = 'sent', gesendet_am = now()
+         WHERE id = $1 AND zustellung = 'queued'`,
+        [e.id]
+      )
+    } else {
+      console.error(`[verteiler] Portal-resend-Versand fehlgeschlagen (empf ${e.id}): ${r.error}`)
+    }
     res.json({
       ok: true,
       email: e.email_resolved,
-      // Klartext-Link nur zurückgeben (nie gespeichert); in Schritt 3 per Mail zugestellt.
-      link: portalLink(token),
+      versand: r.ok ? 'gesendet' : 'fehlgeschlagen',
+      // Klartext-Link nur zurückgeben (nie gespeichert) — zusätzlich per Mail zugestellt.
+      link,
       hinweis: 'Die Drehbuchkoordination wird über die Anforderung informiert.',
     })
   } catch (err) {
