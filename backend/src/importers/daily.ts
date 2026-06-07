@@ -267,8 +267,9 @@ function stripFooterLines(lines: string[]): string[] {
 // Zweistellige Köpfe ("4495.94 …") tragen den Punkt bereits in der Zeile und werden
 // vom Muster nicht erfasst — sie bleiben unangetastet.
 function reassembleSplitSceneNumbers(lines: string[]): string[] {
-  // numfrag (ohne Punkt) + Location (beginnt mit Nicht-Ziffer) + INT/EXT-Code am Ende
-  const HEADER_FRAG_RE = /^(\d{1,4})\s+(\D.*?[IE]\/[TNAD]\d+)\s*$/
+  // numfrag (ohne Punkt) + Location (beginnt mit Nicht-Ziffer) + INT/EXT-Code am Ende.
+  // Spieltag (\d*) optional, da er in manchen PDFs ebenfalls umbricht/fehlt (z.B. „I/T").
+  const HEADER_FRAG_RE = /^(\d{1,4})\s+(\D.*?[IE]\/[TNAD]\d*)\s*$/
   const PURE_FRAG_RE = /^[\d.]+$/
   const FULL_NUM_RE = /^\d{4}\.\d{1,3}$/
   const out: string[] = []
