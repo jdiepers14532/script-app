@@ -258,6 +258,42 @@ function stripFooterLines(lines: string[]): string[] {
   return final
 }
 
+// Rote-Rosen-PDFs mit dreistelligen Szenennummern: die Nummernspalte ist zu schmal,
+// sodass pdftotext (bbox) "4495.101" vertikal in Fragmente zerlegt — die erste
+// Zifferngruppe klebt an der Location-Zeile, der Rest steht als eigene Kurzzeilen
+// darunter (alle in derselben Spalte):
+//   "449 Außendreh / … E/T57"   "5.1"   "01"   →   "4495.101 Außendreh / … E/T57"
+//   "4495 Studio 1 / … I/T57"   ".100"          →   "4495.100 Studio 1 / … I/T57"
+// Zweistellige Köpfe ("4495.94 …") tragen den Punkt bereits in der Zeile und werden
+// vom Muster nicht erfasst — sie bleiben unangetastet.
+function reassembleSplitSceneNumbers(lines: string[]): string[] {
+  // numfrag (ohne Punkt) + Location (beginnt mit Nicht-Ziffer) + INT/EXT-Code am Ende
+  const HEADER_FRAG_RE = /^(\d{1,4})\s+(\D.*?[IE]\/[TNAD]\d+)\s*$/
+  const PURE_FRAG_RE = /^[\d.]+$/
+  const FULL_NUM_RE = /^\d{4}\.\d{1,3}$/
+  const out: string[] = []
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].trim().match(HEADER_FRAG_RE)
+    if (m) {
+      // Nachfolgende reine Ziffern-/Punkt-Fragmente einsammeln (max. 3).
+      const frags: string[] = []
+      let j = i + 1
+      while (j < lines.length && frags.length < 3 && PURE_FRAG_RE.test(lines[j].trim())) {
+        frags.push(lines[j].trim())
+        j++
+      }
+      const combined = m[1] + frags.join('')
+      if (frags.length > 0 && FULL_NUM_RE.test(combined)) {
+        out.push(`${combined} ${m[2]}`)
+        i = j - 1 // verbrauchte Fragmentzeilen überspringen
+        continue
+      }
+    }
+    out.push(lines[i])
+  }
+  return out
+}
+
 function cleanText(raw: string, ocrMode = false): string[] {
   // Mistral OCR: strip Markdown + inline line numbers first
   let text = ocrMode ? preprocessMistralOcr(raw) : raw
@@ -266,8 +302,11 @@ function cleanText(raw: string, ocrMode = false): string[] {
   const preprocessed = preprocessPdfText(noFF)
   const lines = preprocessed.split(/\r?\n/)
   const stripped = stripFooterLines(lines)
+  // Zerrissene Szenennummern wieder zusammensetzen (vor dem Margin-Filter, der
+  // die Ziffern-Fragmente sonst als Randnummern entfernen würde).
+  const reassembled = reassembleSplitSceneNumbers(stripped)
   // Remove margin numbers but keep blank lines (used as paragraph separators)
-  return stripped.filter(l => {
+  return reassembled.filter(l => {
     const t = l.trim()
     if (!t) return true
     if (isMarginNumber(t, ocrMode)) return false
