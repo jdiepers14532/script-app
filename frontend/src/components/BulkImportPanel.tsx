@@ -135,6 +135,8 @@ export default function BulkImportPanel({
     if (e.dataTransfer.files?.length) addFiles(e.dataTransfer.files)
   }
 
+  // „Metadaten speichern" wirkt nur bei Fountain/FDX (dateiinterne Metadaten) — bei PDF/Word nutzlos.
+  const hasMetaCapableFiles = files.some(f => /\.(fountain|fdx)$/i.test(f.name))
   const totalBytes = files.reduce((s, f) => s + f.size, 0)
   const oversize = files.find(f => f.size > MAX_FILE_MB * 1024 * 1024)
   const batchTooBig = totalBytes > MAX_BATCH_MB * 1024 * 1024
@@ -328,11 +330,13 @@ export default function BulkImportPanel({
 
           {/* Globale Optionen */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, marginBottom: 16, fontSize: 13 }}>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-              <input type="checkbox" checked={saveMetadata} onChange={e => setSaveMetadata(e.target.checked)} />
-              Metadaten speichern
-              <InfoDot text={`Erkannte Metadaten aus den Dateien (z. B. Staffel, Episode, Fassungsdatum, Show) mit übernehmen und an der Werkstufe speichern. Ausgeschaltet lassen, wenn nur die Szenen importiert werden sollen.`} placement="bottom" />
-            </label>
+            {hasMetaCapableFiles && (
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                <input type="checkbox" checked={saveMetadata} onChange={e => setSaveMetadata(e.target.checked)} />
+                Metadaten speichern
+                <InfoDot text={`Übernimmt zusätzlich die im Dokument eingebetteten Metadaten — Titelseite bei Fountain, Version/Template bei Final Draft. Staffel/Episode/Datum aus dem Dateinamen werden ohnehin immer gespeichert. Bei PDF/Word ohne Wirkung.`} placement="bottom" />
+              </label>
+            )}
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
               <input type="checkbox" checked={pdfMistral} onChange={e => setPdfMistral(e.target.checked)} />
               PDF: Mistral OCR
@@ -389,7 +393,7 @@ export default function BulkImportPanel({
             Folge-Nummer und Stufe wurden aus den Dateinamen geraten, Fassung und Sichtbarkeit aus der globalen Wahl vorbelegt — pro Folge überschreibbar.
           </p>
           <div style={{ border: '1px solid #e0e0e0', borderRadius: 8, overflow: 'hidden', marginBottom: 16 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.5fr) 48px 58px 1fr 1fr 96px', gap: 8, padding: '8px 12px', background: '#f5f5f5', fontSize: 11, fontWeight: 600, color: '#757575' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px,2.2fr) 56px 80px minmax(120px,1.4fr) minmax(130px,1.5fr) minmax(110px,1.2fr)', gap: 8, padding: '8px 12px', background: '#f5f5f5', fontSize: 11, fontWeight: 600, color: '#757575' }}>
               <span>Datei</span>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                 Format <InfoDot text="Automatisch erkanntes Dateiformat (Final Draft, Fountain, Word, PDF …)." placement="bottom" />
@@ -408,7 +412,7 @@ export default function BulkImportPanel({
               </span>
             </div>
             {batch.jobs.map(job => (
-              <div key={job.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1.5fr) 48px 58px 1fr 1fr 96px', gap: 8, padding: '8px 12px', borderTop: '1px solid #f0f0f0', alignItems: 'center', fontSize: 13 }}>
+              <div key={job.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(180px,2.2fr) 56px 80px minmax(120px,1.4fr) minmax(130px,1.5fr) minmax(110px,1.2fr)', gap: 8, padding: '8px 12px', borderTop: '1px solid #f0f0f0', alignItems: 'center', fontSize: 13 }}>
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={job.dateiname}>{job.dateiname}</span>
                 <span style={{ fontSize: 11, color: '#757575' }}>{FORMAT_LABELS[job.format || 'unknown'] || job.format}</span>
                 <input

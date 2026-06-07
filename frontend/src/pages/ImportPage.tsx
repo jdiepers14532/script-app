@@ -591,7 +591,8 @@ export default function ImportPage() {
         onSelectFolge: (nr: number) => setSelectedFolgeNummer(nr),
       } : {})}
     >
-      <div style={{ ...(step === 2 ? { padding: '16px 0 0 0' } : { padding: 32, maxWidth: 720, margin: '0 auto' }) }}>
+      {/* Bulk-Modus nutzt die volle Fensterbreite (Zuordnungstabelle); Einzeldatei-Upload bleibt schmal zentriert. */}
+      <div style={{ ...(step === 2 ? { padding: '16px 0 0 0' } : (step === 1 && bulkMode) ? { padding: '24px 32px' } : { padding: 32, maxWidth: 720, margin: '0 auto' }) }}>
         {/* Stepper */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: step === 2 ? 16 : 32, ...(step === 2 ? { paddingLeft: 16 } : {}) }}>
           {[1, 2, 3].map(s => (
