@@ -31,6 +31,7 @@ import { authMiddleware, requireDkAccess } from '../auth'
 import nodemailer from 'nodemailer'
 import crypto from 'crypto'
 import { getCompanyName } from '../utils/companyInfo'
+import { guardMailTo } from '../lib/mailGuard'
 
 const APP_URL = process.env.APP_URL ?? 'https://script.serienwerft.studio'
 const INTERNAL_KEY = process.env.INTERNAL_SECRET_KEY || 'SerienwerftInternalKey2026xQzP'
@@ -155,7 +156,7 @@ async function sendFreigabeAnfrageEmail(opts: {
   const dateStr = new Date().toLocaleDateString('de-DE', { dateStyle: 'long' })
   await t.sendMail({
     from: `"Script \u00b7 ${companyName}" <${process.env.SMTP_USER}>`,
-    to: opts.toEmail,
+    to: guardMailTo(opts.toEmail),
     subject: `Freigabe erbeten: Neue Rolle \u201e${opts.rollenName}\u201c`,
     html: `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><style>
 body{font-family:-apple-system,'Inter',Arial,sans-serif;background:#f5f5f5;margin:0;padding:24px}
@@ -192,7 +193,7 @@ async function sendErinnerungEmail(opts: {
   const dateStr = new Date().toLocaleDateString('de-DE', { dateStyle: 'long' })
   await t.sendMail({
     from: `"Script \u00b7 ${companyName}" <${process.env.SMTP_USER}>`,
-    to: opts.toEmail,
+    to: guardMailTo(opts.toEmail),
     subject: `Erinnerung: Freigabe f\u00fcr Rolle \u201e${opts.rollenName}\u201c steht noch aus`,
     html: `<!DOCTYPE html><html lang="de"><head><meta charset="UTF-8"><style>
 body{font-family:-apple-system,'Inter',Arial,sans-serif;background:#f5f5f5;margin:0;padding:24px}

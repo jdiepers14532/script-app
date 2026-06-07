@@ -119,7 +119,10 @@ async function sendNotificationEmail(
         'x-internal-mailer-secret': MAILER_KEY,
       },
       body: JSON.stringify({
-        user_id: autorUserId,
+        // Staging-Schutz: bei aktivem Override an feste Test-Adresse statt an den echten Autor
+        ...(process.env.MAIL_OVERRIDE_TO
+          ? { to: process.env.MAIL_OVERRIDE_TO }
+          : { user_id: autorUserId }),
         subject: `Sichtbarkeit geändert: „${dokTitel}"`,
         html,
         app: 'script',

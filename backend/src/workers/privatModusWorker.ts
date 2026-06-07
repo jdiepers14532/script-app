@@ -13,6 +13,7 @@
 import nodemailer from 'nodemailer'
 import { pool } from '../db'
 import { getCompanyName } from '../utils/companyInfo'
+import { guardMailTo } from '../lib/mailGuard'
 
 // APP_URL ändert sich nicht → statisch OK
 const APP_URL = process.env.APP_URL ?? 'https://script.serienwerft.studio'
@@ -51,7 +52,7 @@ async function sendPrivatAblaufEmail(opts: {
   const companyName = await getCompanyName()
   await t.sendMail({
     from: `"Script · ${companyName}" <${process.env.SMTP_USER}>`,
-    to: opts.email,
+    to: guardMailTo(opts.email),
     subject: `Privat-Modus läuft ab: ${opts.werkstufeName}`,
     html: `
 <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; max-width: 500px; margin: 0 auto; padding: 24px;">
