@@ -118,6 +118,8 @@ export default function ImportPage() {
   const [standDatum, setStandDatum] = useState('')
   const [importLabel, setImportLabel] = useState<string | null>(null)
   const [importSichtbarkeit, setImportSichtbarkeit] = useState('autoren')
+  // Szenen beim Import lückenlos ab 1 neu nummerieren (für Drehbücher, die nicht bei 1 beginnen).
+  const [renumberFrom1, setRenumberFrom1] = useState(false)
   const [stageLabels, setStageLabels] = useState<Array<{ id: number; name: string; is_produktionsfassung?: boolean; sort_order?: number }>>([])
   // Das Produktionsfassungs-Label sperrt beim Import die Werkstufe (read-only → nur noch
   // Revisionen). Bei mehreren gilt das mit der höchsten sort_order. null = keines definiert.
@@ -440,6 +442,7 @@ export default function ImportPage() {
     if (episodeFilter != null) fd.append('episode_filter', String(episodeFilter))
     if (importLabel) fd.append('import_label', importLabel)
     if (importSichtbarkeit !== 'autoren') fd.append('import_sichtbarkeit', importSichtbarkeit)
+    if (renumberFrom1) fd.append('renumber', 'true')
     return fd
   }
 
@@ -574,6 +577,7 @@ export default function ImportPage() {
     setPdfTargetPage(undefined)
     setImportLabel(null)
     setImportSichtbarkeit('autoren')
+    setRenumberFrom1(false)
     pendingAutoEpisode.current = null
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
@@ -1138,6 +1142,30 @@ export default function ImportPage() {
                 </div>
               </div>
 
+              {/* Warnung: Drehbuch beginnt nicht bei Szene 1 → Neunummerierung anbieten */}
+              {(() => {
+                const nums = previewResult.szenen.map((s: any) => s.nummer).filter((n: any) => typeof n === 'number')
+                const minNr = nums.length ? Math.min(...nums) : 1
+                if (minNr === 1) return null
+                return (
+                  <div style={{
+                    background: '#FFF3E0', borderBottom: '1px solid #FFB74D', padding: '10px 16px',
+                    display: 'flex', gap: 10, alignItems: 'flex-start', flexShrink: 0,
+                  }}>
+                    <AlertTriangle size={16} color="#E65100" style={{ flexShrink: 0, marginTop: 1 }} />
+                    <div style={{ fontSize: 12, color: '#7a4a00', lineHeight: 1.5, flex: 1 }}>
+                      <strong>Dieses {t('drehbuch')} beginnt bei Szene {minNr}, nicht bei 1.</strong> Ist es richtig beschriftet?
+                      Normalerweise beginnen {t('drehbuch', 'p')} mit Szene&nbsp;1.
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, cursor: 'pointer', fontWeight: 600, color: '#000' }}>
+                        <input type="checkbox" checked={renumberFrom1} onChange={e => setRenumberFrom1(e.target.checked)} />
+                        Szenen beim Import lückenlos ab 1 neu nummerieren
+                        {renumberFrom1 && <span style={{ fontWeight: 400, color: '#757575' }}>({minNr}→1, … {t('szene', 'p')} werden umnummeriert)</span>}
+                      </label>
+                    </div>
+                  </div>
+                )
+              })()}
+
               {/* Scene list */}
               <div style={{ flex: 1, overflowY: 'auto' }}>
                 {/* Non-scene elements: Deckblatt, Synopsis, Recaps, Precaps */}
@@ -1257,7 +1285,9 @@ export default function ImportPage() {
                           fontVariantNumeric: 'tabular-nums', minWidth: 60, flexShrink: 0,
                           display: 'inline-flex', alignItems: 'center', gap: 3,
                         }}>
-                          SZ {(sz.episodeNr ?? selectedFolgeNummer) != null ? `${sz.episodeNr ?? selectedFolgeNummer}.${String(sz.nummer).padStart(2, '0')}` : sz.nummer}
+                          SZ {renumberFrom1
+                            ? ((sz.episodeNr ?? selectedFolgeNummer) != null ? `${sz.episodeNr ?? selectedFolgeNummer}.${String(i + 1).padStart(2, '0')}` : i + 1)
+                            : ((sz.episodeNr ?? selectedFolgeNummer) != null ? `${sz.episodeNr ?? selectedFolgeNummer}.${String(sz.nummer).padStart(2, '0')}` : sz.nummer)}
                           {sz.source_page && (
                             <Tooltip text={`Im PDF zur Quellseite dieser Szene (S. ${sz.source_page}) springen.`}>
                               <FileSearch

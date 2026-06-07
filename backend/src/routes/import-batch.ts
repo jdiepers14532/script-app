@@ -76,6 +76,7 @@ router.post('/batch', upload.array('files', MAX_FILES_PER_BATCH), async (req, re
     // (import_batch_jobs.import_sichtbarkeit / import_label) und auf Seite 2 überschreibbar.
     const globalSichtbarkeit = ['autoren', 'produktion'].includes(req.body.import_sichtbarkeit) ? req.body.import_sichtbarkeit : 'autoren'
     const globalLabel: string | null = req.body.import_label || null
+    const globalRenumber = req.body.renumber === 'true'
     const optionen = {
       save_metadata: req.body.save_metadata === 'true',
       sichtbarkeit: globalSichtbarkeit,
@@ -113,9 +114,9 @@ router.post('/batch', upload.array('files', MAX_FILES_PER_BATCH), async (req, re
 
       const job = await queryOne(
         `INSERT INTO import_batch_jobs
-           (batch_id, sort_order, dateiname, datei_groesse, format, folge_nummer, stage_type, import_label, import_sichtbarkeit, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'wartet') RETURNING *`,
-        [batch.id, i, file.originalname, file.size, format, folge_nummer, stage_type, globalLabel, globalSichtbarkeit]
+           (batch_id, sort_order, dateiname, datei_groesse, format, folge_nummer, stage_type, import_label, import_sichtbarkeit, renumber, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'wartet') RETURNING *`,
+        [batch.id, i, file.originalname, file.size, format, folge_nummer, stage_type, globalLabel, globalSichtbarkeit, globalRenumber]
       )
 
       const safe = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')
@@ -149,10 +150,11 @@ router.put('/batch/:id/zuordnung', async (req, res) => {
       const stage = validStages.includes(j.stage_type) ? j.stage_type : 'draft'
       const label = j.import_label || null
       const sichtbarkeit = ['autoren', 'produktion'].includes(j.import_sichtbarkeit) ? j.import_sichtbarkeit : 'autoren'
+      const renumber = j.renumber === true
       await query(
-        `UPDATE import_batch_jobs SET folge_nummer = $1, stage_type = $2, import_label = $3, import_sichtbarkeit = $4
-         WHERE id = $5 AND batch_id = $6`,
-        [folge != null && !isNaN(folge) ? folge : null, stage, label, sichtbarkeit, j.id, batch.id]
+        `UPDATE import_batch_jobs SET folge_nummer = $1, stage_type = $2, import_label = $3, import_sichtbarkeit = $4, renumber = $5
+         WHERE id = $6 AND batch_id = $7`,
+        [folge != null && !isNaN(folge) ? folge : null, stage, label, sichtbarkeit, renumber, j.id, batch.id]
       )
     }
     const updated = await queryOne(`SELECT * FROM import_batches WHERE id = $1`, [req.params.id])
@@ -190,6 +192,7 @@ async function processBatchJob(
       importLabel: job.import_label || null,
       importSichtbarkeit: job.import_sichtbarkeit || optionen.sichtbarkeit || 'autoren',
       saveMetadata: optionen.save_metadata === true,
+      renumberFrom1: job.renumber === true,
     })
     await query(
       `UPDATE import_batch_jobs
@@ -336,7 +339,7 @@ router.get('/batch/:id', async (req, res) => {
     if (!batch) return res.status(404).json({ error: 'Batch nicht gefunden' })
     const jobs = await query(
       `SELECT id, sort_order, dateiname, datei_groesse, format, folge_nummer, stage_type,
-              import_label, import_sichtbarkeit, status, fehler_text, werkstufe_id, ergebnis_json, abgeschlossen_am
+              import_label, import_sichtbarkeit, renumber, status, fehler_text, werkstufe_id, ergebnis_json, abgeschlossen_am
        FROM import_batch_jobs WHERE batch_id = $1 ORDER BY sort_order`,
       [req.params.id]
     )

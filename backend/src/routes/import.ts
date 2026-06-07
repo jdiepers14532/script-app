@@ -567,6 +567,9 @@ export interface CommitImportInput {
   saveMetadata?: boolean
   sceneOverrides?: Record<number, Record<string, any>>
   nonSceneElementsOverride?: any[]
+  // Szenen beim Import lückenlos ab 1 neu durchnummerieren (für Drehbücher, die
+  // nicht bei Szene 1 beginnen). Wechselschnitt-Bezüge werden mit-angepasst.
+  renumberFrom1?: boolean
 }
 
 // Result mirrors the legacy /commit JSON response.
@@ -743,6 +746,23 @@ export async function runCommitImport(input: CommitImportInput) {
         charaktere: szene.charaktere || [],
         komparsen: szene.komparsen || [],
         wechselschnittPartner: szene.wechselschnittPartner || [],
+      })
+    }
+
+    // ── Optional: Szenen lückenlos ab 1 neu nummerieren ──
+    // Reihenfolge des Auftretens (sortOrder) → 1, 2, 3 … Wechselschnitt-Partner
+    // (alte Nummern) werden über die Map mit-übersetzt, damit Bezüge konsistent bleiben.
+    if (input.renumberFrom1 && sceneDataList.length > 0) {
+      const oldToNew = new Map<number, number>()
+      sceneDataList.forEach((s, i) => {
+        if (typeof s.sceneNummer === 'number' && !oldToNew.has(s.sceneNummer)) {
+          oldToNew.set(s.sceneNummer, i + 1)
+        }
+      })
+      sceneDataList.forEach((s, i) => {
+        s.sceneNummer = i + 1
+        s.sceneNummerSuffix = null // lückenlos → keine Suffixe
+        s.wechselschnittPartner = s.wechselschnittPartner.map(p => oldToNew.get(p) ?? p)
       })
     }
 
@@ -1404,6 +1424,7 @@ importRouter.post('/commit', authMiddleware, upload.single('file'), async (req, 
       saveMetadata: req.body.save_metadata === 'true',
       sceneOverrides,
       nonSceneElementsOverride,
+      renumberFrom1: req.body.renumber === 'true',
     })
     res.json(result)
   } catch (err) {

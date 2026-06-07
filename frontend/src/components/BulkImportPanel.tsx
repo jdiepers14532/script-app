@@ -35,6 +35,7 @@ interface BatchJob {
   stage_type: string
   import_label?: string | null
   import_sichtbarkeit?: string
+  renumber?: boolean
   status: 'wartet' | 'parst' | 'fertig' | 'fehler' | 'uebersprungen'
   fehler_text?: string | null
   werkstufe_id?: string | null
@@ -71,6 +72,8 @@ export default function BulkImportPanel({
   // Globale Defaults (Seite 1) — werden in den User-Settings persistiert und auf alle Folgen vorbelegt.
   const [sichtbarkeit, setSichtbarkeit] = useState('autoren')
   const [globalLabel, setGlobalLabel] = useState<string | null>(null)
+  // Globale Neunummerierung (Szenen ab 1) — nicht persistiert, da pro Import situativ.
+  const [globalRenumber, setGlobalRenumber] = useState(false)
   const [pdfMistral, setPdfMistral] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -151,6 +154,7 @@ export default function BulkImportPanel({
       fd.append('save_metadata', String(saveMetadata))
       fd.append('import_sichtbarkeit', sichtbarkeit)
       if (globalLabel) fd.append('import_label', globalLabel)
+      if (globalRenumber) fd.append('renumber', 'true')
       if (pdfMistral) fd.append('pdf_method', 'mistral')
       for (const f of files) fd.append('files', f)
       const res = await fetch('/api/import/batch', { method: 'POST', body: fd, credentials: 'include' })
@@ -196,7 +200,7 @@ export default function BulkImportPanel({
       // 1. Zuordnung speichern
       const putRes = await fetch(`/api/import/batch/${batch.id}/zuordnung`, {
         method: 'PUT', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
-        body: JSON.stringify({ jobs: batch.jobs.map(j => ({ id: j.id, folge_nummer: j.folge_nummer, stage_type: j.stage_type, import_label: j.import_label || null, import_sichtbarkeit: j.import_sichtbarkeit || 'autoren' })) }),
+        body: JSON.stringify({ jobs: batch.jobs.map(j => ({ id: j.id, folge_nummer: j.folge_nummer, stage_type: j.stage_type, import_label: j.import_label || null, import_sichtbarkeit: j.import_sichtbarkeit || 'autoren', renumber: j.renumber === true })) }),
       })
       const putData = await putRes.json()
       if (!putRes.ok) throw new Error(putData.error || 'Zuordnung fehlgeschlagen')
@@ -342,6 +346,11 @@ export default function BulkImportPanel({
               PDF: Mistral OCR
               <InfoDot text={`Gilt für alle PDFs im Batch: liest sie per Mistral-OCR statt einfacher Textextraktion ein — robuster bei Scans und schwierigen Layouts, aber langsamer.`} placement="bottom" />
             </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+              <input type="checkbox" checked={globalRenumber} onChange={e => setGlobalRenumber(e.target.checked)} />
+              Szenen ab 1 neu nummerieren
+              <InfoDot text={`Vorgabe für alle Folgen (auf Seite 2 pro Folge überschreibbar): nummeriert die Szenen beim Import lückenlos ab 1 neu — für Drehbücher, die nicht bei Szene 1 beginnen. Bereits bei 1 beginnende Drehbücher bleiben unverändert.`} placement="bottom" />
+            </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               Fassung:
               <select value={globalLabel ?? ''} onChange={e => setGlobalLabel(e.target.value || null)} style={{ ...inputStyle, color: globalLabel ? '#1565C0' : '#757575' }}>
@@ -393,7 +402,7 @@ export default function BulkImportPanel({
             Folge-Nummer und Stufe wurden aus den Dateinamen geraten, Fassung und Sichtbarkeit aus der globalen Wahl vorbelegt — pro Folge überschreibbar.
           </p>
           <div style={{ border: '1px solid #e0e0e0', borderRadius: 8, overflow: 'hidden', marginBottom: 16 }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(180px,2.2fr) 56px 80px minmax(120px,1.4fr) minmax(130px,1.5fr) minmax(110px,1.2fr)', gap: 8, padding: '8px 12px', background: '#f5f5f5', fontSize: 11, fontWeight: 600, color: '#757575' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(150px,2fr) 50px 78px minmax(110px,1.3fr) minmax(120px,1.4fr) minmax(100px,1.1fr) 64px', gap: 8, padding: '8px 12px', background: '#f5f5f5', fontSize: 11, fontWeight: 600, color: '#757575' }}>
               <span>Datei</span>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                 Format <InfoDot text="Automatisch erkanntes Dateiformat (Final Draft, Fountain, Word, PDF …)." placement="bottom" />
@@ -410,9 +419,12 @@ export default function BulkImportPanel({
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                 Sichtbar <InfoDot text={`Wer die Folge sehen darf (vorbelegt mit der globalen Wahl von Seite 1, hier pro Folge überschreibbar): Autoren oder Produktion.`} placement="bottom" />
               </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                Neu-Nr. <InfoDot text={`Szenen dieser Folge beim Import lückenlos ab 1 neu nummerieren (für Drehbücher, die nicht bei Szene 1 beginnen).`} placement="bottom" />
+              </span>
             </div>
             {batch.jobs.map(job => (
-              <div key={job.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(180px,2.2fr) 56px 80px minmax(120px,1.4fr) minmax(130px,1.5fr) minmax(110px,1.2fr)', gap: 8, padding: '8px 12px', borderTop: '1px solid #f0f0f0', alignItems: 'center', fontSize: 13 }}>
+              <div key={job.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(150px,2fr) 50px 78px minmax(110px,1.3fr) minmax(120px,1.4fr) minmax(100px,1.1fr) 64px', gap: 8, padding: '8px 12px', borderTop: '1px solid #f0f0f0', alignItems: 'center', fontSize: 13 }}>
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={job.dateiname}>{job.dateiname}</span>
                 <span style={{ fontSize: 11, color: '#757575' }}>{FORMAT_LABELS[job.format || 'unknown'] || job.format}</span>
                 <input
@@ -445,6 +457,16 @@ export default function BulkImportPanel({
                   <option value="autoren">Autoren</option>
                   <option value="produktion">Produktion</option>
                 </select>
+                <div style={{ display: 'flex', justifyContent: 'center' }}>
+                  <Tooltip text="Szenen dieser Folge beim Import lückenlos ab 1 neu nummerieren.">
+                    <input
+                      type="checkbox"
+                      checked={job.renumber === true}
+                      onChange={e => updateJob(job.id, { renumber: e.target.checked })}
+                      style={{ width: 16, height: 16, cursor: 'pointer' }}
+                    />
+                  </Tooltip>
+                </div>
               </div>
             ))}
           </div>

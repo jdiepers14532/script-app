@@ -540,6 +540,8 @@ async function runMigrations() {
     'v201_werkstufen_published.sql',
     // Bulk-Import: Sichtbarkeit pro Folge (Job) überschreibbar
     'v202_import_batch_jobs_sichtbarkeit.sql',
+    // Bulk-Import: Neunummerierung (Szenen ab 1) pro Folge
+    'v203_import_batch_jobs_renumber.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
