@@ -1,5 +1,15 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { UploadCloud, X, CheckCircle, AlertTriangle, RefreshCw, FileText, Loader2, Trash2 } from 'lucide-react'
+import { UploadCloud, X, CheckCircle, AlertTriangle, RefreshCw, FileText, Loader2, Trash2, Info } from 'lucide-react'
+import Tooltip from './Tooltip'
+
+// Kleines Info-Icon mit Tooltip — für Felder, deren Funktion nicht selbsterklärend ist.
+function InfoDot({ text, placement }: { text: string; placement?: 'top' | 'bottom' | 'right' }) {
+  return (
+    <Tooltip text={text} placement={placement}>
+      <Info size={12} color="#bbb" style={{ cursor: 'help', flexShrink: 0 }} />
+    </Tooltip>
+  )
+}
 
 const ACCEPTED_EXTS = ['.fdx', '.fountain', '.docx', '.pdf', '.celtx', '.wdz']
 const MAX_FILES = 20
@@ -248,10 +258,12 @@ export default function BulkImportPanel({
                   <FileText size={14} color="#757575" />
                   <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
                   <span style={{ fontSize: 11, color: f.size > MAX_FILE_MB * 1024 * 1024 ? 'var(--sw-danger)' : '#999' }}>{fmtMB(f.size)} MB</span>
-                  <button onClick={() => setFiles(prev => prev.filter((_, idx) => idx !== i))}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex' }} title="Entfernen">
-                    <X size={14} color="#999" />
-                  </button>
+                  <Tooltip text="Datei aus dem Batch entfernen.">
+                    <button onClick={() => setFiles(prev => prev.filter((_, idx) => idx !== i))}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4, display: 'flex' }}>
+                      <X size={14} color="#999" />
+                    </button>
+                  </Tooltip>
                 </div>
               ))}
             </div>
@@ -262,10 +274,12 @@ export default function BulkImportPanel({
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
               <input type="checkbox" checked={saveMetadata} onChange={e => setSaveMetadata(e.target.checked)} />
               Metadaten speichern
+              <InfoDot text={`Erkannte Metadaten aus den Dateien (z. B. Staffel, Episode, Fassungsdatum, Show) mit übernehmen und an der Werkstufe speichern. Ausgeschaltet lassen, wenn nur die Szenen importiert werden sollen.`} placement="bottom" />
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
               <input type="checkbox" checked={pdfMistral} onChange={e => setPdfMistral(e.target.checked)} />
               PDF: Mistral OCR
+              <InfoDot text={`Gilt für alle PDFs im Batch: liest sie per Mistral-OCR statt einfacher Textextraktion ein — robuster bei Scans und schwierigen Layouts, aber langsamer.`} placement="bottom" />
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               Sichtbarkeit:
@@ -273,6 +287,7 @@ export default function BulkImportPanel({
                 <option value="autoren">Autoren</option>
                 <option value="produktion">Produktion</option>
               </select>
+              <InfoDot text={`Gilt für alle importierten Werkstufen:\n• Autoren — nur das Autorenteam (Standard).\n• Produktion — auch für die Produktion freigegeben.`} placement="bottom" />
             </label>
           </div>
 
@@ -299,7 +314,19 @@ export default function BulkImportPanel({
           </p>
           <div style={{ border: '1px solid #e0e0e0', borderRadius: 8, overflow: 'hidden', marginBottom: 16 }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,2fr) 64px 90px 1fr 120px', gap: 8, padding: '8px 12px', background: '#f5f5f5', fontSize: 11, fontWeight: 600, color: '#757575' }}>
-              <span>Datei</span><span>Format</span><span>Folge</span><span>Stufe</span><span>Label (optional)</span>
+              <span>Datei</span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                Format <InfoDot text="Automatisch erkanntes Dateiformat (Final Draft, Fountain, Word, PDF …)." placement="bottom" />
+              </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                Folge <InfoDot text="Zielfolge, in die diese Datei importiert wird. Aus dem Dateinamen geraten — bitte prüfen. Pflichtfeld." placement="bottom" />
+              </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                Stufe <InfoDot text={`Werkstufe, die angelegt wird (Exposé, Storyline, Drehbuch-Entwurf …).`} placement="bottom" />
+              </span>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+                Label (optional) <InfoDot text={`Fassungs-Label für die Werkstufe (z. B. „Rohfassung"). Kann leer bleiben und später gesetzt werden.`} placement="bottom" />
+              </span>
             </div>
             {batch.jobs.map(job => (
               <div key={job.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(0,2fr) 64px 90px 1fr 120px', gap: 8, padding: '8px 12px', borderTop: '1px solid #f0f0f0', alignItems: 'center', fontSize: 13 }}>

@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import AppShell from '../components/AppShell'
-import { FileUp, CheckCircle, AlertTriangle, ChevronRight, UploadCloud, X, FileText, Eye, List, Scissors, Pencil, BookOpen, FileSearch, Lock } from 'lucide-react'
+import { FileUp, CheckCircle, AlertTriangle, ChevronRight, UploadCloud, X, FileText, Eye, List, Scissors, Pencil, BookOpen, FileSearch, Lock, Info } from 'lucide-react'
 import { useSelectedProduction, useAppSettings } from '../contexts'
 import { api } from '../api/client'
 import { useTerminologie } from '../sw-ui'
@@ -623,19 +623,23 @@ export default function ImportPage() {
 
             {/* Modus-Umschalter: Einzeldatei vs. Mehrere Dateien (Bulk) */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 24, borderBottom: '1px solid #e0e0e0' }}>
-              {[{ v: false, label: 'Einzeldatei' }, { v: true, label: 'Mehrere Dateien' }].map(m => (
-                <button
-                  key={String(m.v)}
-                  onClick={() => setBulkMode(m.v)}
-                  style={{
-                    background: 'none', border: 'none', cursor: 'pointer', padding: '8px 4px',
-                    fontSize: 14, fontWeight: bulkMode === m.v ? 600 : 400,
-                    color: bulkMode === m.v ? '#000' : '#757575',
-                    borderBottom: `2px solid ${bulkMode === m.v ? '#000' : 'transparent'}`, marginBottom: -1,
-                  }}
-                >
-                  {m.label}
-                </button>
+              {[
+                { v: false, label: 'Einzeldatei', tip: 'Eine Datei importieren — mit Szenen-Vorschau, manueller Korrektur jeder Szene und PDF-Optionen (Beschneiden, Seitenbereich, OCR) vor dem Import.' },
+                { v: true, label: 'Mehrere Dateien', tip: `Bis zu 20 Dateien gleichzeitig importieren (Batch). Folge-Nummer und Stufe werden aus den Dateinamen geraten und in einer Tabelle bestätigt — keine Einzelszenen-Vorschau.` },
+              ].map(m => (
+                <Tooltip key={String(m.v)} text={m.tip} placement="bottom">
+                  <button
+                    onClick={() => setBulkMode(m.v)}
+                    style={{
+                      background: 'none', border: 'none', cursor: 'pointer', padding: '8px 4px',
+                      fontSize: 14, fontWeight: bulkMode === m.v ? 600 : 400,
+                      color: bulkMode === m.v ? '#000' : '#757575',
+                      borderBottom: `2px solid ${bulkMode === m.v ? '#000' : 'transparent'}`, marginBottom: -1,
+                    }}
+                  >
+                    {m.label}
+                  </button>
+                </Tooltip>
               ))}
             </div>
 
@@ -691,13 +695,15 @@ export default function ImportPage() {
                     {detectResult.hint ?? ''}
                   </div>
                 </div>
-                <div style={{
-                  background: confidenceColor(detectResult.confidence),
-                  color: '#fff', fontSize: 11, fontWeight: 600,
-                  padding: '2px 8px', borderRadius: 4,
-                }}>
-                  {Math.round(detectResult.confidence * 100)}%
-                </div>
+                <Tooltip text={`Sicherheit der automatischen Format-Erkennung.\nGrün ≥ 90 % · Gelb ≥ 70 % · Rot darunter.\nBei niedriger Sicherheit unten das Format manuell wählen.`}>
+                  <div style={{
+                    background: confidenceColor(detectResult.confidence),
+                    color: '#fff', fontSize: 11, fontWeight: 600,
+                    padding: '2px 8px', borderRadius: 4, cursor: 'help',
+                  }}>
+                    {Math.round(detectResult.confidence * 100)}%
+                  </div>
+                </Tooltip>
               </div>
             )}
 
@@ -719,8 +725,9 @@ export default function ImportPage() {
             {/* Format override when confidence low */}
             {detectResult && detectResult.confidence < 0.7 && (
               <div style={{ marginBottom: 16 }}>
-                <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
                   Format manuell wählen
+                  <InfoDot text="Die automatische Erkennung war unsicher. Wähle hier das tatsächliche Dateiformat, damit der Parser die Szenen korrekt einliest." />
                 </label>
                 <select
                   value={formatOverride || detectResult.format}
@@ -748,6 +755,7 @@ export default function ImportPage() {
                     disabled={!ocrAvailable}
                   />
                   Mistral OCR verwenden (bessere Texterkennung)
+                  <InfoDot text={`Statt der einfachen PDF-Textextraktion liest Mistral das Dokument per OCR aus.\nDeutlich robuster bei gescannten PDFs, ungewöhnlichen Schriften oder verschobenen Layouts — dafür langsamer.\nFür digital erzeugte PDFs ist die normale Extraktion meist ausreichend.`} />
                 </label>
                 {!ocrAvailable && (
                   <span style={{ fontSize: 11, color: '#999', marginTop: 4, display: 'block' }}>
@@ -760,8 +768,9 @@ export default function ImportPage() {
             {/* PDF Layout/Format — Szenenstruktur-Konvention; 'auto' erkennt anhand der Signatur */}
             {isPdf && detectResult && (
               <div style={{ border: '1px solid #e0e0e0', borderRadius: 8, padding: 16, marginBottom: 16 }}>
-                <label style={{ display: 'block', fontSize: 13, marginBottom: 6 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, marginBottom: 6 }}>
                   Layout / Format
+                  <InfoDot text={`Szenenstruktur-Konvention des Drehbuchs:\n• Automatisch — erkennt das Layout anhand der Szenenkopf-Signatur.\n• Daily — deutsches Episode.Szene-Format (z. B. 12.05), wie bei Rote Rosen.\n• Master Scene — internationales Format (US / BBC / ARD-ZDF) mit durchnummerierten Szenen.\nNur ändern, wenn Szenen falsch erkannt werden.`} />
                 </label>
                 <select
                   value={pdfLayout}
@@ -820,30 +829,38 @@ export default function ImportPage() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
                       <Scissors size={12} color="#757575" />
                       <span style={{ fontSize: 11, color: '#757575', fontWeight: 600 }}>Beschneiden</span>
-                      <span title="Sollte der Import fehlerhaft sein, kann es daran liegen, dass die OCR durch Fußzeilen oder Zeilennummern irritiert ist. In diesem Fall kann das Wegschneiden der selbigen helfen." style={{ cursor: 'help', fontSize: 11, color: '#999' }}>ⓘ</span>
+                      <InfoDot text="Sollte der Import fehlerhaft sein, kann es daran liegen, dass die Texterkennung durch Fußzeilen oder Zeilennummern irritiert ist. Das Wegschneiden der Ränder hilft dann. Die Werte werden pro Benutzer gespeichert." placement="bottom" />
                       <span style={{ marginLeft: 'auto' }}>
-                        <button onClick={() => setShowDocPreview(false)} title="Vorschau schließen"
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#999' }}>
-                          <X size={14} />
-                        </button>
+                        <Tooltip text="Vorschau schließen — mehr Platz für die Szenenliste.">
+                          <button onClick={() => setShowDocPreview(false)}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#999' }}>
+                            <X size={14} />
+                          </button>
+                        </Tooltip>
                       </span>
                     </div>
                     <div style={{ display: 'flex', gap: 12, alignItems: 'center', fontSize: 11, color: '#757575' }}>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1 }}>
-                        <span style={{ whiteSpace: 'nowrap' }}>L {pdfCropLeft}%</span>
-                        <input type="range" min={0} max={30} value={pdfCropLeft}
-                          onChange={e => setPdfCropLeft(parseInt(e.target.value))} style={{ flex: 1, height: 4 }} />
-                      </label>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1 }}>
-                        <span style={{ whiteSpace: 'nowrap' }}>R {pdfCropRight}%</span>
-                        <input type="range" min={0} max={30} value={pdfCropRight}
-                          onChange={e => setPdfCropRight(parseInt(e.target.value))} style={{ flex: 1, height: 4 }} />
-                      </label>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1 }}>
-                        <span style={{ whiteSpace: 'nowrap' }}>U {pdfCropBottom}%</span>
-                        <input type="range" min={0} max={30} value={pdfCropBottom}
-                          onChange={e => setPdfCropBottom(parseInt(e.target.value))} style={{ flex: 1, height: 4 }} />
-                      </label>
+                      <Tooltip text="Linken Rand abschneiden (z. B. Zeilennummern). In Prozent der Seitenbreite." placement="bottom">
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1, cursor: 'help' }}>
+                          <span style={{ whiteSpace: 'nowrap' }}>L {pdfCropLeft}%</span>
+                          <input type="range" min={0} max={30} value={pdfCropLeft}
+                            onChange={e => setPdfCropLeft(parseInt(e.target.value))} style={{ flex: 1, height: 4 }} />
+                        </label>
+                      </Tooltip>
+                      <Tooltip text="Rechten Rand abschneiden (z. B. Notizspalten). In Prozent der Seitenbreite." placement="bottom">
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1, cursor: 'help' }}>
+                          <span style={{ whiteSpace: 'nowrap' }}>R {pdfCropRight}%</span>
+                          <input type="range" min={0} max={30} value={pdfCropRight}
+                            onChange={e => setPdfCropRight(parseInt(e.target.value))} style={{ flex: 1, height: 4 }} />
+                        </label>
+                      </Tooltip>
+                      <Tooltip text="Unteren Rand abschneiden (z. B. Fußzeilen, Seitenzahlen). In Prozent der Seitenhöhe." placement="bottom">
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 4, flex: 1, cursor: 'help' }}>
+                          <span style={{ whiteSpace: 'nowrap' }}>U {pdfCropBottom}%</span>
+                          <input type="range" min={0} max={30} value={pdfCropBottom}
+                            onChange={e => setPdfCropBottom(parseInt(e.target.value))} style={{ flex: 1, height: 4 }} />
+                        </label>
+                      </Tooltip>
                     </div>
                   </div>
                 )}
@@ -860,10 +877,12 @@ export default function ImportPage() {
                         {file?.name}
                       </span>
                     </div>
-                    <button onClick={() => setShowDocPreview(false)} title="Vorschau schließen"
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#999' }}>
-                      <X size={14} />
-                    </button>
+                    <Tooltip text="Vorschau schließen — mehr Platz für die Szenenliste.">
+                      <button onClick={() => setShowDocPreview(false)}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, color: '#999' }}>
+                        <X size={14} />
+                      </button>
+                    </Tooltip>
                   </div>
                 )}
                 {/* Page range bar — shown for all PDFs */}
@@ -875,6 +894,7 @@ export default function ImportPage() {
                   }}>
                     <BookOpen size={11} color="#757575" />
                     <span style={{ fontSize: 11, color: '#757575', fontWeight: 600 }}>Seiten</span>
+                    <InfoDot text={`Nur einen Teil des PDFs importieren. Leer lassen = ganzes Dokument.\nNützlich, um Deckblatt/Anhang auszulassen oder einzelne Folgen aus einem Block zu ziehen.\nNach Änderung „Neu analysieren" klicken.`} placement="bottom" />
                     {pdfTotalPages && (
                       <span style={{ fontSize: 10, color: '#bbb' }}>{pdfTotalPages} ges.</span>
                     )}
@@ -898,20 +918,21 @@ export default function ImportPage() {
                         style={{ width: 46, padding: '2px 5px', borderRadius: 4, border: '1px solid #e0e0e0', fontSize: 11, textAlign: 'center' }}
                       />
                     </label>
-                    <button
-                      onClick={handleReanalyze}
-                      disabled={loading}
-                      title="Szenenvorschau mit aktuellem Seitenbereich neu analysieren"
-                      style={{
-                        marginLeft: 'auto', padding: '2px 8px', borderRadius: 4,
-                        border: '1px solid #e0e0e0', background: '#f5f5f5',
-                        fontSize: 11, cursor: loading ? 'default' : 'pointer',
-                        display: 'flex', alignItems: 'center', gap: 3,
-                        color: '#555', opacity: loading ? 0.5 : 1,
-                      }}
-                    >
-                      ↻ Neu analysieren
-                    </button>
+                    <Tooltip text="Szenenvorschau mit den aktuellen PDF-Einstellungen (Seitenbereich, Beschneiden, OCR) neu einlesen. Bereits vorgenommene Szenen-Korrekturen gehen dabei verloren.">
+                      <button
+                        onClick={handleReanalyze}
+                        disabled={loading}
+                        style={{
+                          marginLeft: 'auto', padding: '2px 8px', borderRadius: 4,
+                          border: '1px solid #e0e0e0', background: '#f5f5f5',
+                          fontSize: 11, cursor: loading ? 'default' : 'pointer',
+                          display: 'flex', alignItems: 'center', gap: 3,
+                          color: '#555', opacity: loading ? 0.5 : 1,
+                        }}
+                      >
+                        ↻ Neu analysieren
+                      </button>
+                    </Tooltip>
                   </div>
                 )}
                 {isPdf && (
@@ -966,18 +987,21 @@ export default function ImportPage() {
                     {FORMAT_LABELS[previewResult.format] ?? previewResult.format}
                   </span>
                   {!showDocPreview && (
-                    <button onClick={() => setShowDocPreview(true)} title="Dokument-Vorschau öffnen"
-                      style={{
-                        background: 'none', border: '1px solid #e0e0e0', borderRadius: 4,
-                        padding: '2px 6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
-                        fontSize: 11, color: '#757575',
-                      }}>
-                      <Eye size={12} /> Dokument
-                    </button>
+                    <Tooltip text="Original-Dokument links neben der Szenenliste anzeigen — zum Abgleich beim Korrigieren.">
+                      <button onClick={() => setShowDocPreview(true)}
+                        style={{
+                          background: 'none', border: '1px solid #e0e0e0', borderRadius: 4,
+                          padding: '2px 6px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+                          fontSize: 11, color: '#757575',
+                        }}>
+                        <Eye size={12} /> Dokument
+                      </button>
+                    </Tooltip>
                   )}
 
                   {/* Metadata fields (always editable) */}
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12 }}>
+                  <Tooltip text={`Zielangaben für den Import:\n• Dokumenttyp — bestimmt die Werkstufe (${t('drehbuch')} oder ${treatmentLabel}).\n• Episode — in welche Folge importiert wird.\n• Stand-Datum — Datum der Fassung (aus dem Dateinamen vorbefüllt).\nAlle drei sind editierbar, falls die Erkennung danebenlag.`} placement="bottom">
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, cursor: 'help' }}>
                     <select value={editDocType || (stageType === 'treatment' ? treatmentLabel : 'Drehbuch')} onChange={e => {
                       setEditDocType(e.target.value)
                       setStageType(e.target.value === treatmentLabel ? 'treatment' : 'draft')
@@ -1002,6 +1026,7 @@ export default function ImportPage() {
                     <input type="text" value={standDatum} onChange={e => setStandDatum(e.target.value)}
                       placeholder="Stand-Datum" style={{ ...compactSelectStyle, width: 90, color: '#1565C0' }} />
                   </span>
+                  </Tooltip>
 
                   <div style={{ marginLeft: 'auto', display: 'flex', gap: 10, fontSize: 11, color: '#757575' }}>
                     <span><b>{previewResult.total_scenes}</b> {t('szene', 'p')}</span>
@@ -1012,7 +1037,7 @@ export default function ImportPage() {
                       const totalSec = previewResult.szenen.reduce((sum: number, s: any) => sum + (s.dauer_sekunden || 0), 0)
                       if (totalSec === 0) return null
                       const mm = Math.floor(totalSec / 60); const ss = totalSec % 60
-                      return <span><b>{mm}:{String(ss).padStart(2, '0')}</b></span>
+                      return <Tooltip text="Summe der Stoppzeiten aller Szenen (mm:ss) — geschätzte Gesamtlänge." placement="bottom"><span style={{ cursor: 'help' }}><b>{mm}:{String(ss).padStart(2, '0')}</b></span></Tooltip>
                     })()}
                   </div>
                 </div>
@@ -1068,7 +1093,10 @@ export default function ImportPage() {
                     })}
                   </div>
                   <div style={{ width: 1, height: 16, background: '#e0e0e0' }} />
-                  <span style={{ fontSize: 11, color: '#757575' }}>Fassung:</span>
+                  <span style={{ fontSize: 11, color: '#757575', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    Fassung:
+                    <InfoDot text={`Fassungs-Label für diese Werkstufe (z. B. „Rohfassung", „Sendefassung"). Optional und später änderbar.\nLabels mit 🔒 sind Produktionsfassungen — ihre Auswahl sperrt die Werkstufe beim Import (read-only, danach nur noch Revisionen).`} placement="bottom" />
+                  </span>
                   <select
                     value={importLabel ?? ''}
                     onChange={e => {
@@ -1093,7 +1121,10 @@ export default function ImportPage() {
                       </span>
                     </Tooltip>
                   )}
-                  <span style={{ fontSize: 11, color: '#757575' }}>Sichtbarkeit:</span>
+                  <span style={{ fontSize: 11, color: '#757575', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    Sichtbarkeit:
+                    <InfoDot text={`Wer die importierte Werkstufe sehen darf:\n• Autoren — nur das Autorenteam (Standard, für Arbeitsfassungen).\n• Produktion — auch für die Produktion freigegeben.`} placement="bottom" />
+                  </span>
                   <select
                     value={importSichtbarkeit}
                     onChange={e => setImportSichtbarkeit(e.target.value)}
@@ -1114,6 +1145,7 @@ export default function ImportPage() {
                       <div key={idx}>
                         <div style={{ padding: '6px 12px', background: '#FAFAFA', borderTop: idx > 0 ? '1px solid #f0f0f0' : undefined }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: elem.content.length > 80 ? 3 : 0 }}>
+                            <Tooltip text={`Dieser Textblock gehört zu keiner Szene (Deckblatt, Synopsis, Memo o. Ä.) und wird als Notiz importiert. Typ hier korrigieren.`} placement="bottom">
                             <select value={elem.type} onChange={e => {
                               const updated = [...nonSceneElements]
                               updated[idx] = { ...elem, type: e.target.value }
@@ -1123,6 +1155,7 @@ export default function ImportPage() {
                               <option value="synopsis">Synopsis</option>
                               <option value="memo">Memo</option>
                             </select>
+                            </Tooltip>
                             <span style={{
                               fontSize: 9, fontWeight: 600, padding: '0px 4px', borderRadius: 3,
                               background: '#F3E5F5', color: '#7B1FA2',
@@ -1134,6 +1167,7 @@ export default function ImportPage() {
                             <div style={{ marginLeft: 'auto', display: 'flex', gap: 2 }}>
                               {/* Split button: splits at first paragraph break */}
                               {elem.content.includes('\n') && (
+                                <Tooltip text="In zwei Elemente aufteilen — falls hier zwei Notizen zusammengefasst wurden.">
                                 <button onClick={() => {
                                   const lines = elem.content.split('\n')
                                   const mid = Math.ceil(lines.length / 2)
@@ -1143,22 +1177,25 @@ export default function ImportPage() {
                                     { ...elem, content: lines.slice(mid).join('\n'), label: elem.label + ' (2)' },
                                   )
                                   setNonSceneElements(updated)
-                                }} title="Element teilen" style={{
+                                }} style={{
                                   background: 'none', border: '1px solid #e0e0e0', borderRadius: 3,
                                   padding: '1px 4px', cursor: 'pointer', display: 'flex', alignItems: 'center',
                                 }}>
                                   <Scissors size={10} color="#757575" />
                                 </button>
+                                </Tooltip>
                               )}
                               {/* Remove button */}
+                              <Tooltip text="Diesen Textblock nicht importieren.">
                               <button onClick={() => {
                                 setNonSceneElements(nonSceneElements.filter((_, i) => i !== idx))
-                              }} title="Element entfernen" style={{
+                              }} style={{
                                 background: 'none', border: '1px solid #e0e0e0', borderRadius: 3,
                                 padding: '1px 4px', cursor: 'pointer', display: 'flex', alignItems: 'center',
                               }}>
                                 <X size={10} color="#999" />
                               </button>
+                              </Tooltip>
                             </div>
                           </div>
                           {elem.content && (
@@ -1182,6 +1219,7 @@ export default function ImportPage() {
                         {/* Merge button between adjacent elements */}
                         {idx < nonSceneElements.length - 1 && (
                           <div style={{ display: 'flex', justifyContent: 'center', background: '#FAFAFA', padding: '1px 0' }}>
+                            <Tooltip text="Mit dem nächsten Element zu einer Notiz zusammenführen.">
                             <button onClick={() => {
                               const merged = {
                                 ...elem,
@@ -1191,12 +1229,13 @@ export default function ImportPage() {
                               const updated = [...nonSceneElements]
                               updated.splice(idx, 2, merged)
                               setNonSceneElements(updated)
-                            }} title="Mit nächstem Element zusammenführen" style={{
+                            }} style={{
                               background: 'none', border: '1px dashed #ccc', borderRadius: 3,
                               padding: '0px 8px', cursor: 'pointer', fontSize: 9, color: '#999',
                             }}>
                               ↕ Zusammenführen
                             </button>
+                            </Tooltip>
                           </div>
                         )}
                       </div>
@@ -1218,11 +1257,13 @@ export default function ImportPage() {
                         }}>
                           SZ {(sz.episodeNr ?? selectedFolgeNummer) != null ? `${sz.episodeNr ?? selectedFolgeNummer}.${String(sz.nummer).padStart(2, '0')}` : sz.nummer}
                           {sz.source_page && (
-                            <FileSearch
-                              size={11}
-                              style={{ color: '#1565C0', cursor: 'pointer', flexShrink: 0 }}
-                              onClick={() => setPdfTargetPage(sz.source_page)}
-                            />
+                            <Tooltip text={`Im PDF zur Quellseite dieser Szene (S. ${sz.source_page}) springen.`}>
+                              <FileSearch
+                                size={11}
+                                style={{ color: '#1565C0', cursor: 'pointer', flexShrink: 0 }}
+                                onClick={() => setPdfTargetPage(sz.source_page)}
+                              />
+                            </Tooltip>
                           )}
                         </span>
                         <input type="text"
@@ -1272,13 +1313,16 @@ export default function ImportPage() {
 
                       {/* Row 2: Tags — Spieltag, Stoppzeit, Wechselschnitt */}
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 2 }}>
-                        <span style={{ ...tagStyle('#E8EAF6', '#3949AB'), display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+                        <Tooltip text="Spieltag innerhalb der erzählten Handlung (nicht der Drehtag). Optional." placement="bottom">
+                        <span style={{ ...tagStyle('#E8EAF6', '#3949AB'), display: 'inline-flex', alignItems: 'center', gap: 2, cursor: 'help' }}>
                           Spieltag
                           <input type="number" value={getSceneVal(sz, i, 'spieltag') ?? ''} onChange={e => updateScene(i, 'spieltag', e.target.value ? Number(e.target.value) : null)}
                             placeholder="–"
                             style={{ width: 28, fontSize: 10, fontWeight: 600, color: '#3949AB', border: 'none', background: 'transparent', padding: 0, textAlign: 'center' }} />
                         </span>
-                        <span style={{ ...tagStyle('#E3F2FD', '#1565C0'), display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+                        </Tooltip>
+                        <Tooltip text="Stoppzeit = geplante Länge der Szene (mm:ss). Summiert sich zur Gesamtlänge oben." placement="bottom">
+                        <span style={{ ...tagStyle('#E3F2FD', '#1565C0'), display: 'inline-flex', alignItems: 'center', gap: 2, cursor: 'help' }}>
                           Stopp
                           <input type="text"
                             value={(() => {
@@ -1301,6 +1345,7 @@ export default function ImportPage() {
                             style={{ width: 36, fontSize: 10, fontWeight: 600, color: '#1565C0', border: 'none', background: 'transparent', padding: 0, textAlign: 'center' }}
                           />
                         </span>
+                        </Tooltip>
                         {sz.isWechselschnitt && (
                           <span style={tagStyle('#FFF3E0', '#E65100')}>
                             Wechselschnitt{sz.wechselschnittPartner?.length > 0 ? ` mit SZ ${sz.wechselschnittPartner.join(', ')}` : ''}
@@ -1310,6 +1355,7 @@ export default function ImportPage() {
                           <span style={tagStyle('#FFF3E0', '#E65100')}>📷 Stockshot</span>
                         )}
                         {sz.isStockshotVerdacht && !sz.isStockshot && (
+                          <Tooltip text="Mögliche Stockshot-Szene (Archiv-/Einspielmaterial) erkannt. Ankreuzen, um sie als Stockshot zu markieren." placement="bottom">
                           <label style={{ ...tagStyle('#FFF8E1', '#F57F17'), cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 3 }}>
                             <input type="checkbox"
                               checked={getSceneVal(sz, i, 'isStockshot') === true}
@@ -1318,6 +1364,7 @@ export default function ImportPage() {
                             />
                             📷 Stockshot?
                           </label>
+                          </Tooltip>
                         )}
                         {sz.textelemente?.length > 0 && (
                           <span style={tagStyle('#F5F5F5', '#757575')}>{sz.textelemente.length} Elemente</span>
@@ -1615,6 +1662,15 @@ export default function ImportPage() {
         )}
       </div>
     </AppShell>
+  )
+}
+
+// Kleines Info-Icon mit Tooltip — für Felder, deren Funktion nicht selbsterklärend ist.
+function InfoDot({ text, placement }: { text: string; placement?: 'top' | 'bottom' | 'right' }) {
+  return (
+    <Tooltip text={text} placement={placement}>
+      <Info size={12} color="#bbb" style={{ cursor: 'help', flexShrink: 0 }} />
+    </Tooltip>
   )
 }
 
