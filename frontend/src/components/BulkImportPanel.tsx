@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { UploadCloud, X, CheckCircle, AlertTriangle, RefreshCw, FileText, Loader2, Trash2, Info, Lock } from 'lucide-react'
+import { UploadCloud, X, CheckCircle, AlertTriangle, RefreshCw, FileText, Loader2, Trash2, Info, Lock, Search } from 'lucide-react'
 import Tooltip from './Tooltip'
 import { api } from '../api/client'
+import BulkPreviewModal from './BulkPreviewModal'
 
 // Kleines Info-Icon mit Tooltip — für Felder, deren Funktion nicht selbsterklärend ist.
 function InfoDot({ text, placement }: { text: string; placement?: 'top' | 'bottom' | 'right' }) {
@@ -79,6 +80,13 @@ export default function BulkImportPanel({
   const [error, setError] = useState<string | null>(null)
   const [batch, setBatch] = useState<Batch | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // Vorschau (Variante A): on-demand Modal pro Datei + Hintergrund-Analyse für Szenenzahl/Warnung.
+  const [previewJob, setPreviewJob] = useState<BatchJob | null>(null)
+  const [sceneInfo, setSceneInfo] = useState<Record<string, { count: number; minNr: number } | 'loading' | 'error'>>({})
+  const sweptBatchId = useRef<string | null>(null)
+  // Datei-Objekt (für PDF-Vorschau/Parse) zu einem Job finden — Dateien bleiben nach Upload erhalten.
+  const fileForJob = useCallback((job: BatchJob) =>
+    files.find(f => f.name === job.dateiname) || files[job.sort_order] || null, [files])
 
   // Das Produktionsfassungs-Label sperrt beim Import die Werkstufe (read-only). Bei mehreren
   // gilt das mit der höchsten sort_order. null = keines definiert. (Analog Einzelimport.)
@@ -237,10 +245,12 @@ export default function BulkImportPanel({
       try { await fetch(`/api/import/batch/${batch.id}`, { method: 'DELETE', credentials: 'include' }) } catch {}
     }
     setBatch(null); setFiles([]); setPhase('select'); setError(null)
+    setSceneInfo({}); sweptBatchId.current = null; setPreviewJob(null)
   }
 
   const resetAll = () => {
     setBatch(null); setFiles([]); setPhase('select'); setError(null)
+    setSceneInfo({}); sweptBatchId.current = null; setPreviewJob(null)
     onImported?.()
   }
 
@@ -267,6 +277,40 @@ export default function BulkImportPanel({
       if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
     }
   }, [phase, batch?.id])
+
+  // ── Hintergrund-Analyse in der Zuordnungs-Phase ──
+  // Szenenzahl + Start-Szene pro Datei (pdftotext, ohne OCR — schnell), für Badge +
+  // „beginnt nicht bei 1"-Warnung. Läuft einmal pro Batch, max. 3 parallel.
+  useEffect(() => {
+    if (phase !== 'assign' || !batch) return
+    if (sweptBatchId.current === batch.id) return
+    sweptBatchId.current = batch.id
+    let cancelled = false
+    const jobs = batch.jobs
+    let idx = 0
+    const worker = async () => {
+      while (!cancelled && idx < jobs.length) {
+        const job = jobs[idx++]
+        const f = fileForJob(job)
+        if (!f) continue
+        setSceneInfo(prev => ({ ...prev, [job.id]: 'loading' }))
+        try {
+          const fd = new FormData()
+          fd.append('file', f)
+          const r = await fetch('/api/import/preview', { method: 'POST', body: fd, credentials: 'include' })
+          if (!r.ok) throw new Error()
+          const d = await r.json()
+          const nums = (d.szenen || []).map((s: any) => s.nummer).filter((n: any) => typeof n === 'number')
+          const minNr = nums.length ? Math.min(...nums) : 1
+          if (!cancelled) setSceneInfo(prev => ({ ...prev, [job.id]: { count: (d.szenen || []).length, minNr } }))
+        } catch {
+          if (!cancelled) setSceneInfo(prev => ({ ...prev, [job.id]: 'error' }))
+        }
+      }
+    }
+    Promise.all(Array.from({ length: Math.min(3, jobs.length) }, () => worker()))
+    return () => { cancelled = true }
+  }, [phase, batch?.id, fileForJob])
 
   const fmtMB = (b: number) => (b / 1024 / 1024).toFixed(1)
 
@@ -425,7 +469,34 @@ export default function BulkImportPanel({
             </div>
             {batch.jobs.map(job => (
               <div key={job.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(150px,2fr) 50px 78px minmax(110px,1.3fr) minmax(120px,1.4fr) minmax(100px,1.1fr) 64px', gap: 8, padding: '8px 12px', borderTop: '1px solid #f0f0f0', alignItems: 'center', fontSize: 13 }}>
-                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={job.dateiname}>{job.dateiname}</span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={job.dateiname}>{job.dateiname}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
+                    <Tooltip text="Vorschau: PDF + erkannte Szenen ansehen">
+                      <button onClick={() => setPreviewJob(job)} disabled={!fileForJob(job)}
+                        style={{ background: 'none', border: 'none', cursor: fileForJob(job) ? 'pointer' : 'default', padding: 0, display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, color: fileForJob(job) ? '#1565C0' : '#bbb' }}>
+                        <Search size={12} /> Vorschau
+                      </button>
+                    </Tooltip>
+                    {(() => {
+                      const info = sceneInfo[job.id]
+                      if (info === 'loading') return <span style={{ fontSize: 10, color: '#bbb', display: 'inline-flex', alignItems: 'center', gap: 3 }}><Loader2 size={10} className="sw-spin" /> …</span>
+                      if (!info || info === 'error') return null
+                      return (
+                        <>
+                          <span style={{ fontSize: 10, color: '#999' }}>{info.count} Szenen</span>
+                          {info.minNr !== 1 && (
+                            <Tooltip text={`Beginnt bei Szene ${info.minNr} statt 1. Über „Neu-Nr." oder die Vorschau ab 1 nummerieren.`}>
+                              <span style={{ fontSize: 10, fontWeight: 600, color: '#E65100', display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+                                <AlertTriangle size={10} /> ab {info.minNr}
+                              </span>
+                            </Tooltip>
+                          )}
+                        </>
+                      )
+                    })()}
+                  </div>
+                </div>
                 <span style={{ fontSize: 11, color: '#757575' }}>{FORMAT_LABELS[job.format || 'unknown'] || job.format}</span>
                 <input
                   type="number" value={job.folge_nummer ?? ''}
@@ -535,6 +606,18 @@ export default function BulkImportPanel({
             </div>
           )}
         </div>
+      )}
+
+      {/* Vorschau-Modal (Variante A) */}
+      {previewJob && fileForJob(previewJob) && (
+        <BulkPreviewModal
+          file={fileForJob(previewJob)!}
+          folgeNummer={previewJob.folge_nummer}
+          pdfMistral={pdfMistral}
+          renumber={batch?.jobs.find(j => j.id === previewJob.id)?.renumber === true}
+          onToggleRenumber={v => updateJob(previewJob.id, { renumber: v })}
+          onClose={() => setPreviewJob(null)}
+        />
       )}
     </div>
   )
