@@ -264,12 +264,13 @@ function stripFooterLines(lines: string[]): string[] {
 // darunter (alle in derselben Spalte):
 //   "449 Außendreh / … E/T57"   "5.1"   "01"   →   "4495.101 Außendreh / … E/T57"
 //   "4495 Studio 1 / … I/T57"   ".100"          →   "4495.100 Studio 1 / … I/T57"
+//   "4495. Studio 4 / … I/T57"  "103"           →   "4495.103 Studio 4 / … I/T57"
 // Zweistellige Köpfe ("4495.94 …") tragen den Punkt bereits in der Zeile und werden
 // vom Muster nicht erfasst — sie bleiben unangetastet.
 function reassembleSplitSceneNumbers(lines: string[]): string[] {
-  // numfrag (ohne Punkt) + Location (beginnt mit Nicht-Ziffer) + INT/EXT-Code am Ende.
+  // numfrag (Ziffern, optional mit Punkt) + Location (beginnt mit Nicht-Ziffer) + INT/EXT.
   // Spieltag (\d*) optional, da er in manchen PDFs ebenfalls umbricht/fehlt (z.B. „I/T").
-  const HEADER_FRAG_RE = /^(\d{1,4})\s+(\D.*?[IE]\/[TNAD]\d*)\s*$/
+  const HEADER_FRAG_RE = /^(\d{1,4}\.?)\s+(\D.*?[IE]\/[TNAD]\d*)\s*$/
   const PURE_FRAG_RE = /^[\d.]+$/
   const FULL_NUM_RE = /^\d{4}\.\d{1,3}$/
   const out: string[] = []
