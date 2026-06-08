@@ -20,6 +20,7 @@ import NtListePage from './pages/NtListePage'
 import ThemeAnpassenPage from './pages/ThemeAnpassenPage'
 import FreigabenPage from './pages/FreigabenPage'
 import FreigabePublicPage from './pages/FreigabePublicPage'
+import EmpfaengerPortalPage from './pages/EmpfaengerPortalPage'
 import PlanungsPage from './pages/planung/PlanungsPage'
 import BeziehungsbaumPage from './pages/BeziehungsbaumPage'
 import { useFocusMode } from './hooks/useFocusMode'
@@ -216,6 +217,7 @@ export default function App() {
               <Route path="/theme-anpassen" element={<ThemeAnpassenPage />} />
               <Route path="/freigaben" element={<FreigabenPage />} />
               <Route path="/freigabe/:token" element={<FreigabePublicPage />} />
+              <Route path="/v/:token" element={<EmpfaengerPortalPage />} />
               <Route path="/planung/*" element={<PlanungsPage />} />
               <Route path="/beziehungsbaum" element={<BeziehungsbaumPage />} />
               <Route path="*" element={<Navigate to="/" replace />} />
