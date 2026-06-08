@@ -844,12 +844,19 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
     }
   }
 
-  // Zusammenfassung: collect lines until duration, next scene, or post-header metadata.
-  // Blank lines are preserved as '' so paragraph boundaries survive for content conversion.
+  // Zusammenfassung (Oneliner): collect lines until duration, next scene, or post-header
+  // metadata. The Oneliner is a SINGLE paragraph — the first blank line after it ends it,
+  // and everything that follows is body content (Status Quo / narrative). Without this
+  // break, treatments that place the duration BEFORE the characters (e.g. "0:00" right
+  // after the scene header) have no separator token, so the whole body would be swallowed
+  // into the Oneliner and the scene content would end up empty. Leading blanks are skipped.
   const zusammenfassungLines: string[] = []
   while (i < lines.length) {
     const line = lines[i].trim()
-    if (!line) { zusammenfassungLines.push(''); i++; continue }
+    if (!line) {
+      if (zusammenfassungLines.some(l => l)) break
+      i++; continue
+    }
     if (DURATION_RE.test(line)) break
     if (SCENE_NUM_RE.test(line) && !sceneNumTrailingIsFlow(line)) break
     if (INT_EXT_SPIELTAG_RE.test(line)) break
@@ -937,6 +944,9 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
           const cont = lines[i].trim()
           if (!cont) { i++; continue }
           if (isSceneHeaderAt(lines, i)) break
+          // A combined "// Location"-marked content block belongs to the crosscut's
+          // body (Layout C) — it must NOT be swallowed into the cross-reference note.
+          if (CROSSCUT_LOCATION_RE.test(cont)) break
           if (DURATION_RE.test(cont) || INT_EXT_SPIELTAG_RE.test(cont) ||
               KOMPARSEN_RE.test(cont) || WECHSELSCHNITT_RE.test(cont) ||
               /^Bild aus Block/i.test(cont)) break
@@ -1002,13 +1012,14 @@ function parseSubSceneHeader(
   // Skip blank lines and scene-number lines (partner ref from pdftotext).
   // pdftotext sometimes merges scene number + duration on one line: "4402.9 1:10"
   // bbox merges scene number + location + I/E on one line: "4454.12 Studio 2 / Wohnzimmer I/T34"
-  // SCENE_NUM_RE group 3 captures the rest — extract duration, location, or I/E if present.
+  // SCENE_NUM_RE group 4 captures the rest — extract duration, location, or I/E if present.
+  // (group 3 is the optional A/B suffix and is undefined for plain numbers.)
   while (i < endIdx) {
     const t = lines[i]?.trim()
     if (!t) { i++; continue }
     if (SCENE_NUM_RE.test(t)) {
       const numM = SCENE_NUM_RE.exec(t)!
-      const rest = numM[3].trim()
+      const rest = (numM[4] || '').trim()
       if (rest && DURATION_RE.test(rest)) {
         dauer_sekunden = parseDurationToSeconds(rest)
       } else if (rest) {
@@ -1645,6 +1656,54 @@ export function parseDaily(rawText: string, ocrMode = false, layout?: BboxLayout
     // Context for in-block reference detection: a number lower than the current
     // scene (same episode) or in an earlier episode is a reference, not a new scene.
     const blockCtx: SceneCtx = { lastEpisodeNr: header.episodeNr, lastSceneNr: header.sceneNr }
+
+    // ── Layout C: sequential crosscut partners with own headers + combined // content block ──
+    // Signature: this scene cross-references Wechselschnitt partner(s) that each carry their
+    // OWN full header (printed sequentially right after this one), there is NO duration table,
+    // and the shared treatment text follows as a combined "// Location"-marked block.
+    // Product decision: the whole combined block is attached to THIS (first) scene; each partner
+    // is emitted as a normal scene carrying only its own header + oneliner (empty body).
+    if (
+      header.crosscutDurationEntries.size === 0 &&
+      header.wechselschnittPartner.length > 0 &&
+      header.wechselschnittPartner.every(p => hasOwnFullHeader(lines, header.episodeNr, p))
+    ) {
+      const partnerSet = new Set(header.wechselschnittPartner)
+      // Unit end = next real scene that is NOT one of the crosscut partners.
+      let unitEnd = lines.length
+      for (let j = header.headerEndIdx; j < lines.length; j++) {
+        if (!isSceneHeaderAt(lines, j, blockCtx)) continue
+        const nr = parseInt(SCENE_NUM_RE.exec(lines[j].trim())![2], 10)
+        if (!partnerSet.has(nr)) { unitEnd = j; break }
+      }
+      // Consume the partner headers printed sequentially right after this scene.
+      // Where the last partner's header metadata ends is the start of the combined block.
+      const partnerScenes: ParsedScene[] = []
+      let cursor = header.headerEndIdx
+      while (cursor < unitEnd && isSceneHeaderAt(lines, cursor, blockCtx)) {
+        const nr = parseInt(SCENE_NUM_RE.exec(lines[cursor].trim())![2], 10)
+        if (!partnerSet.has(nr)) break
+        const ph = parseSceneHeader(lines, cursor)
+        if (!ph || ph.headerEndIdx <= cursor) break
+        ph.isWechselschnitt = true
+        // Partner carries only its own header + oneliner — no body content.
+        partnerScenes.push(buildScene(ph, ph.headerEndIdx, ph.headerEndIdx))
+        cursor = ph.headerEndIdx
+      }
+      if (partnerScenes.length > 0) {
+        // First scene gets the combined "// content" block [cursor, unitEnd).
+        szenen.push(buildScene(header, cursor, unitEnd))
+        szenen.push(...partnerScenes)
+        // Advance the monotonicity baseline past every scene in the unit.
+        for (const sc of [header.sceneNr, ...header.wechselschnittPartner]) {
+          if (header.episodeNr > lastEpNr) { lastEpNr = header.episodeNr; lastScNr = sc }
+          else if (header.episodeNr === lastEpNr && sc > lastScNr) { lastScNr = sc }
+        }
+        i = unitEnd
+        continue
+      }
+      // No adjacent partner header → fall through to normal handling (Layout B cross-reference).
+    }
 
     // Find end of this scene's block using a 2-phase approach:
     // Phase 1: Find initial blockEnd using only the crosscut duration table (pdftotext format).
