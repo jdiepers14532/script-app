@@ -11,15 +11,25 @@
 ### Deploy — NICHT VERHANDELBAR
 
 **Niemals direkt auf dem Server patchen** (Configuration Drift — bei nächstem `git pull` verloren).
+Immer: lokal → commit → push → Deploy.
 
-Immer: lokal → commit → push → SSH-Deploy. Deploy startet immer mit `git pull` im Repo-Root:
+**Umgebungen** (beide auf demselben VPS):
+| | Verzeichnis | PM2 | Port | DB |
+|---|---|---|---|---|
+| prod | `/srv/script` | `script-backend` | 3014 | `script_db` |
+| staging | `/srv/script-staging` | `script-backend-staging` | 3114 | `script_db_staging` |
+
+Staging: `https://staging-script.serienwerft.studio` (noindex). Mail-Override aktiv (`MAIL_OVERRIDE_TO`) → alle Mails an die Test-Adresse, nie an echte Empfänger.
+
+**Deploy** über das versionierte `deploy.sh [prod|staging]` (git pull + smart-build + Restart + Health-Check + Lock; `npm ci` nur bei Lockfile-Änderung; Prod setzt Rollback-Tag). Bequem vom lokalen Rechner über den Wrapper (liest VPS-Zugang aus `~/.serienwerft-secrets`, **kein Secret im Repo**):
 
 ```bash
-plink -ssh -P 2222 root@212.132.108.242 -pw 'QCn50sEt' \
-  "cd /srv/script && git pull && cd backend && npm ci && npm run build && pm2 restart script-backend --update-env && cd ../frontend && npm ci && npx vite build"
+bash ~/sw-deploy.sh script staging   # erst Staging (testen)
+bash ~/sw-deploy.sh script prod      # dann Prod (live; fragt zur Sicherheit nach)
 ```
 
-Nur Backend oder nur Frontend: jeweiligen `cd …`-Teil weglassen.
+**Flow für Live-Apps**: push → `… staging` → auf staging-script testen → `… prod`.
+Rollback (git-basiert): auf dem Server `cd /srv/script && git checkout <prod-tag oder commit> && bash deploy.sh prod`.
 
 ## Migrationen — KRITISCH
 
