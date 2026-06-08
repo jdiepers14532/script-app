@@ -441,8 +441,8 @@ export function buildPdfHtml(params: {
     ? `@page { size: A4; }`
     : `@page { size: A4; margin: ${pageMarginTop}mm ${bmr}mm ${pageMarginBottom}mm ${bml}mm; }`
 
-  // ── KZ/FZ: position:fixed nur im Browser-Preview, nicht im Puppeteer-PDF ────
-  const fixedKzFzCss = puppeteerHeaderFooter ? '' : `
+  // ── KZ/FZ: position:fixed nur in der klassischen Browser-Vorschau (nicht Puppeteer, nicht Lesemodus) ──
+  const fixedKzFzCss = (puppeteerHeaderFooter || readMode) ? '' : `
   .page-header, .page-footer {
     position: fixed;
     left: ${hml}mm;
@@ -455,8 +455,8 @@ export function buildPdfHtml(params: {
   .page-footer { bottom: ${hmb}mm; border-top: 0.5pt solid #ccc; padding-top: 3pt; }
   .page-header p, .page-footer p { margin: 0; padding: 0; }`
 
-  const headerDiv = (!puppeteerHeaderFooter && hasHeader) ? `<div class="page-header">${headerHtml}</div>` : ''
-  const footerDiv = (!puppeteerHeaderFooter && hasFooter) ? `<div class="page-footer">${footerHtml}</div>` : ''
+  const headerDiv = (!puppeteerHeaderFooter && !readMode && hasHeader) ? `<div class="page-header">${headerHtml}</div>` : ''
+  const footerDiv = (!puppeteerHeaderFooter && !readMode && hasFooter) ? `<div class="page-footer">${footerHtml}</div>` : ''
 
   return `<!DOCTYPE html>
 <html lang="de">

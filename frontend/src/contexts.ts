@@ -163,6 +163,10 @@ export interface TweakState {
   suffixStickyEnabled: boolean
   /** Zuletzt gewählte Ansicht der Kürzel-Übersicht (?): Liste oder druckbare Grafik */
   cheatSheetView: 'liste' | 'grafik'
+  /** Ansichtsmodus: Bearbeiten (Editor) oder Lesen/Anmerken (A4-Vorschau) */
+  leseModus: boolean
+  /** Anmerken-Modus (Highlights + Selektion→Anmerken) — letzter Zustand pro User gemerkt */
+  anmerkenModus: boolean
 }
 interface TweaksContextType {
   tweaks: TweakState

@@ -124,6 +124,8 @@ export const DEFAULT_TWEAKS: TweakState = {
   letzteSzeneProEpisodeMerken: false,
   suffixStickyEnabled: true,
   cheatSheetView: 'liste',
+  leseModus: false,
+  anmerkenModus: false,
 }
 
 function resolvePalette(tweaks: TweakState, mode: 'light' | 'dark'): BgPalette {
@@ -674,6 +676,8 @@ export default function AppShell({
           episodenWechselErsteSzene: typeof s.episodenWechselErsteSzene === 'boolean' ? s.episodenWechselErsteSzene : true,
           letzteSzeneProEpisodeMerken: typeof s.letzteSzeneProEpisodeMerken === 'boolean' ? s.letzteSzeneProEpisodeMerken : false,
           cheatSheetView: (['liste', 'grafik'] as const).includes(s.cheatSheetView) ? s.cheatSheetView : 'liste',
+          // anmerkenModus persistent (letzter Zustand); leseModus bewusst NICHT laden (startet in Bearbeiten)
+          anmerkenModus: typeof s.anmerkenModus === 'boolean' ? s.anmerkenModus : false,
         }))
       }
     }).catch(() => {}).finally(() => {

@@ -484,6 +484,7 @@ function TweaksSync({
   navRestoredRef,
   selectedFolgeId,
   selectedSzeneId,
+  onLeseModusChange,
 }: {
   tweaksRef: React.MutableRefObject<TweakState>
   lastSeenMapRef: React.MutableRefObject<Record<string, number | string>>
@@ -491,9 +492,13 @@ function TweaksSync({
   navRestoredRef: React.MutableRefObject<boolean>
   selectedFolgeId: number | null
   selectedSzeneId: number | string | null
+  onLeseModusChange: (v: boolean) => void
 }) {
   const { tweaks } = useTweaks()
   tweaksRef.current = tweaks
+
+  // leseModus-Tweak (aus dem Ansichts-Modal) → ScriptPage-viewMode synchronisieren.
+  useEffect(() => { onLeseModusChange(tweaks.leseModus) }, [tweaks.leseModus, onLeseModusChange])
 
   useEffect(() => {
     if (!tweaks.letzteSzeneProEpisodeMerken) return
@@ -1272,6 +1277,7 @@ export default function ScriptPage() {
         navRestoredRef={navRestored}
         selectedFolgeId={selectedFolgeId}
         selectedSzeneId={selectedSzeneId}
+        onLeseModusChange={(v) => setViewMode(v ? 'read' : 'edit')}
       />
       <div style={{ flex: 1, overflow: 'hidden', display: 'flex', position: 'relative' }}>
 
@@ -1347,25 +1353,9 @@ export default function ScriptPage() {
           </button>
         </div>
 
-        {/* Editor area — per-panel SceneEditor + DockedEditorPanels OR Strang panel OR Lese-Modus */}
+        {/* Editor area — per-panel SceneEditor + DockedEditorPanels OR Strang panel OR Lese-Modus.
+            Modus-Umschalter (Bearbeiten ↔ Lesen) liegt im Ansichts-Modal (Alt+A) → tweaks.leseModus. */}
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          {/* Modus-Umschalter: Bearbeiten ↔ Lesen/Anmerken (nur in echten Folgen) */}
-          {selectedFolgeId != null && !freiDokId && (
-            <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', padding: '6px 12px', borderBottom: '1px solid var(--border)' }}>
-              <div style={{ display: 'inline-flex', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
-                {(['edit', 'read'] as const).map(m => (
-                  <button key={m} onClick={() => setViewMode(m)}
-                    style={{
-                      padding: '5px 14px', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
-                      background: viewMode === m ? 'var(--text-primary)' : 'transparent',
-                      color: viewMode === m ? 'var(--bg-surface)' : 'var(--text-secondary)',
-                    }}>
-                    {m === 'edit' ? 'Bearbeiten' : 'Lesen / Anmerken'}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
           {viewMode === 'read' && selectedFolgeId != null && !freiDokId ? (
             <LeseModusBereich
               folgeId={selectedFolgeId}

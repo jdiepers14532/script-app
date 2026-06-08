@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect } from 'react'
 import {
   Columns2, PanelLeft, PanelRight, BookOpen, AlignLeft, X,
-  Minimize2, Maximize2, Square, ChevronDown,
+  Minimize2, Maximize2, Square, ChevronDown, Pencil, Eye,
 } from 'lucide-react'
 import {
   LIGHT_PALETTES, DARK_PALETTES, INTERFACE_FONTS, SCRIPT_FONTS,
@@ -184,6 +184,14 @@ export default function AnsichtsModal({ onClose, onFarbschemaClick, onThemeAnpas
                   <Tooltip text="Alle Felder"><button className={!tweaks.sceneHeaderCompact ? 'on' : ''} onClick={() => set('sceneHeaderCompact', false)}><Maximize2 size={8} /></button></Tooltip>
                   <Tooltip text="Kompakt (eine Zeile)"><button className={tweaks.sceneHeaderCompact ? 'on' : ''} onClick={() => set('sceneHeaderCompact', true)}><Minimize2 size={8} /></button></Tooltip>
                 </div>
+              </div>
+            </div>
+
+            <div style={rowStyle}>
+              <span style={labelStyle}>Modus</span>
+              <div className="seg">
+                <Tooltip text="Bearbeiten (Editor)"><button className={!tweaks.leseModus ? 'on' : ''} onClick={() => set('leseModus', false)}><Pencil size={8} /></button></Tooltip>
+                <Tooltip text="Lesen / Anmerken (A4-Vorschau)"><button className={tweaks.leseModus ? 'on' : ''} onClick={() => set('leseModus', true)}><Eye size={8} /></button></Tooltip>
               </div>
             </div>
 

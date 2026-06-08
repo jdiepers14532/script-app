@@ -3,6 +3,7 @@
 // Scoped pro EditorPanel; lädt bei Szenen-/Werkstufen-Wechsel neu.
 import { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from 'react'
 import type { DecoAnker, Selektor } from '../utils/anchorResolve'
+import { useTweaks } from '../contexts'
 
 export interface AnmerkungAnker {
   id: string
@@ -91,8 +92,11 @@ export function AnnotationProvider({
   const [items, setItems] = useState<AnmerkungItem[]>([])
   const [loading, setLoading] = useState(false)
   const [me, setMe] = useState<Me | null>(null)
-  // Default AUS: kein Anmerkungs-Code im Editor (Plugin/Listener/Popup) → Schreiben + Undo unbeeinträchtigt.
-  const [anmerkenModus, setAnmerkenModus] = useState(false)
+  // Anmerken-Modus pro User persistiert (Tweak, im Ansichts-Modal/Settings). Default AUS: kein
+  // Anmerkungs-Code im Editor (Plugin/Listener/Popup) → Schreiben + Undo unbeeinträchtigt.
+  const { tweaks, set } = useTweaks()
+  const anmerkenModus = tweaks.anmerkenModus
+  const setAnmerkenModus = useCallback((v: boolean) => set('anmerkenModus', v), [set])
   const [activeAnmerkungId, setActiveAnmerkungId] = useState<string | null>(null)
   const taggbareCache = useRef<{ id: string; name: string }[] | null>(null)
 
