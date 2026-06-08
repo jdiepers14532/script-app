@@ -8,6 +8,7 @@
  * Mailversand wird hier NICHT verdrahtet — das passiert in Schritt 3.
  */
 import * as crypto from 'crypto'
+import { guardMailTo } from './mailGuard'
 
 // ── Config ──────────────────────────────────────────────────────────────────
 /** Öffentliche Basis-URL der Script-App (für Token-Links). */
@@ -225,7 +226,9 @@ export async function sendVerteilerMail(c: VerteilerMailCtx): Promise<{ ok: bool
     const r = await fetch(`${AUTH_URL}/api/internal/send-mail`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-internal-key': INTERNAL_SECRET_KEY },
-      body: JSON.stringify({ to: c.to, subject, html, message_id: correlationMessageId(c.correlationId) }),
+      // guardMailTo: auf Staging (MAIL_OVERRIDE_TO gesetzt) gehen ALLE Mails an die
+      // Test-Adresse — schützt echten Cast in der Prod-Daten-Kopie. Prod: no-op.
+      body: JSON.stringify({ to: guardMailTo(c.to), subject, html, message_id: correlationMessageId(c.correlationId) }),
     })
     if (!r.ok) {
       const body = await r.text().catch(() => '')
