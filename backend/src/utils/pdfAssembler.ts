@@ -990,7 +990,8 @@ function buildDruckauswahl(options: import('./exportJobQueue').ExportJobOptions)
 async function assembleHtml(
   input: PdfAssemblerInput,
   setProgress: (p: number) => void,
-  previewMode = false
+  previewMode = false,
+  readMode = false
 ): Promise<AssembleHtmlResult> {
   const { werkstufId, userId, userName, options } = input
   const client = await pool.connect()
@@ -1733,6 +1734,7 @@ async function assembleHtml(
       localFontCss: loadLocalFontCss(),
       // Preview: KZ/FZ als position:fixed im Browser sichtbar; PDF: Puppeteer übernimmt
       puppeteerHeaderFooter: !previewMode,
+      readMode,  // Lesemodus: A4-Blatt-Container, KZ/FZ weggelassen (iframe/Cross-App)
     })
 
     // ── KZ/FZ für Puppeteer displayHeaderFooter vorberechnen ──────────────────
@@ -1767,9 +1769,10 @@ async function assembleHtml(
  *  KZ/FZ werden als position:fixed gerendert (sichtbar im Browser). */
 export async function assemblePreviewHtml(
   input: PdfAssemblerInput,
-  setProgress: (p: number) => void
+  setProgress: (p: number) => void,
+  readMode = false
 ): Promise<string> {
-  const { html } = await assembleHtml(input, setProgress, true)
+  const { html } = await assembleHtml(input, setProgress, true, readMode)
   return html
 }
 

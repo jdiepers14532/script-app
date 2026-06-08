@@ -122,12 +122,12 @@ export const api = {
       'GET',
       `/lesemodus/werkstufen?folge_id=${folgeId}`,
     ),
-  // Druckgleiche A4-Vorschau einer Werkstufe als KOMPLETTES HTML (text/html, kein JSON).
-  // Enthält data-block-index / data-scene-identity-id für den Anmerkungs-DOM-Anker.
-  getExportPreviewHtml: async (werkstufId: string): Promise<string> => {
-    const res = await fetch(`/api/export/preview?werkstufId=${encodeURIComponent(werkstufId)}`, {
-      credentials: 'include', cache: 'no-store',
-    })
+  // A4-Vorschau einer Werkstufe als KOMPLETTES HTML (text/html, kein JSON). Enthält data-block-index /
+  // data-scene-identity-id für den Anmerkungs-DOM-Anker. mode='read' → Browser-Lesemodus (A4-Blatt,
+  // KZ/FZ weggelassen); ohne mode die klassische PDF-Vorschau.
+  getExportPreviewHtml: async (werkstufId: string, mode?: 'read'): Promise<string> => {
+    const url = `/api/export/preview?werkstufId=${encodeURIComponent(werkstufId)}${mode ? `&mode=${mode}` : ''}`
+    const res = await fetch(url, { credentials: 'include', cache: 'no-store' })
     if (!res.ok) throw new Error(`Vorschau fehlgeschlagen (${res.status})`)
     return res.text()
   },

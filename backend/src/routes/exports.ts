@@ -227,7 +227,9 @@ router.get('/export/preview', requireWerkstufeSichtbar(req => req.query.werkstuf
   if (!werkstufId) return res.status(400).json({ error: 'werkstufId erforderlich' })
 
   try {
-    const html = await assemblePreviewHtml(previewParamsFromQuery(req), () => {})
+    // mode=read → Browser-Lesemodus (A4-Blatt, KZ/FZ weggelassen); sonst klassische PDF-Vorschau.
+    const readMode = req.query.mode === 'read'
+    const html = await assemblePreviewHtml(previewParamsFromQuery(req), () => {}, readMode)
     res.setHeader('Content-Type', 'text/html; charset=utf-8')
     res.setHeader('Cache-Control', 'no-store')
     res.send(html)

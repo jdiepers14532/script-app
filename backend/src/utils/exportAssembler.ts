@@ -391,8 +391,11 @@ export function buildPdfHtml(params: {
   localFontCss?: string
   /** true = KZ/FZ-Divs und @page-margin weglassen — Puppeteer übernimmt das nativ. */
   puppeteerHeaderFooter?: boolean
+  /** true = Browser-Lesemodus: Inhalt auf einem zentrierten A4-Blatt (weiß, Schatten, grauer Grund),
+   *  KZ/FZ weggelassen (kein position:fixed-Overlap). Für iframe-Vorschau/Cross-App-Einbettung. */
+  readMode?: boolean
 }): string {
-  const { title, bodyHtml, kzFz, ctx, watermarkMeta, bodyMargins, localFontCss, puppeteerHeaderFooter } = params
+  const { title, bodyHtml, kzFz, ctx, watermarkMeta, bodyMargins, localFontCss, puppeteerHeaderFooter, readMode } = params
 
   // ── KZ/FZ-Positionierung ────────────────────────────────────────────────────
   const layout = kzFz?.seiten_layout ?? {}
@@ -486,11 +489,18 @@ ${fontResource}
     font-family: 'Courier Prime', 'Courier New', monospace;
     font-size: 12pt;
     margin: 0;
-    padding: ${pageMarginTop}mm ${bmr}mm ${pageMarginBottom}mm ${bml}mm;
+    padding: ${readMode ? '0' : `${pageMarginTop}mm ${bmr}mm ${pageMarginBottom}mm ${bml}mm`};
     line-height: 1.5;
     color: #000;
+    ${readMode ? 'background:#e9e9e9;' : ''}
   }
   ${pageRule}
+  ${readMode ? `.sw-a4-sheet {
+    width: 210mm; max-width: 100%; margin: 20px auto;
+    background: #fff; box-shadow: 0 1px 12px rgba(0,0,0,0.22);
+    padding: ${pageMarginTop}mm ${bmr}mm ${pageMarginBottom}mm ${bml}mm;
+    min-height: 297mm;
+  }` : ''}
   @media print {
     body { padding: 0 !important; margin: 0 !important; }
     .no-print { display: none; }
@@ -513,9 +523,9 @@ ${fontResource}
 </style>
 </head>
 <body>
-${headerDiv}
-${footerDiv}
-${bodyHtml}
+${readMode
+  ? `<div class="sw-a4-sheet">\n${bodyHtml}\n</div>`
+  : `${headerDiv}\n${footerDiv}\n${bodyHtml}`}
 </body>
 </html>`
 }
