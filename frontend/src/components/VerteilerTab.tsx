@@ -6,7 +6,6 @@ import Tooltip from './Tooltip'
 // Zweispaltig (Liste + Detailformular), Tablet/Touch-tauglich. Veröffentlichen = Schritt 5.
 
 const AUTH_EMAIL_SYSTEM_URL = 'https://auth.serienwerft.studio/admin/email-system'
-const VERTRAEGE_ADRESSBUCH_URL = 'https://vertraege.serienwerft.studio/adressbuch'
 const PLACEHOLDERS = ['{Name}', '{Produktion}', '{Folge}', '{Werkstufe}', '{Version}', '{Link}']
 const REVISIONSMODI = [
   { value: 'voll', label: 'Vollfassung' },
@@ -42,6 +41,9 @@ export default function VerteilerTab({ produktionId }: { produktionId: string })
   const [err, setErr] = useState<string | null>(null)
   const [coarse, setCoarse] = useState(isCoarse())
   const [profilEdit, setProfilEdit] = useState<any | null>(null)
+  const [freieEmailOpen, setFreieEmailOpen] = useState(false)
+  // Kontakt-Such-Modal: mode 'add' (neues Mitglied) | 'link' (freie Adresse verknüpfen)
+  const [kontaktSuche, setKontaktSuche] = useState<{ mode: 'add' | 'link'; mid?: string } | null>(null)
 
   // editierbare Detailfelder (Verteiler-Ebene; Mitglieder speichern sofort)
   const [form, setForm] = useState<any>({})
@@ -115,13 +117,22 @@ export default function VerteilerTab({ produktionId }: { produktionId: string })
   }
 
   // ── Mitglieder (speichern sofort) ──────────────────────────────────────────
-  async function addFreieEmail() {
+  async function confirmFreieEmail(email: string, name: string | null) {
     if (!selectedId) return
-    const email = prompt('E-Mail-Adresse des Empfängers:')?.trim()
-    if (!email) return
-    const name = prompt('Name (optional):')?.trim() || null
+    setFreieEmailOpen(false)
     try { await api.addVerteilerMitglied(selectedId, { freie_email: email, name }); loadDetail(selectedId) }
     catch (e: any) { setErr(String(e?.message || e)) }
+  }
+  // Kontakt aus der Suche: neues Mitglied (add) ODER freie Adresse verknüpfen (link)
+  async function onKontaktPick(p: { kontakt_id: string; name: string }) {
+    if (!selectedId || !kontaktSuche) return
+    const k = kontaktSuche
+    setKontaktSuche(null)
+    try {
+      if (k.mode === 'link' && k.mid) await api.updateVerteilerMitglied(selectedId, k.mid, { kontakt_id: p.kontakt_id })
+      else await api.addVerteilerMitglied(selectedId, { kontakt_id: p.kontakt_id, name: p.name })
+      loadDetail(selectedId)
+    } catch (e: any) { setErr(String(e?.message || e)) }
   }
   async function updateMitglied(mid: string, patch: any) {
     if (!selectedId) return
@@ -235,8 +246,10 @@ export default function VerteilerTab({ produktionId }: { produktionId: string })
                     <td style={td}>
                       {b === undefined ? <span style={{ color: 'var(--text-secondary)' }}>…</span>
                         : istSchauspieler
-                          ? <><span style={badge('#F0EAFB', '#5b3fa6')}>Schauspieler:in</span><div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Rolle: {b.figuren.map((f: any) => f.name).filter(Boolean).join(', ') || '—'}</div></>
-                          : <span style={{ color: 'var(--text-secondary)' }}>nicht zugeordnet{!m.kontakt_id && <> · <a style={linkish} href={`${VERTRAEGE_ADRESSBUCH_URL}?suche=${encodeURIComponent(m.freie_email || '')}`} target="_blank" rel="noreferrer">verknüpfen</a></>}</span>}
+                          ? <><span style={badge('#F0EAFB', '#5b3fa6')}>Schauspieler:in</span><div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Rolle: {b.rollenname || '—'}</div></>
+                          : (m.kontakt_id && b?.funktion)
+                            ? <span style={{ color: 'var(--text-secondary)' }}>{b.funktion}</span>
+                            : <span style={{ color: 'var(--text-secondary)' }}>nicht zugeordnet{!m.kontakt_id && <> · <button style={linkish} onClick={() => setKontaktSuche({ mode: 'link', mid: m.id })}>verknüpfen</button></>}</span>}
                     </td>
                     <td style={{ ...td, textAlign: 'center' }}>
                       <Tooltip text={istSchauspieler ? 'Nur Szenen der erkannten Rolle (Sides)' : 'Nur für erkannte Schauspieler:innen verfügbar'}>
@@ -261,11 +274,11 @@ export default function VerteilerTab({ produktionId }: { produktionId: string })
           </table>
         </div>
         <div style={{ marginTop: 14, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-          <a style={linkish} href={VERTRAEGE_ADRESSBUCH_URL} target="_blank" rel="noreferrer">+ Aus Adressbuch (vertraege.app)</a>
-          <button style={linkish} onClick={addFreieEmail}>+ Freie E-Mail</button>
+          <button style={linkish} onClick={() => setKontaktSuche({ mode: 'add' })}>+ Aus Adressbuch</button>
+          <button style={linkish} onClick={() => setFreieEmailOpen(true)}>+ Freie E-Mail</button>
         </div>
         <div style={{ ...noteBox }}>
-          Schauspieler:in &amp; Rolle werden automatisch über die Besetzungsmatrix erkannt. „Nur eigene Szenen" (Sides) ist nur für erkannte Schauspieler:innen verfügbar; bei Crew und nicht zugeordneten Adressen ausgegraut. Fehlt die Zuordnung, lässt sie sich über „verknüpfen" im Adressbuch herstellen.
+          Schauspieler:in, Rolle &amp; Funktion werden über die Vertragsdatenbank erkannt (kein Vertrags-Ansichtsrecht nötig; E-Mail wird erst beim Versand aufgelöst). „Nur eigene Szenen" (Sides) ist für erkannte Schauspieler:innen verfügbar. Freie Adressen ohne Zuordnung lassen sich über „verknüpfen" einer Person zuordnen.
         </div>
       </div>
 
@@ -362,6 +375,8 @@ export default function VerteilerTab({ produktionId }: { produktionId: string })
         {showDetail && (detail ? DetailPanel : <div style={{ ...card, flex: 1, padding: 40, color: 'var(--text-secondary)', textAlign: 'center' }}>Wähle links einen Verteiler oder lege einen neuen an.</div>)}
       </div>
       {profilEdit && <ProfilEditModal profil={profilEdit} onClose={() => setProfilEdit(null)} onSaved={async () => { const p = await api.getPdfProfile(produktionId); setProfile(p || []); setProfilEdit(null) }} />}
+      {freieEmailOpen && <FreieEmailModal onConfirm={confirmFreieEmail} onClose={() => setFreieEmailOpen(false)} />}
+      {kontaktSuche && <KontaktSucheModal produktionId={produktionId} mode={kontaktSuche.mode} onPick={onKontaktPick} onClose={() => setKontaktSuche(null)} />}
     </div>
   )
 }
@@ -438,6 +453,138 @@ function ProfilEditModal({ profil, onClose, onSaved }: { profil: any; onClose: (
         <div style={{ padding: '16px 20px', display: 'flex', justifyContent: 'flex-end', gap: 10, background: 'var(--bg-surface)', borderRadius: '0 0 12px 12px' }}>
           <button style={btn} onClick={onClose}>Abbrechen</button>
           <button style={btnPrimary} onClick={save} disabled={saving}>{saving ? 'Speichert…' : 'Speichern'}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Modal-Helfer (Overlay/Card) ───────────────────────────────────────────────
+const mOverlay: React.CSSProperties = { position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', overflowY: 'auto', padding: 24 }
+const mCard: React.CSSProperties = { ...card, width: 520, maxWidth: '100%' }
+const mHead: React.CSSProperties = { padding: 20, borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }
+const mFoot: React.CSSProperties = { padding: '16px 20px', display: 'flex', justifyContent: 'flex-end', gap: 10, background: 'var(--bg-surface)', borderRadius: '0 0 12px 12px' }
+
+// ── Freie-E-Mail-Modal (SW-Design, Enter bestätigt) ───────────────────────────
+function FreieEmailModal({ onConfirm, onClose }: { onConfirm: (email: string, name: string | null) => void; onClose: () => void }) {
+  const [email, setEmail] = useState('')
+  const [name, setName] = useState('')
+  const valid = /\S+@\S+\.\S+/.test(email.trim())
+  const submit = () => { if (valid) onConfirm(email.trim(), name.trim() || null) }
+  return (
+    <div style={mOverlay} onClick={onClose}>
+      <div style={mCard} onClick={e => e.stopPropagation()} onKeyDown={e => { if (e.key === 'Enter' && valid) { e.preventDefault(); submit() } }}>
+        <div style={mHead}><h2 style={{ fontSize: 16, fontWeight: 600 }}>Freie E-Mail-Adresse</h2><button style={{ ...linkish, fontSize: 18 }} onClick={onClose}>✕</button></div>
+        <div style={{ padding: 20 }}>
+          <div style={{ marginBottom: 14 }}>
+            <label style={labelStyle}>E-Mail</label>
+            <input style={inputStyle} type="email" autoFocus value={email} onChange={e => setEmail(e.target.value)} placeholder="name@example.com" />
+          </div>
+          <div>
+            <label style={labelStyle}>Name (optional)</label>
+            <input style={inputStyle} value={name} onChange={e => setName(e.target.value)} />
+          </div>
+          <div style={hint}>Empfänger ohne vertraege-Kontakt. Funktion/Sides nicht verfügbar — später über „verknüpfen" nachholbar.</div>
+        </div>
+        <div style={mFoot}>
+          <button style={btn} onClick={onClose}>Abbrechen</button>
+          <button style={btnPrimary} onClick={submit} disabled={!valid}>OK</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Kontakt-Such-Modal (vertraege, Name → Funktion; Anlegen bei kein Treffer) ──
+function KontaktSucheModal({ produktionId, mode, onPick, onClose }: {
+  produktionId: string; mode: 'add' | 'link'
+  onPick: (p: { kontakt_id: string; name: string }) => void; onClose: () => void
+}) {
+  const [q, setQ] = useState('')
+  const [scope, setScope] = useState<'produktion' | 'global'>('produktion')
+  const [results, setResults] = useState<any[] | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [anlegen, setAnlegen] = useState(false)
+  const [neu, setNeu] = useState({ name: '', rufname: '', email: '' })
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+
+  useEffect(() => {
+    const term = q.trim()
+    if (term.length < 2) { setResults(null); return }
+    setLoading(true)
+    const t = setTimeout(() => {
+      api.kontaktSuche(produktionId, term, scope)
+        .then(r => setResults(r.personen || []))
+        .catch(() => setResults([]))
+        .finally(() => setLoading(false))
+    }, 300)
+    return () => clearTimeout(t)
+  }, [q, scope, produktionId])
+
+  async function doAnlegen() {
+    if (!neu.name.trim()) return
+    setBusy(true); setErr(null)
+    try {
+      const r = await api.kontaktAnlegen({ produktion_id: produktionId, name: neu.name.trim(), rufname: neu.rufname.trim() || null, email: neu.email.trim() || null })
+      onPick({ kontakt_id: r.kontakt_id, name: r.name })
+    } catch (e: any) { setErr(String(e?.message || e)); setBusy(false) }
+  }
+
+  return (
+    <div style={mOverlay} onClick={onClose}>
+      <div style={mCard} onClick={e => e.stopPropagation()}>
+        <div style={mHead}>
+          <h2 style={{ fontSize: 16, fontWeight: 600 }}>{mode === 'link' ? 'Mit Kontakt verknüpfen' : 'Aus Adressbuch hinzufügen'}</h2>
+          <button style={{ ...linkish, fontSize: 18 }} onClick={onClose}>✕</button>
+        </div>
+        <div style={{ padding: 20, maxHeight: '65vh', overflowY: 'auto' }}>
+          {!anlegen ? (
+            <>
+              <input style={inputStyle} autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="Name suchen (min. 2 Zeichen)…" />
+              <div style={{ display: 'flex', gap: 14, alignItems: 'center', margin: '10px 0', fontSize: 13 }}>
+                <label style={{ display: 'flex', gap: 6, alignItems: 'center', cursor: 'pointer' }}>
+                  <input type="radio" checked={scope === 'produktion'} onChange={() => setScope('produktion')} /> nur diese Produktion
+                </label>
+                <label style={{ display: 'flex', gap: 6, alignItems: 'center', cursor: 'pointer' }}>
+                  <input type="radio" checked={scope === 'global'} onChange={() => setScope('global')} /> alle (global)
+                </label>
+              </div>
+              {loading && <div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Suche…</div>}
+              {results && results.length > 0 && (
+                <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+                  {results.map(p => (
+                    <div key={p.kontakt_id} onClick={() => onPick({ kontakt_id: p.kontakt_id, name: p.name })}
+                      style={{ padding: '10px 12px', borderBottom: '1px solid var(--border)', cursor: 'pointer', minHeight: 44 }}>
+                      <div style={{ fontWeight: 500 }}>{p.name}{p.rufname ? ` (${p.rufname})` : ''}</div>
+                      <div style={{ fontSize: 12, display: 'flex', gap: 6, alignItems: 'center', color: 'var(--text-secondary)' }}>
+                        {p.ist_schauspieler && <span style={badge('#F0EAFB', '#5b3fa6')}>Schauspieler:in</span>}
+                        <span>{p.funktion || '—'}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {results && results.length === 0 && !loading && (
+                <div style={{ ...noteBox }}>
+                  Kein Treffer. <button style={linkish} onClick={() => { setNeu(n => ({ ...n, name: q.trim() })); setAnlegen(true) }}>Person neu anlegen →</button>
+                </div>
+              )}
+            </>
+          ) : (
+            <div onKeyDown={e => { if (e.key === 'Enter' && neu.name.trim()) { e.preventDefault(); doAnlegen() } }}>
+              {err && <div style={{ color: '#FF3B30', fontSize: 13, marginBottom: 10 }}>{err}</div>}
+              <div style={{ marginBottom: 12 }}><label style={labelStyle}>Name</label><input style={inputStyle} autoFocus value={neu.name} onChange={e => setNeu({ ...neu, name: e.target.value })} /></div>
+              <div style={{ marginBottom: 12 }}><label style={labelStyle}>Rufname (optional)</label><input style={inputStyle} value={neu.rufname} onChange={e => setNeu({ ...neu, rufname: e.target.value })} /></div>
+              <div><label style={labelStyle}>E-Mail (optional)</label><input style={inputStyle} type="email" value={neu.email} onChange={e => setNeu({ ...neu, email: e.target.value })} /></div>
+              <div style={hint}>Legt eine Person in der Vertragsdatenbank an (ohne Vertrag). Dubletten werden nach E-Mail/Name vermieden.</div>
+            </div>
+          )}
+        </div>
+        <div style={mFoot}>
+          {anlegen
+            ? <><button style={btn} onClick={() => setAnlegen(false)} disabled={busy}>Zurück</button><button style={btnPrimary} onClick={doAnlegen} disabled={busy || !neu.name.trim()}>{busy ? 'Anlegen…' : 'Anlegen & wählen'}</button></>
+            : <button style={btn} onClick={onClose}>Schließen</button>}
         </div>
       </div>
     </div>

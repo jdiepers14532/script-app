@@ -9,6 +9,7 @@
  */
 import * as crypto from 'crypto'
 import { guardMailTo } from './mailGuard'
+import { query } from '../db'
 
 // ── Config ──────────────────────────────────────────────────────────────────
 /** Öffentliche Basis-URL der Script-App (für Token-Links). */
@@ -64,70 +65,114 @@ export function tokenAblauf(): Date {
 // ── Cross-App vertraege.app ───────────────────────────────────────────────────
 async function vertraegeGet(path: string): Promise<any | null> {
   try {
+    const r = await fetch(`${VERTRAEGE_URL}${path}`, { headers: { 'X-Internal-Secret': VERTRAEGE_SECRET } })
+    if (!r.ok) return null
+    return await r.json()
+  } catch { return null }
+}
+async function vertraegePost(path: string, body: any): Promise<any | null> {
+  try {
     const r = await fetch(`${VERTRAEGE_URL}${path}`, {
-      headers: { 'X-Internal-Secret': VERTRAEGE_SECRET },
+      method: 'POST',
+      headers: { 'X-Internal-Secret': VERTRAEGE_SECRET, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
     })
     if (!r.ok) return null
     return await r.json()
-  } catch {
-    return null
-  }
+  } catch { return null }
+}
+
+/** Produktionsdatenbank-UUID (für vertraege-Scoping) aus der script-Produktion. */
+export async function getProduktionDbId(produktionId: string): Promise<string | null> {
+  try {
+    const rows = await query(`SELECT produktion_db_id::text AS id FROM produktionen WHERE id = $1`, [produktionId])
+    return rows[0]?.id ?? null
+  } catch { return null }
+}
+
+export interface VertraegePerson {
+  kontakt_id: string; name: string; rufname: string | null
+  funktion: string; ist_schauspieler: boolean; rollenname: string | null
 }
 
 /**
- * Löst die E-Mail (+ Anzeigename) zu einer kontakt_id aus vertraege.app auf.
- * Kontaktdaten werden NICHT kopiert, sondern erst zum Versandzeitpunkt
- * referenziert (vertraege = Source of Truth + Feldgruppen/DSGVO).
- *
- * Gibt null zurück, wenn nicht auflösbar (Aufrufer überspringt den Empfänger
- * und meldet das — kein stiller Fehlschlag, keine NULL-Verletzung).
- *
- * TODO Schritt 3: Den exakten vertraege-Internal-Endpoint bestätigen
- * (Pfad/Response-Shape sind hier eine dokumentierte Annahme).
+ * Personen aus vertraege (Name- oder ID-Suche), optional auf eine Produktion
+ * gescoped. Liefert NUR Name/Funktion/Rollenname — keine E-Mail/Vertragsdaten.
+ */
+export async function vertraegePersonen(
+  opts: { produktionDbId?: string | null; name?: string; ids?: string[] }
+): Promise<VertraegePerson[]> {
+  const qs = new URLSearchParams()
+  if (opts.produktionDbId) qs.set('produktion_db_id', opts.produktionDbId)
+  if (opts.name) qs.set('name', opts.name)
+  if (opts.ids?.length) qs.set('ids', opts.ids.join(','))
+  const data = await vertraegeGet(`/api/internal/produktion-personen?${qs.toString()}`)
+  const list = Array.isArray(data?.personen) ? data.personen : []
+  return list.map((p: any) => ({
+    kontakt_id: String(p.id), name: p.name, rufname: p.rufname ?? null,
+    funktion: p.funktion ?? '', ist_schauspieler: !!p.ist_schauspieler, rollenname: p.rollenname ?? null,
+  }))
+}
+
+/** Legt eine minimale Person in vertraege an (dedupt nach E-Mail/Name) → kontakt_id. */
+export async function anlegenKontakt(
+  data: { name: string; rufname?: string | null; email?: string | null }
+): Promise<{ kontakt_id: string; name: string; neu: boolean } | null> {
+  const r = await vertraegePost('/api/internal/personen-anlegen', data)
+  if (!r?.personen_id) return null
+  return { kontakt_id: String(r.personen_id), name: r.name ?? data.name, neu: !!r.neu_angelegt }
+}
+
+/**
+ * Löst E-Mail (+ Name) zu einer kontakt_id (vertraege-Person-ID) auf — erst zum
+ * Versandzeitpunkt, serverseitig. vertraege = Source of Truth (DSGVO/Feldgruppen).
+ * null = nicht auflösbar → Aufrufer überspringt (kein stiller Fehlschlag).
  */
 export async function resolveKontaktEmail(
   kontaktId: string
 ): Promise<{ email: string; name: string | null } | null> {
-  const data = await vertraegeGet(`/api/internal/kontakt/${kontaktId}`)
-  const email: string | undefined = data?.email || data?.e_mail || data?.kontakt?.email
-  if (!email) return null
-  const name: string | null = data?.name || data?.anzeigename || data?.kontakt?.name || null
-  return { email, name }
+  const data = await vertraegeGet(`/api/internal/personen-edv-details?ids=${encodeURIComponent(kontaktId)}`)
+  const p = Array.isArray(data?.personen) ? data.personen[0] : null
+  if (!p?.email) return null
+  return { email: p.email, name: p.name ?? null }
 }
 
 export interface BesetzungInfo {
   ist_schauspieler: boolean
+  rollenname: string | null
+  funktion: string | null
   figuren: Array<{ character_id: string; name: string | null }>
-  /** true, wenn die Besetzung gegen vertraege nicht aufgelöst werden konnte. */
+  /** true, wenn die Person in vertraege nicht aufgelöst werden konnte. */
   nicht_aufloesbar?: boolean
 }
 
 /**
- * Löst Schauspieler:in-Status + gespielte Figur(en) zu einer kontakt_id live aus
- * der Besetzungsmatrix (vertraege.app) auf. Die Verknüpfung Kontakt↔Figur liegt
- * NICHT in script_db, daher Cross-App.
- *
- * Bei Crew / freier E-Mail ohne Zuordnung → ist_schauspieler=false (Sides
- * ausgegraut). Wenn vertraege nicht antwortet → nicht_aufloesbar=true.
- *
- * TODO Schritt 3: vertraege-Besetzungs-Endpoint + Mapping der Figuren-IDs auf
- * script_db.characters.id bestätigen.
+ * Schauspieler:in-Status + gespielte Rolle zu einer kontakt_id, plus Auto-Match
+ * der Rolle auf die Script-Rollendatenbank (characters) der Produktion.
+ * Auto-Figur nur bei EINDEUTIGEM Namens-Match (1 Treffer); sonst figuren=[]
+ * (→ manuelle Rollenauswahl, Schritt 4b-2).
  */
 export async function resolveBesetzung(
   kontaktId: string | null,
   produktionId: string
 ): Promise<BesetzungInfo> {
-  if (!kontaktId) return { ist_schauspieler: false, figuren: [] }
-  const data = await vertraegeGet(
-    `/api/internal/besetzung?kontakt_id=${encodeURIComponent(kontaktId)}&produktion_id=${encodeURIComponent(produktionId)}`
-  )
-  if (!data) return { ist_schauspieler: false, figuren: [], nicht_aufloesbar: true }
-  const figuren = Array.isArray(data.figuren)
-    ? data.figuren
-        .map((f: any) => ({ character_id: f.character_id || f.figur_id || f.id, name: f.name ?? null }))
-        .filter((f: any) => f.character_id)
-    : []
-  return { ist_schauspieler: figuren.length > 0, figuren }
+  if (!kontaktId) return { ist_schauspieler: false, rollenname: null, funktion: null, figuren: [] }
+  const produktionDbId = await getProduktionDbId(produktionId)
+  const personen = await vertraegePersonen({ produktionDbId, ids: [kontaktId] })
+  const p = personen[0]
+  if (!p) return { ist_schauspieler: false, rollenname: null, funktion: null, figuren: [], nicht_aufloesbar: true }
+  let figuren: Array<{ character_id: string; name: string | null }> = []
+  if (p.ist_schauspieler && p.rollenname) {
+    // Eindeutiger Match Rollenname → script characters dieser Produktion
+    const rows = await query(
+      `SELECT c.id, c.name FROM characters c
+       JOIN character_productions cp ON cp.character_id = c.id AND cp.produktion_id = $1
+       WHERE LOWER(c.name) = LOWER($2)`,
+      [produktionId, p.rollenname]
+    )
+    if (rows.length === 1) figuren = [{ character_id: rows[0].id, name: rows[0].name }]
+  }
+  return { ist_schauspieler: p.ist_schauspieler, rollenname: p.rollenname, funktion: p.funktion, figuren }
 }
 
 // ── Anzeige-Status (§10) ──────────────────────────────────────────────────────

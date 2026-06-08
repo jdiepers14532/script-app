@@ -548,6 +548,8 @@ async function runMigrations() {
     'v205_anmerkung_gelesen.sql',
     // Anmerkungen Block 2: stammt_von_anker_id (offene Anker beim Fassungs-Copy vererben)
     'v206_anker_stammt_von.sql',
+    // Verteiler 4b: kontakt_id UUID -> TEXT (vertraege-Person-IDs sind Integer)
+    'v207_verteiler_kontakt_id_text.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

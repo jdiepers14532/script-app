@@ -17,6 +17,7 @@ import {
   generateToken, portalLink, tokenAblauf,
   resolveKontaktEmail, resolveBesetzung, deriveAnzeigeStatus,
   sendVerteilerMail, VerteilerMailCtx,
+  vertraegePersonen, anlegenKontakt, getProduktionDbId,
 } from '../lib/verteiler'
 
 const TIER1_ROLES = ['superadmin', 'geschaeftsfuehrung', 'herstellungsleitung', 'hauptbuchhaltung']
@@ -44,6 +45,39 @@ async function hatDkZugriff(req: Request, produktionId: string): Promise<boolean
 // ══════════════════════════════════════════════════════════════════════════════
 export const verteilerRouter = Router()
 verteilerRouter.use(authMiddleware)
+
+// ── Kontakt-Suche/-Anlegen (vor /:id, sonst fängt /:id diese Pfade ab) ────────
+// GET /api/verteiler/kontakt-suche?produktion_id=&q=&scope=produktion|global
+// Liefert NUR Name/Funktion/Rollenname (keine E-Mail) — Nutzer braucht kein
+// Vertrags-Ansichtsrecht; E-Mail wird erst beim Versand serverseitig aufgelöst.
+verteilerRouter.get('/kontakt-suche', async (req, res) => {
+  const produktion_id = String(req.query.produktion_id || '')
+  const q = String(req.query.q || '').trim()
+  const scope = req.query.scope === 'global' ? 'global' : 'produktion'
+  if (!produktion_id || q.length < 2) return res.status(400).json({ error: 'produktion_id und q (min. 2 Zeichen) erforderlich' })
+  try {
+    if (!(await hatDkZugriff(req, produktion_id))) return res.status(403).json({ error: 'Keine Berechtigung' })
+    const produktionDbId = scope === 'produktion' ? await getProduktionDbId(produktion_id) : null
+    const personen = await vertraegePersonen({ produktionDbId, name: q })
+    res.json({ personen, scope, produktion_gefiltert: !!produktionDbId })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// POST /api/verteiler/kontakt-anlegen { produktion_id, name, rufname?, email? }
+verteilerRouter.post('/kontakt-anlegen', async (req, res) => {
+  const { produktion_id, name, rufname, email } = req.body || {}
+  if (!produktion_id || !name?.trim()) return res.status(400).json({ error: 'produktion_id und name erforderlich' })
+  try {
+    if (!(await hatDkZugriff(req, produktion_id))) return res.status(403).json({ error: 'Keine Berechtigung' })
+    const r = await anlegenKontakt({ name: name.trim(), rufname: rufname?.trim() || null, email: email?.trim() || null })
+    if (!r) return res.status(502).json({ error: 'Anlegen in vertraege fehlgeschlagen' })
+    res.status(201).json(r)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
 
 // GET /api/verteiler?produktion_id=
 verteilerRouter.get('/', async (req, res) => {
