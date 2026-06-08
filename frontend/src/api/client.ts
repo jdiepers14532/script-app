@@ -247,6 +247,27 @@ export const api = {
   reorderStageLabels: (produktionId: string, order: {id: number, sort_order: number}[]) =>
     request<any[]>('PATCH', `/produktionen/${encodeURIComponent(produktionId)}/stage-labels/reorder`, { order }),
 
+  // Verteiler-System (DK-Settings „Verteiler")
+  getVerteiler: (produktionId: string) =>
+    request<any[]>('GET', `/verteiler?produktion_id=${encodeURIComponent(produktionId)}`),
+  getVerteilerDetail: (id: string) => request<any>('GET', `/verteiler/${id}`),
+  createVerteiler: (data: any) => request<any>('POST', '/verteiler', data),
+  updateVerteiler: (id: string, data: any) => request<any>('PUT', `/verteiler/${id}`, data),
+  deleteVerteiler: (id: string) => request<void>('DELETE', `/verteiler/${id}`),
+  addVerteilerMitglied: (id: string, data: any) => request<any>('POST', `/verteiler/${id}/mitglieder`, data),
+  updateVerteilerMitglied: (id: string, mid: string, data: any) =>
+    request<any>('PUT', `/verteiler/${id}/mitglieder/${mid}`, data),
+  deleteVerteilerMitglied: (id: string, mid: string) =>
+    request<void>('DELETE', `/verteiler/${id}/mitglieder/${mid}`),
+  getVerteilerBesetzung: (id: string, mid: string) =>
+    request<any>('GET', `/verteiler/${id}/mitglieder/${mid}/besetzung`),
+  // PDF-Export-Profil
+  getPdfProfile: (produktionId: string) =>
+    request<any[]>('GET', `/pdf-export-profil?produktion_id=${encodeURIComponent(produktionId)}`),
+  createPdfProfil: (data: any) => request<any>('POST', '/pdf-export-profil', data),
+  updatePdfProfil: (id: string, data: any) => request<any>('PUT', `/pdf-export-profil/${id}`, data),
+  deletePdfProfil: (id: string) => request<void>('DELETE', `/pdf-export-profil/${id}`),
+
   // Revision Colors
   getRevisionColors: (produktionId: string) =>
     request<any[]>('GET', `/produktionen/${encodeURIComponent(produktionId)}/revision-colors`),

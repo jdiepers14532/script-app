@@ -15,6 +15,7 @@ import type { KopfZeilenEditorValue, SeitenLayout } from '../sw-ui'
 import AutorenplanTab from '../components/AutorenplanTab'
 import KopierenModal from '../components/KopierenModal'
 import WasserzeichenTab from '../components/WasserzeichenTab'
+import VerteilerTab from '../components/VerteilerTab'
 
 // ── Constants ────────────────────────────────────────────────────────────────────
 
@@ -37,6 +38,7 @@ const DK_TABS = [
   { id: 'synopsen-ki',            label: 'KI-Synopsen' },
   { id: 'verlauf-sicherung',      label: 'Verlauf & Sicherung' },
   { id: 'export-log',             label: 'Export-Log & Wasserzeichen' },
+  { id: 'verteiler',              label: 'Verteiler' },
 ]
 
 const FORMAT_TEMPLATE_TABS = ['dokument-typen', 'kopf-fusszeilen', 'vorlagen', 'stockshot-templates', 'freie-dok-labels', 'sonstige-dokumente']
@@ -4991,6 +4993,8 @@ export default function DrehbuchkoordinationPage() {
         return <WasserzeichenTab />
       case 'private-dokumente':
         return <PrivateDokumenteTab produktionId={produktionId} />
+      case 'verteiler':
+        return produktionId ? <VerteilerTab produktionId={produktionId} /> : <NoProduction />
       default:
         return <Placeholder label={activeTab} />
     }

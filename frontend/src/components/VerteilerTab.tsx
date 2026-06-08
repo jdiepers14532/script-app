@@ -1,0 +1,445 @@
+import { useEffect, useState, useCallback } from 'react'
+import { api } from '../api/client'
+import Tooltip from './Tooltip'
+
+// DK-Settings „Verteiler" — Konfigurationsmaske gegen die Verteiler-Endpoints (Schritt 2).
+// Zweispaltig (Liste + Detailformular), Tablet/Touch-tauglich. Veröffentlichen = Schritt 5.
+
+const AUTH_EMAIL_SYSTEM_URL = 'https://auth.serienwerft.studio/admin/email-system'
+const VERTRAEGE_ADRESSBUCH_URL = 'https://vertraege.serienwerft.studio/adressbuch'
+const PLACEHOLDERS = ['{Name}', '{Produktion}', '{Folge}', '{Werkstufe}', '{Version}', '{Link}']
+const REVISIONSMODI = [
+  { value: 'voll', label: 'Vollfassung' },
+  { value: 'nur_aenderungen', label: 'Nur Änderungen' },
+  { value: 'markiert', label: 'Änderungen markiert' },
+]
+const isCoarse = () => typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches
+
+// ── kleine Style-Helfer (Serienwerft-Tokens, 8px-Grid) ───────────────────────
+const card: React.CSSProperties = { background: 'var(--bg-card, #fff)', border: '1px solid var(--border)', borderRadius: 12 }
+const sectionStyle: React.CSSProperties = { padding: 20, borderBottom: '1px solid var(--border)' }
+const h2Style: React.CSSProperties = { fontSize: 13, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-secondary)', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8 }
+const labelStyle: React.CSSProperties = { display: 'block', fontWeight: 500, marginBottom: 6, fontSize: 13 }
+const inputStyle: React.CSSProperties = { width: '100%', padding: '10px 12px', minHeight: 44, border: '1px solid var(--border)', borderRadius: 8, font: 'inherit', background: 'var(--bg-card, #fff)', color: 'var(--text-primary)', boxSizing: 'border-box' }
+const hint: React.CSSProperties = { fontSize: 12, color: 'var(--text-secondary)', marginTop: 4 }
+const btn: React.CSSProperties = { font: 'inherit', fontWeight: 600, padding: '10px 18px', minHeight: 44, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-card, #fff)', color: 'var(--text-primary)', cursor: 'pointer' }
+const btnPrimary: React.CSSProperties = { ...btn, background: '#00C853', borderColor: '#00C853', color: '#fff' }
+const linkish: React.CSSProperties = { color: '#007AFF', fontWeight: 500, cursor: 'pointer', background: 'none', border: 'none', padding: 0, font: 'inherit' }
+const badge = (bg: string, col: string): React.CSSProperties => ({ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 99, background: bg, color: col })
+
+type Verteiler = any
+type Mitglied = any
+
+export default function VerteilerTab({ produktionId }: { produktionId: string }) {
+  const [list, setList] = useState<Verteiler[]>([])
+  const [labels, setLabels] = useState<any[]>([])
+  const [profile, setProfile] = useState<any[]>([])
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [detail, setDetail] = useState<Verteiler | null>(null)
+  const [besetzung, setBesetzung] = useState<Record<string, any>>({})
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const [coarse, setCoarse] = useState(isCoarse())
+  const [profilEdit, setProfilEdit] = useState<any | null>(null)
+
+  // editierbare Detailfelder (Verteiler-Ebene; Mitglieder speichern sofort)
+  const [form, setForm] = useState<any>({})
+
+  const loadList = useCallback(() => {
+    return Promise.all([api.getVerteiler(produktionId), api.getStageLabels(produktionId), api.getPdfProfile(produktionId)])
+      .then(([v, l, p]) => { setList(v || []); setLabels(l || []); setProfile(p || []) })
+      .catch(e => setErr(String(e?.message || e)))
+  }, [produktionId])
+
+  useEffect(() => { setLoading(true); loadList().finally(() => setLoading(false)) }, [loadList])
+  useEffect(() => { const f = () => setCoarse(isCoarse()); window.addEventListener('resize', f); return () => window.removeEventListener('resize', f) }, [])
+
+  const loadDetail = useCallback((id: string) => {
+    setSelectedId(id); setBesetzung({})
+    api.getVerteilerDetail(id).then(d => {
+      setDetail(d)
+      setForm({
+        name: d.name ?? '', scope: d.scope, werkstufe_typ: d.werkstufe_typ ?? null,
+        pdf_export_profil_id: d.pdf_export_profil_id ?? null, pdf_anhang: !!d.pdf_anhang,
+        email_betreff: d.email_betreff ?? '', email_text: d.email_text ?? '',
+      })
+      // Besetzung je Mitglied lazy auflösen
+      for (const m of (d.mitglieder || [])) {
+        api.getVerteilerBesetzung(id, m.id).then(b => setBesetzung(prev => ({ ...prev, [m.id]: b }))).catch(() => {})
+      }
+    }).catch(e => setErr(String(e?.message || e)))
+  }, [])
+
+  // Auslöser-Optionen: real konfigurierte Werkstufen-Typen + „Revision"
+  const auslOptions = [
+    ...Array.from(new Set((labels || []).map(l => l.label).filter(Boolean))),
+    'Revision',
+  ]
+  const currentAusl = form.scope === 'revision' ? 'Revision' : (form.werkstufe_typ ?? '')
+
+  function pickAusloeser(opt: string) {
+    if (opt === 'Revision') setForm((f: any) => ({ ...f, scope: 'revision', werkstufe_typ: null }))
+    else setForm((f: any) => ({ ...f, scope: 'werkstufe_typ', werkstufe_typ: opt }))
+  }
+
+  async function createVerteiler() {
+    const firstLabel = (labels || []).map(l => l.label).filter(Boolean)[0]
+    try {
+      const v = await api.createVerteiler({
+        produktion_id: produktionId, name: 'Neuer Verteiler',
+        scope: firstLabel ? 'werkstufe_typ' : 'revision', werkstufe_typ: firstLabel ?? null,
+      })
+      await loadList(); loadDetail(v.id)
+    } catch (e: any) { setErr(String(e?.message || e)) }
+  }
+
+  async function saveVerteiler() {
+    if (!selectedId) return
+    setSaving(true); setErr(null)
+    try {
+      await api.updateVerteiler(selectedId, {
+        name: form.name, scope: form.scope, werkstufe_typ: form.werkstufe_typ,
+        pdf_export_profil_id: form.pdf_export_profil_id, pdf_anhang: form.pdf_anhang,
+        email_betreff: form.email_betreff, email_text: form.email_text,
+      })
+      await loadList()
+    } catch (e: any) { setErr(String(e?.message || e)) }
+    finally { setSaving(false) }
+  }
+
+  async function removeVerteiler(id: string) {
+    if (!confirm('Diesen Verteiler inkl. Versand-Historie löschen?')) return
+    try { await api.deleteVerteiler(id); if (selectedId === id) { setSelectedId(null); setDetail(null) }; await loadList() }
+    catch (e: any) { setErr(String(e?.message || e)) }
+  }
+
+  // ── Mitglieder (speichern sofort) ──────────────────────────────────────────
+  async function addFreieEmail() {
+    if (!selectedId) return
+    const email = prompt('E-Mail-Adresse des Empfängers:')?.trim()
+    if (!email) return
+    const name = prompt('Name (optional):')?.trim() || null
+    try { await api.addVerteilerMitglied(selectedId, { freie_email: email, name }); loadDetail(selectedId) }
+    catch (e: any) { setErr(String(e?.message || e)) }
+  }
+  async function updateMitglied(mid: string, patch: any) {
+    if (!selectedId) return
+    try {
+      await api.updateVerteilerMitglied(selectedId, mid, patch)
+      setDetail((d: any) => d ? { ...d, mitglieder: d.mitglieder.map((m: any) => m.id === mid ? { ...m, ...patch } : m) } : d)
+    } catch (e: any) { setErr(String(e?.message || e)) }
+  }
+  async function removeMitglied(mid: string) {
+    if (!selectedId) return
+    try { await api.deleteVerteilerMitglied(selectedId, mid); loadDetail(selectedId) }
+    catch (e: any) { setErr(String(e?.message || e)) }
+  }
+
+  function insertPlaceholder(ph: string) {
+    setForm((f: any) => ({ ...f, email_text: (f.email_text || '') + ph }))
+  }
+
+  async function createStandardProfil() {
+    try {
+      const p = await api.createPdfProfil({ produktion_id: produktionId, name: 'Standard-Profil', ist_standard: true })
+      const profs = await api.getPdfProfile(produktionId); setProfile(profs || [])
+      setForm((f: any) => ({ ...f, pdf_export_profil_id: p.id }))
+    } catch (e: any) { setErr(String(e?.message || e)) }
+  }
+
+  const assignedProfil = profile.find(p => p.id === form.pdf_export_profil_id) || null
+
+  // ── Render ──────────────────────────────────────────────────────────────────
+  if (loading) return <div style={{ padding: 24, color: 'var(--text-secondary)' }}>Lade Verteiler…</div>
+
+  const showList = !coarse || !selectedId
+  const showDetail = !coarse || !!selectedId
+
+  const ListPanel = (
+    <div style={{ ...card, width: coarse ? '100%' : 240, flex: 'none', alignSelf: 'flex-start' }}>
+      <div style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)', fontWeight: 600 }}>Verteiler</div>
+      {list.length === 0 && <div style={{ padding: 16, color: 'var(--text-secondary)', fontSize: 13 }}>Noch keine Verteiler.</div>}
+      {list.map(v => (
+        <div key={v.id} onClick={() => loadDetail(v.id)}
+          style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', cursor: 'pointer', minHeight: 44,
+            background: selectedId === v.id ? 'var(--bg-active, #E8F8EE)' : 'transparent',
+            boxShadow: selectedId === v.id ? 'inset 3px 0 0 #00C853' : 'none' }}>
+          <div style={{ fontWeight: 500 }}>{v.name}</div>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+            {v.scope === 'revision' ? 'Revision (allgemein)' : v.werkstufe_typ} · {v.mitglieder_count ?? 0} Mitglieder
+            {!v.aktiv && ' · inaktiv'}
+          </div>
+        </div>
+      ))}
+      <button onClick={createVerteiler} style={{ ...linkish, display: 'block', width: '100%', textAlign: 'left', padding: '12px 16px', minHeight: 44 }}>
+        + Verteiler anlegen
+      </button>
+    </div>
+  )
+
+  const DetailPanel = detail && (
+    <div style={{ ...card, flex: 1, minWidth: 0 }}>
+      <div style={{ padding: 20, borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+          {coarse && <button onClick={() => { setSelectedId(null); setDetail(null) }} style={{ ...btn, padding: '8px 12px' }}>←</button>}
+          <h1 style={{ fontSize: 18, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{form.name || 'Verteiler'}</h1>
+        </div>
+        <span style={badge('#E8F8EE', '#0a7d3c')}>{form.scope === 'revision' ? 'Scope: Revision' : `Werkstufe: ${form.werkstufe_typ || '—'}`}</span>
+      </div>
+
+      {/* Grunddaten */}
+      <div style={sectionStyle}>
+        <div style={h2Style}>Grunddaten</div>
+        <div style={{ marginBottom: 14 }}>
+          <label style={labelStyle}>Name</label>
+          <input style={inputStyle} value={form.name} onChange={e => setForm((f: any) => ({ ...f, name: e.target.value }))} />
+        </div>
+        <div>
+          <label style={labelStyle}>Auslöser</label>
+          <div style={{ display: 'inline-flex', flexWrap: 'wrap', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+            {auslOptions.map((opt, i) => (
+              <button key={opt} onClick={() => pickAusloeser(opt)}
+                style={{ font: 'inherit', padding: '10px 14px', minHeight: 44, border: 'none', borderLeft: i ? '1px solid var(--border)' : 'none', cursor: 'pointer',
+                  background: currentAusl === opt ? '#000' : 'var(--bg-card, #fff)', color: currentAusl === opt ? '#fff' : 'var(--text-secondary)' }}>
+                {opt}
+              </button>
+            ))}
+          </div>
+          <div style={hint}>Liste entspricht den real konfigurierten Werkstufen dieser Produktion plus „Revision". „Revision" triggert bei einer neuen Version derselben freigegebenen Fassung.</div>
+        </div>
+      </div>
+
+      {/* Mitglieder */}
+      <div style={sectionStyle}>
+        <div style={h2Style}>Mitglieder</div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead><tr style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
+              <th style={th}>Empfänger</th><th style={th}>Quelle</th><th style={th}>Rolle / Funktion</th>
+              <th style={{ ...th, textAlign: 'center' }}>Nur eigene Szenen</th><th style={th}>Revisionsmodus</th><th style={th}></th>
+            </tr></thead>
+            <tbody>
+              {(detail.mitglieder || []).map((m: Mitglied) => {
+                const b = besetzung[m.id]
+                const istSchauspieler = b?.ist_schauspieler
+                return (
+                  <tr key={m.id}>
+                    <td style={td}>
+                      <div>{m.name || m.freie_email || m.kontakt_id}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{m.freie_email || (m.kontakt_id ? 'Kontakt verknüpft' : '')}</div>
+                    </td>
+                    <td style={td}>
+                      {m.kontakt_id ? <span style={badge('#E9F2FF', '#0a4ea3')}>Kontakt</span> : <span style={badge('#FFF7E0', '#8a6d00')}>Frei</span>}
+                    </td>
+                    <td style={td}>
+                      {b === undefined ? <span style={{ color: 'var(--text-secondary)' }}>…</span>
+                        : istSchauspieler
+                          ? <><span style={badge('#F0EAFB', '#5b3fa6')}>Schauspieler:in</span><div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>Rolle: {b.figuren.map((f: any) => f.name).filter(Boolean).join(', ') || '—'}</div></>
+                          : <span style={{ color: 'var(--text-secondary)' }}>nicht zugeordnet{!m.kontakt_id && <> · <a style={linkish} href={`${VERTRAEGE_ADRESSBUCH_URL}?suche=${encodeURIComponent(m.freie_email || '')}`} target="_blank" rel="noreferrer">verknüpfen</a></>}</span>}
+                    </td>
+                    <td style={{ ...td, textAlign: 'center' }}>
+                      <Tooltip text={istSchauspieler ? 'Nur Szenen der erkannten Rolle (Sides)' : 'Nur für erkannte Schauspieler:innen verfügbar'}>
+                        <input type="checkbox" disabled={!istSchauspieler} checked={!!m.sides_nur_eigene}
+                          onChange={e => updateMitglied(m.id, { sides_nur_eigene: e.target.checked })}
+                          style={{ width: 20, height: 20, cursor: istSchauspieler ? 'pointer' : 'not-allowed', opacity: istSchauspieler ? 1 : 0.4 }} />
+                      </Tooltip>
+                    </td>
+                    <td style={td}>
+                      <select value={m.revisions_modus || 'voll'} onChange={e => updateMitglied(m.id, { revisions_modus: e.target.value })}
+                        style={{ ...inputStyle, minHeight: 40, padding: '6px 8px', width: 'auto' }}>
+                        {REVISIONSMODI.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+                      </select>
+                    </td>
+                    <td style={{ ...td, textAlign: 'center' }}>
+                      <button onClick={() => removeMitglied(m.id)} title="Entfernen" style={{ ...linkish, color: '#FF3B30', fontSize: 16, minHeight: 44, minWidth: 44 }}>✕</button>
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div style={{ marginTop: 14, display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+          <a style={linkish} href={VERTRAEGE_ADRESSBUCH_URL} target="_blank" rel="noreferrer">+ Aus Adressbuch (vertraege.app)</a>
+          <button style={linkish} onClick={addFreieEmail}>+ Freie E-Mail</button>
+        </div>
+        <div style={{ ...noteBox }}>
+          Schauspieler:in &amp; Rolle werden automatisch über die Besetzungsmatrix erkannt. „Nur eigene Szenen" (Sides) ist nur für erkannte Schauspieler:innen verfügbar; bei Crew und nicht zugeordneten Adressen ausgegraut. Fehlt die Zuordnung, lässt sie sich über „verknüpfen" im Adressbuch herstellen.
+        </div>
+      </div>
+
+      {/* E-Mail */}
+      <div style={sectionStyle}>
+        <div style={h2Style}>E-Mail</div>
+        <div style={{ marginBottom: 14 }}>
+          <label style={labelStyle}>Betreff</label>
+          <input style={inputStyle} value={form.email_betreff} placeholder="Neue Drehbuchfassung: {Produktion} – {Folge}"
+            onChange={e => setForm((f: any) => ({ ...f, email_betreff: e.target.value }))} />
+        </div>
+        <div>
+          <label style={labelStyle}>Text</label>
+          <textarea style={{ ...inputStyle, minHeight: 120, lineHeight: 1.6, resize: 'vertical' }} value={form.email_text}
+            placeholder={'Hallo {Name},\n\nes liegt eine neue Fassung ({Werkstufe} v{Version}) vor:\n\n{Link}\n\nViele Grüße'}
+            onChange={e => setForm((f: any) => ({ ...f, email_text: e.target.value }))} />
+          <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {PLACEHOLDERS.map(p => (
+              <button key={p} onClick={() => insertPlaceholder(p)} style={{ fontSize: 12, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 99, padding: '4px 10px', cursor: 'pointer', color: 'var(--text-primary)' }}>{p}</button>
+            ))}
+          </div>
+          <div style={hint}>Text wird je Verteiler bearbeitet. Rahmen/Layout, Absenderadresse und Versand kommen aus der auth.app. <a style={linkish} href={AUTH_EMAIL_SYSTEM_URL} target="_blank" rel="noreferrer">Layout in auth ansehen ↗</a></div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, paddingTop: 14 }}>
+          <div><div style={{ fontWeight: 500 }}>PDF zusätzlich anhängen</div><div style={hint}>Empfohlen ist Link-first (Tracking, Widerruf, Zustellbarkeit).</div></div>
+          <input type="checkbox" checked={!!form.pdf_anhang} onChange={e => setForm((f: any) => ({ ...f, pdf_anhang: e.target.checked }))} style={{ width: 24, height: 24, cursor: 'pointer' }} />
+        </div>
+      </div>
+
+      {/* PDF-Export-Profil */}
+      <div style={sectionStyle}>
+        <div style={h2Style}>PDF-Export-Profil</div>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+          <select value={form.pdf_export_profil_id || ''} onChange={e => setForm((f: any) => ({ ...f, pdf_export_profil_id: e.target.value || null }))}
+            style={{ ...inputStyle, width: 'auto', minWidth: 220 }}>
+            <option value="">— kein Profil —</option>
+            {profile.map(p => <option key={p.id} value={p.id}>{p.name}{p.ist_standard ? ' (Standard)' : ''}</option>)}
+          </select>
+          {assignedProfil && <button style={linkish} onClick={() => setProfilEdit({ ...assignedProfil })}>Profil bearbeiten ↗</button>}
+          {profile.length === 0 && <button style={linkish} onClick={createStandardProfil}>Standard-Profil anlegen</button>}
+        </div>
+        {assignedProfil && (
+          <div style={{ marginTop: 12, padding: 14, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 8 }}>
+            {[
+              [assignedProfil.wz_zwc_aktiv, 'ZWC-Wasserzeichen (forensisch, je Empfänger)'],
+              [assignedProfil.wz_sichtbar_aktiv, `Sichtbares Wasserzeichen (${assignedProfil.wz_sichtbar_position})`],
+              [assignedProfil.struktur_quelle === 'aktueller_export', 'Dokumentenstruktur aus aktuellem PDF-Export'],
+              [assignedProfil.lesezeichen_aktiv, `PDF-Lesezeichen (${assignedProfil.lesezeichen_ebene})`],
+            ].map(([on, text], i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '3px 0', color: on ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                <span style={{ width: 16, height: 16, borderRadius: 4, background: on ? '#00C853' : 'var(--border)', color: '#fff', fontSize: 11, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{on ? '✓' : '–'}</span>
+                {text as string}
+              </div>
+            ))}
+          </div>
+        )}
+        <div style={hint}>Profil definiert das Aussehen (Wasserzeichen/Struktur/Lesezeichen). Die PDF-Erzeugung, die es konsumiert, folgt in Schritt 7.</div>
+      </div>
+
+      {/* Ausdrucken — komplett „Bald" */}
+      <div style={{ ...sectionStyle, opacity: 0.55, position: 'relative' }}>
+        <div style={{ position: 'absolute', inset: 0, zIndex: 1, cursor: 'not-allowed' }} />
+        <div style={h2Style}>Ausdrucken durch Empfänger <span style={{ ...badge('#FFF7E0', '#8a6d00'), border: '1px dashed #FFCC00' }}>Bald</span></div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div><div style={{ fontWeight: 500 }}>Ausdrucken erlaubt</div><div style={hint}>Empfänger löst über die Mail einen Druck am Produktionsdrucker aus.</div></div>
+          <input type="checkbox" disabled style={{ width: 24, height: 24 }} />
+        </div>
+        <div style={{ marginTop: 10 }}>
+          <label style={labelStyle}>Druckvarianten</label>
+          <div style={{ display: 'inline-flex', flexWrap: 'wrap', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+            {['Normal', 'Beidseitig', '2 auf 1', '4 auf 1'].map((v, i) => (
+              <span key={v} style={{ padding: '10px 14px', borderLeft: i ? '1px solid var(--border)' : 'none', color: 'var(--text-secondary)' }}>{v}</span>
+            ))}
+          </div>
+        </div>
+        <div style={noteBox}>Ein physischer Ausdruck verlässt das System und kann geleakt werden. Jede Seite trägt das Empfänger-Wasserzeichen.</div>
+      </div>
+
+      <div style={{ padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, background: 'var(--bg-surface)', borderRadius: '0 0 12px 12px' }}>
+        <button onClick={() => removeVerteiler(detail.id)} style={{ ...linkish, color: '#FF3B30' }}>Verteiler löschen</button>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button style={btn} onClick={() => loadDetail(detail.id)}>Zurücksetzen</button>
+          <button style={btnPrimary} onClick={saveVerteiler} disabled={saving}>{saving ? 'Speichert…' : 'Speichern'}</button>
+        </div>
+      </div>
+    </div>
+  )
+
+  return (
+    <div style={{ padding: coarse ? 0 : 4 }}>
+      {err && <div style={{ margin: '0 0 12px', padding: '10px 12px', background: '#FFF0F0', border: '1px solid #FFB3B3', borderRadius: 8, color: '#FF3B30', fontSize: 13 }}>{err} <button style={{ ...linkish, color: '#FF3B30' }} onClick={() => setErr(null)}>✕</button></div>}
+      <div style={{ display: 'flex', gap: 16, alignItems: 'flex-start' }}>
+        {showList && ListPanel}
+        {showDetail && (detail ? DetailPanel : <div style={{ ...card, flex: 1, padding: 40, color: 'var(--text-secondary)', textAlign: 'center' }}>Wähle links einen Verteiler oder lege einen neuen an.</div>)}
+      </div>
+      {profilEdit && <ProfilEditModal profil={profilEdit} onClose={() => setProfilEdit(null)} onSaved={async () => { const p = await api.getPdfProfile(produktionId); setProfile(p || []); setProfilEdit(null) }} />}
+    </div>
+  )
+}
+
+const th: React.CSSProperties = { textAlign: 'left', padding: '10px 8px', borderBottom: '1px solid var(--border)', fontWeight: 600 }
+const td: React.CSSProperties = { textAlign: 'left', padding: '10px 8px', borderBottom: '1px solid var(--border)', verticalAlign: 'middle' }
+const noteBox: React.CSSProperties = { display: 'flex', gap: 8, padding: '10px 12px', background: '#FFF7E0', border: '1px solid #F2D98A', borderRadius: 8, fontSize: 12, color: '#7a5d00', marginTop: 10 }
+
+// ── PDF-Profil-Editor (Aussehen; schreibt pdf_export_profil) ──────────────────
+function ProfilEditModal({ profil, onClose, onSaved }: { profil: any; onClose: () => void; onSaved: () => void }) {
+  const [p, setP] = useState<any>({ ...profil })
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const set = (k: string, v: any) => setP((x: any) => ({ ...x, [k]: v }))
+
+  async function save() {
+    setSaving(true); setErr(null)
+    try {
+      await api.updatePdfProfil(p.id, {
+        name: p.name, ist_standard: p.ist_standard,
+        wz_zwc_aktiv: p.wz_zwc_aktiv, wz_sichtbar_aktiv: p.wz_sichtbar_aktiv,
+        wz_sichtbar_position: p.wz_sichtbar_position, wz_sichtbar_inhalt: p.wz_sichtbar_inhalt,
+        wz_sichtbar_opacity: p.wz_sichtbar_opacity, wz_sichtbar_groesse: p.wz_sichtbar_groesse,
+        struktur_quelle: p.struktur_quelle, titelblatt: p.titelblatt,
+        szenen_nummerierung: p.szenen_nummerierung, seiten_nummerierung: p.seiten_nummerierung,
+        lesezeichen_aktiv: p.lesezeichen_aktiv, lesezeichen_ebene: p.lesezeichen_ebene, lesezeichen_label: p.lesezeichen_label,
+        revisions_stil: p.revisions_stil,
+      })
+      onSaved()
+    } catch (e: any) { setErr(String(e?.message || e)); setSaving(false) }
+  }
+
+  const row = (lbl: string, node: React.ReactNode) => (
+    <div style={{ marginBottom: 12 }}><label style={labelStyle}>{lbl}</label>{node}</div>
+  )
+  const toggle = (k: string, lbl: string) => (
+    <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', cursor: 'pointer' }}>
+      <input type="checkbox" checked={!!p[k]} onChange={e => set(k, e.target.checked)} style={{ width: 20, height: 20 }} /> {lbl}
+    </label>
+  )
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', overflowY: 'auto', padding: 24 }}>
+      <div onClick={e => e.stopPropagation()} style={{ ...card, width: 560, maxWidth: '100%' }}>
+        <div style={{ padding: 20, borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h2 style={{ fontSize: 16, fontWeight: 600 }}>PDF-Export-Profil bearbeiten</h2>
+          <button style={{ ...linkish, fontSize: 18 }} onClick={onClose}>✕</button>
+        </div>
+        <div style={{ padding: 20, maxHeight: '70vh', overflowY: 'auto' }}>
+          {err && <div style={{ marginBottom: 12, color: '#FF3B30', fontSize: 13 }}>{err}</div>}
+          {row('Name', <input style={inputStyle} value={p.name || ''} onChange={e => set('name', e.target.value)} />)}
+          {toggle('ist_standard', 'Standard-Profil dieser Produktion')}
+          <div style={{ ...h2Style, marginTop: 14 }}>Wasserzeichen</div>
+          {toggle('wz_zwc_aktiv', 'ZWC-Wasserzeichen (forensisch, je Empfänger)')}
+          {toggle('wz_sichtbar_aktiv', 'Sichtbares Wasserzeichen (auf jeder Seite)')}
+          {row('Position', <select style={inputStyle} value={p.wz_sichtbar_position} onChange={e => set('wz_sichtbar_position', e.target.value)}>
+            {['kopf', 'fuss', 'kopf_fuss', 'diagonal', 'kopf_fuss_diagonal'].map(o => <option key={o} value={o}>{o}</option>)}
+          </select>)}
+          {row('Inhalt (Template)', <input style={inputStyle} value={p.wz_sichtbar_inhalt || ''} onChange={e => set('wz_sichtbar_inhalt', e.target.value)} />)}
+          <div style={{ display: 'flex', gap: 12 }}>
+            <div style={{ flex: 1 }}>{row('Opazität (%)', <input type="number" min={0} max={100} style={inputStyle} value={p.wz_sichtbar_opacity ?? 20} onChange={e => set('wz_sichtbar_opacity', Number(e.target.value))} />)}</div>
+            <div style={{ flex: 1 }}>{row('Größe', <select style={inputStyle} value={p.wz_sichtbar_groesse} onChange={e => set('wz_sichtbar_groesse', e.target.value)}>{['klein', 'mittel', 'gross'].map(o => <option key={o} value={o}>{o}</option>)}</select>)}</div>
+          </div>
+          <div style={{ ...h2Style, marginTop: 14 }}>Struktur & Lesezeichen</div>
+          {row('Struktur-Quelle', <select style={inputStyle} value={p.struktur_quelle} onChange={e => set('struktur_quelle', e.target.value)}>{['aktueller_export', 'eigenes'].map(o => <option key={o} value={o}>{o}</option>)}</select>)}
+          {toggle('titelblatt', 'Titelblatt')}
+          {toggle('szenen_nummerierung', 'Szenen-Nummerierung')}
+          {toggle('seiten_nummerierung', 'Seiten-Nummerierung')}
+          {toggle('lesezeichen_aktiv', 'PDF-Lesezeichen (Outline)')}
+          {row('Lesezeichen-Ebene', <select style={inputStyle} value={p.lesezeichen_ebene} onChange={e => set('lesezeichen_ebene', e.target.value)}>{['szene', 'akt_szene', 'strang_szene'].map(o => <option key={o} value={o}>{o}</option>)}</select>)}
+          {row('Lesezeichen-Label', <input style={inputStyle} value={p.lesezeichen_label || ''} onChange={e => set('lesezeichen_label', e.target.value)} />)}
+          {row('Revisions-Darstellung', <select style={inputStyle} value={p.revisions_stil} onChange={e => set('revisions_stil', e.target.value)}>{['asterisk', 'farbseite', 'beides'].map(o => <option key={o} value={o}>{o}</option>)}</select>)}
+        </div>
+        <div style={{ padding: '16px 20px', display: 'flex', justifyContent: 'flex-end', gap: 10, background: 'var(--bg-surface)', borderRadius: '0 0 12px 12px' }}>
+          <button style={btn} onClick={onClose}>Abbrechen</button>
+          <button style={btnPrimary} onClick={save} disabled={saving}>{saving ? 'Speichert…' : 'Speichern'}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
