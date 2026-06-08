@@ -515,7 +515,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
         // For new system: load characters, vorstopp, revisions via scene_identity_id / dokument_szene_id
         if (useDokumentSzenen && typeof szeneId === 'string') {
           if (data?.scene_identity_id) {
-            api.getSceneIdentityCharacters(data.scene_identity_id)
+            api.getSceneIdentityCharacters(data.scene_identity_id, werkstufId)
               .then(chars => setSceneChars(Array.isArray(chars) ? chars : []))
               .catch(() => setSceneChars([]))
           }
@@ -630,7 +630,7 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
         character_id: character.id,
         kategorie_id: kategorieId,
       })
-      const chars = await api.getSceneIdentityCharacters(scene.scene_identity_id)
+      const chars = await api.getSceneIdentityCharacters(scene.scene_identity_id, werkstufId)
       setSceneChars(Array.isArray(chars) ? chars : [])
     } catch (e: any) {
       console.error('Fehler beim Hinzufügen', e)

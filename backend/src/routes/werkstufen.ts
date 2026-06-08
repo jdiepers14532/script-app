@@ -1115,6 +1115,7 @@ werkstufenSzenenRouter.get('/', async (req, res) => {
          JOIN characters c ON c.id = sc.character_id
          LEFT JOIN character_kategorien ck ON ck.id = sc.kategorie_id
          WHERE sc.scene_identity_id = ds.scene_identity_id
+           AND sc.werkstufe_id = ds.werkstufe_id
            AND (ck.typ = 'rolle' OR ck.typ IS NULL)) AS rollen_names
        FROM dokument_szenen ds
        LEFT JOIN scene_identities si ON si.id = ds.scene_identity_id

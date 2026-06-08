@@ -487,8 +487,12 @@ dokumentSzenenRouter.post('/:id/snapshots/:snapId/restore', async (req, res) => 
 // ══════════════════════════════════════════════════════════════════════════════
 sceneIdentitiesRouter.get('/:id/characters', async (req, res) => {
   try {
+    // Werkstufe-Filter (PFLICHT-Kontext): scene_characters sind werkstufe-spezifisch. Ohne diesen
+    // Filter würden nach einem Fassungs-Copy die Rollen aus ALLEN Fassungen geladen → Duplikate
+    // (z.B. "Britta, Britta"). Abwärtskompat: ohne werkstufe_id wird auf character_id dedupliziert.
+    const werkstufeId = req.query.werkstufe_id as string | undefined
     const rows = await query(
-      `SELECT sc.id, sc.character_id, sc.kategorie_id, sc.anzahl, sc.ist_gruppe,
+      `SELECT ${werkstufeId ? '' : 'DISTINCT ON (sc.character_id)'} sc.id, sc.character_id, sc.kategorie_id, sc.anzahl, sc.ist_gruppe,
               sc.spiel_typ, sc.repliken_anzahl, sc.header_o_t,
               c.name, c.meta_json,
               cp.rollen_nummer, cp.komparsen_nummer,
@@ -501,9 +505,9 @@ sceneIdentitiesRouter.get('/:id/characters', async (req, res) => {
        LEFT JOIN folgen fl ON fl.id = si.folge_id
        LEFT JOIN character_productions cp ON cp.character_id = sc.character_id AND cp.produktion_id = fl.produktion_id
        LEFT JOIN character_kategorien ck2 ON ck2.id = cp.kategorie_id
-       WHERE sc.scene_identity_id = $1
-       ORDER BY COALESCE(ck.typ, ck2.typ) NULLS LAST, c.name`,
-      [req.params.id]
+       WHERE sc.scene_identity_id = $1 ${werkstufeId ? 'AND sc.werkstufe_id = $2' : ''}
+       ORDER BY ${werkstufeId ? '' : 'sc.character_id, '}COALESCE(ck.typ, ck2.typ) NULLS LAST, c.name`,
+      werkstufeId ? [req.params.id, werkstufeId] : [req.params.id]
     )
     res.json(rows)
   } catch (err) {

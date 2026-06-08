@@ -267,6 +267,7 @@ anmerkungenRouter.get('/counts', async (req, res) => {
        GROUP BY a.scene_identity_id`,
       [user.user_id, werkstufeId, autor]
     )
+    res.setHeader('Cache-Control', 'no-store') // Live-Aktualisierung: Browser darf nicht cachen
     res.json(rows)
   } catch (err) {
     res.status(500).json({ error: String(err) })

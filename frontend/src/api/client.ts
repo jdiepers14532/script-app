@@ -163,7 +163,8 @@ export const api = {
   restoreWerkstufenSnapshot: (werkId: string, snapId: number) =>
     request<any>('POST', `/werkstufen/${werkId}/snapshots/${snapId}/restore`),
   createDokumentSzeneRevision: (id: string, data: any) => request<any>('POST', `/dokument-szenen/${id}/revisionen`, data),
-  getSceneIdentityCharacters: (id: string) => request<any[]>('GET', `/scene-identities/${id}/characters`),
+  getSceneIdentityCharacters: (id: string, werkstufeId?: string | null) =>
+    request<any[]>('GET', `/scene-identities/${id}/characters${werkstufeId ? `?werkstufe_id=${encodeURIComponent(werkstufeId)}` : ''}`),
   addSceneIdentityCharacter: (id: string, data: any) => request<any>('POST', `/scene-identities/${id}/characters`, data),
   removeSceneIdentityCharacter: (id: string, characterId: string) =>
     request<void>('DELETE', `/scene-identities/${id}/characters/${characterId}`),
@@ -278,6 +279,12 @@ export const api = {
     request<void>('DELETE', `/verteiler/${id}/mitglieder/${mid}`),
   getVerteilerBesetzung: (id: string, mid: string) =>
     request<any>('GET', `/verteiler/${id}/mitglieder/${mid}/besetzung`),
+  // Kontakt-Suche/-Anlegen (vertraege, ohne E-Mail-Anzeige)
+  kontaktSuche: (produktionId: string, q: string, scope: 'produktion' | 'global') =>
+    request<{ personen: { kontakt_id: string; name: string; rufname: string | null; funktion: string; ist_schauspieler: boolean; rollenname: string | null }[]; scope: string; produktion_gefiltert: boolean }>(
+      'GET', `/verteiler/kontakt-suche?produktion_id=${encodeURIComponent(produktionId)}&q=${encodeURIComponent(q)}&scope=${scope}`),
+  kontaktAnlegen: (data: { produktion_id: string; name: string; rufname?: string | null; email?: string | null }) =>
+    request<{ kontakt_id: string; name: string; neu: boolean }>('POST', '/verteiler/kontakt-anlegen', data),
   // PDF-Export-Profil
   getPdfProfile: (produktionId: string) =>
     request<any[]>('GET', `/pdf-export-profil?produktion_id=${encodeURIComponent(produktionId)}`),

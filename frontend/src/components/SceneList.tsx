@@ -111,7 +111,7 @@ export default function SceneList({
   useEffect(() => {
     if (!werkstufId) { setAnmerkungCounts({}); return }
     const load = () => {
-      fetch(`/api/anmerkungen/counts?werkstufe_id=${encodeURIComponent(werkstufId)}`, { credentials: 'include' })
+      fetch(`/api/anmerkungen/counts?werkstufe_id=${encodeURIComponent(werkstufId)}`, { credentials: 'include', cache: 'no-store' })
         .then(r => r.ok ? r.json() : [])
         .then((rows: any[]) => {
           const m: Record<string, { total: number; offen_ungelesen: number }> = {}
