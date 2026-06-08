@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from 'react'
-import { X, AlertTriangle } from 'lucide-react'
+import { X, AlertTriangle, ListChecks } from 'lucide-react'
 import type { WerkstufeMeta } from '../hooks/useDokument'
 import { useTerminologie } from '../sw-ui'
+import SzenenQuellenModal from './SzenenQuellenModal'
 
-export type WerkstufeCreateMode = 'full' | 'headers_only' | 'storyline_body_as_txt' | 'empty' | 'platzhalter'
+export type WerkstufeCreateMode = 'full' | 'headers_only' | 'storyline_body_as_txt' | 'empty' | 'platzhalter' | 'szenenweise'
 
 export interface NeueWerkstufeParams {
   typ: string
@@ -11,12 +12,14 @@ export interface NeueWerkstufeParams {
   vorgaenger_id?: string
   kopiere_notizen: boolean
   dualview: boolean
+  szenen_quellen?: Record<string, string>  // mode='szenenweise': je Szene die Quell-Fassung
 }
 
 interface Props {
   requestedTyp: 'drehbuch' | 'storyline' | 'notiz'
   werkstufen: WerkstufeMeta[]
   aktuelleWerkstufeId?: string | null   // aktuell ausgewählte Fassung → Default-Vorgänger
+  folgeId: number                       // DB-ID der Folge (für Szenenweise-Diff)
   folgeNummer: number | null
   produktionId: string
   onConfirm: (params: NeueWerkstufeParams) => void
@@ -29,7 +32,7 @@ const TYP_LABEL_STATIC: Record<string, string> = {
 }
 
 export default function NeueWerkstufeModal({
-  requestedTyp, werkstufen, aktuelleWerkstufeId, folgeNummer, produktionId, onConfirm, onClose,
+  requestedTyp, werkstufen, aktuelleWerkstufeId, folgeId, folgeNummer, produktionId, onConfirm, onClose,
 }: Props) {
   const { t } = useTerminologie()
   const TYP_LABEL: Record<string, string> = { ...TYP_LABEL_STATIC, drehbuch: t('drehbuch') }
@@ -111,6 +114,9 @@ export default function NeueWerkstufeModal({
   const [selectedOption, setSelectedOption] = useState<OptionId>(defaultOption)
   const [kopiereNotizen, setKopiereNotizen] = useState(true)
   const [dualview, setDualview] = useState(false)
+  const [showSzenenweise, setShowSzenenweise] = useState(false)
+  // Szenenweise lohnt nur bei ≥2 Fassungen des Typs (sonst gibt es nichts zu wählen).
+  const szenenweiseMoeglich = vorgaengerKandidaten.length >= 2
 
   // Derive which vorgaenger_id to use based on selected option (gewählte Vorfassung statt höchste)
   const vorgaengerId = useMemo(() => {
@@ -253,6 +259,25 @@ export default function NeueWerkstufeModal({
               </label>
             ))}
           </div>
+          {szenenweiseMoeglich && (
+            <button
+              onClick={() => setShowSzenenweise(true)}
+              style={{
+                marginTop: 8, display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+                padding: '8px 10px', borderRadius: 8, border: '1px dashed var(--border)',
+                background: 'transparent', cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+                color: 'var(--text-primary)', fontSize: 13,
+              }}
+            >
+              <ListChecks size={15} style={{ color: '#007AFF', flexShrink: 0 }} />
+              <span>
+                <span style={{ fontWeight: 500 }}>Szenenweise entscheiden…</span>
+                <span style={{ display: 'block', fontSize: 11, color: 'var(--text-muted)', marginTop: 1 }}>
+                  Pro Szene aus einer anderen Fassung wählen (Cherry-Pick)
+                </span>
+              </span>
+            </button>
+          )}
         </div>
 
         {/* Checkboxes */}
@@ -303,6 +328,27 @@ export default function NeueWerkstufeModal({
           </button>
         </div>
       </div>
+
+      {showSzenenweise && (
+        <SzenenQuellenModal
+          folgeId={folgeId}
+          typ={requestedTyp}
+          werkstufen={werkstufen}
+          defaultVorgaengerId={gewaehlterPred?.id}
+          onClose={() => setShowSzenenweise(false)}
+          onConfirm={(szenen_quellen) => {
+            setShowSzenenweise(false)
+            onConfirm({
+              typ: requestedTyp,
+              mode: 'szenenweise',
+              vorgaenger_id: gewaehlterPred?.id,  // für Notizen-Default
+              kopiere_notizen: effectivePred ? kopiereNotizen : false,
+              dualview,
+              szenen_quellen,
+            })
+          }}
+        />
+      )}
     </div>
   )
 }

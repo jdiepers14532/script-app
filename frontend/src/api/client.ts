@@ -710,9 +710,10 @@ export const api = {
   createWerkstufe: (folgeId: number, data: {
     typ: string
     label?: string
-    mode?: 'full' | 'headers_only' | 'storyline_body_as_txt' | 'empty'
+    mode?: 'full' | 'headers_only' | 'storyline_body_as_txt' | 'empty' | 'szenenweise'
     vorgaenger_id?: string
     kopiere_notizen?: boolean
+    szenen_quellen?: Record<string, string>  // mode='szenenweise': je Szene die Quell-Fassung
   }) =>
     request<any>('POST', `/v2/folgen/${folgeId}/werkstufen`, data),
   deleteWerkstufe: (id: string) => request<void>('DELETE', `/werkstufen/${id}`),

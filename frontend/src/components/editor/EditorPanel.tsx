@@ -313,6 +313,7 @@ export default function EditorPanel({
         mode: params.mode === 'platzhalter' ? 'empty' : params.mode,
         vorgaenger_id: params.vorgaenger_id,
         kopiere_notizen: params.kopiere_notizen,
+        szenen_quellen: params.szenen_quellen,
       })
       await onReloadWerkstufen()
       setSelectedWerkId(newWerk.id)
@@ -1298,6 +1299,7 @@ export default function EditorPanel({
           requestedTyp={neueFassungModal}
           werkstufen={werkstufen}
           aktuelleWerkstufeId={selectedWerkId}
+          folgeId={folgeId}
           folgeNummer={folgeNummer}
           produktionId={produktionId}
           onConfirm={handleNeueFassungConfirm}
