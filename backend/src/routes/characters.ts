@@ -133,11 +133,15 @@ charactersRouter.post('/:id/productions', async (req, res) => {
   if (!produktion_id) return res.status(400).json({ error: 'produktion_id required' })
   try {
     const row = await queryOne(
+      // Trigger v204 vergibt bei NULL automatisch die nächste freie Nummer.
+      // Im UPDATE-Zweig darf die Auto-Vergabe eine bestehende Nummer NICHT
+      // überschreiben: nur übernehmen, wenn der Client explizit eine Nummer
+      // mitgab ($3/$4 roher Input, vor Trigger).
       `INSERT INTO character_productions (character_id, produktion_id, rollen_nummer, komparsen_nummer, kategorie_id)
        VALUES ($1, $2, $3, $4, $5)
        ON CONFLICT (character_id, produktion_id) DO UPDATE SET
-         rollen_nummer = EXCLUDED.rollen_nummer,
-         komparsen_nummer = EXCLUDED.komparsen_nummer,
+         rollen_nummer = CASE WHEN $3::int IS NULL THEN character_productions.rollen_nummer ELSE EXCLUDED.rollen_nummer END,
+         komparsen_nummer = CASE WHEN $4::int IS NULL THEN character_productions.komparsen_nummer ELSE EXCLUDED.komparsen_nummer END,
          kategorie_id = EXCLUDED.kategorie_id,
          updated_at = NOW()
        RETURNING *`,

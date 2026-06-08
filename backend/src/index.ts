@@ -542,6 +542,8 @@ async function runMigrations() {
     'v202_import_batch_jobs_sichtbarkeit.sql',
     // Bulk-Import: Neunummerierung (Szenen ab 1) pro Folge
     'v203_import_batch_jobs_renumber.sql',
+    // Auto-Vergabe Rollen-/Komparsennummer pro Produktion (BEFORE-INSERT-Trigger)
+    'v204_auto_character_nummer.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

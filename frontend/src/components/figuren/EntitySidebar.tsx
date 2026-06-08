@@ -179,7 +179,7 @@ function EntityRow({ entity, selected, onSelect, numberKey, inactive = false, on
       }}
     >
       <span style={{ width: 32, flexShrink: 0, fontSize: 11, color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums', textAlign: 'right' }}>
-        {nr != null ? nr : '—'}
+        {nr != null ? nr : ''}
       </span>
       <span style={{ flex: 1, overflow: 'hidden', minWidth: 0 }}>
         <span style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
