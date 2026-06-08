@@ -3,7 +3,7 @@
 // "prüfen"-Hinweis, Thread, Aktionen (zur Stelle, Übernehmen/Ablehnen [nur canResolve],
 // kommentieren, taggen). Brücke über activeAnmerkungId aus dem AnnotationContext.
 import { useState, useEffect, useCallback } from 'react'
-import { Check, X, MessageSquare, AtSign, MapPin, AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react'
+import { Check, X, MessageSquare, AtSign, MapPin, AlertTriangle, Eye, CheckCheck } from 'lucide-react'
 import { useAnnotations, type AnmerkungItem } from '../../contexts/AnnotationContext'
 
 const QUELLE_LABEL: Record<string, string> = {
@@ -38,11 +38,27 @@ function fmt(iso: string): string {
   } catch { return '' }
 }
 
+const istErledigt = (s: string) => s === 'uebernommen' || s === 'abgelehnt'
+
 export function AnnotationPanel() {
   const a = useAnnotations()
   const { items, loading, activeAnmerkungId, setActiveAnmerkungId } = a
-  // Erledigte (uebernommen/abgelehnt) verschwinden aus der Liste — nur offen/in_arbeit bleiben.
-  const sichtbar = items.filter(it => it.anmerkung.status === 'offen' || it.anmerkung.status === 'in_arbeit')
+  const [erledigtEinblenden, setErledigtEinblenden] = useState(false)
+  const [userMap, setUserMap] = useState<Record<string, string>>({})
+
+  // Namen der Gelesen-Bestätiger (user_id → name) einmal laden.
+  useEffect(() => {
+    a.getTaggbareUser().then(list => {
+      const m: Record<string, string> = {}
+      for (const u of list) m[u.id] = u.name
+      setUserMap(m)
+    }).catch(() => {})
+  }, [a])
+
+  const erledigtCount = items.filter(it => istErledigt(it.anmerkung.status)).length
+  // Standard: offen/in_arbeit (inkl. von-mir-gelesen, die bleiben status='offen').
+  // Mit Schalter: zusätzlich uebernommen/abgelehnt als graue Karten.
+  const sichtbar = items.filter(it => !istErledigt(it.anmerkung.status) || erledigtEinblenden)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: 'var(--bg-surface)', borderLeft: '1px solid var(--border)' }}>
@@ -66,6 +82,20 @@ export function AnnotationPanel() {
           {a.anmerkenModus ? 'Anmerken an' : 'Anmerken aus'}
         </button>
       </div>
+      {erledigtCount > 0 && (
+        <button
+          onClick={() => setErledigtEinblenden(v => !v)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6, minHeight: 30, padding: '5px 14px',
+            borderBottom: '1px solid var(--border)', background: 'transparent', border: 'none',
+            borderTop: 'none', cursor: 'pointer', fontFamily: 'inherit', fontSize: 11,
+            color: 'var(--text-muted)', textAlign: 'left',
+          }}
+        >
+          <Eye size={12} />
+          {erledigtEinblenden ? `Erledigte ausblenden (${erledigtCount})` : `Erledigte einblenden (${erledigtCount})`}
+        </button>
+      )}
       <div style={{ flex: 1, overflowY: 'auto', padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
         {loading && <div style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', padding: 12 }}>Lädt…</div>}
         {!loading && sichtbar.length === 0 && (
@@ -78,6 +108,7 @@ export function AnnotationPanel() {
           <AnmerkungKarte
             key={it.anmerkung.id}
             item={it}
+            userMap={userMap}
             active={activeAnmerkungId === it.anmerkung.id}
             onActivate={() => setActiveAnmerkungId(activeAnmerkungId === it.anmerkung.id ? null : it.anmerkung.id)}
           />
@@ -87,12 +118,15 @@ export function AnnotationPanel() {
   )
 }
 
-function AnmerkungKarte({ item, active, onActivate }: { item: AnmerkungItem; active: boolean; onActivate: () => void }) {
+function AnmerkungKarte({ item, userMap, active, onActivate }: { item: AnmerkungItem; userMap: Record<string, string>; active: boolean; onActivate: () => void }) {
   const a = useAnnotations()
   const { anmerkung: an, anker } = item
   const quelleColor = QUELLE_COLOR[an.quelle] ?? 'var(--text-muted)'
   const editierbar = an.status === 'offen' || an.status === 'in_arbeit'
+  const erledigt = istErledigt(an.status)
+  const vonMirGelesen = an.gelesen_von_mir
   const ankerWarnung = anker.anker_status === 'verschoben' || anker.anker_status === 'verwaist'
+  const gelesenNamen = (an.gelesen_von ?? []).map(uid => userMap[uid] ?? uid)
 
   const vorschau = anker.store === 'kopffeld'
     ? `Kopffeld: ${anker.feldname}`
@@ -128,9 +162,10 @@ function AnmerkungKarte({ item, active, onActivate }: { item: AnmerkungItem; act
       onClick={onActivate}
       style={{
         border: `1px solid ${active ? '#007AFF' : 'var(--border)'}`,
-        borderRadius: 10, padding: 10, background: 'var(--bg-primary)', cursor: 'pointer',
+        borderRadius: 10, padding: 10, cursor: 'pointer',
+        background: erledigt ? 'var(--bg-subtle)' : 'var(--bg-primary)',
         boxShadow: active ? '0 0 0 2px rgba(0,122,255,0.18)' : 'none',
-        opacity: an.status === 'abgelehnt' ? 0.6 : 1,
+        opacity: erledigt ? 0.7 : (vonMirGelesen ? 0.82 : 1),
       }}
     >
       {/* Kopf: Quelle + Status */}
@@ -139,6 +174,11 @@ function AnmerkungKarte({ item, active, onActivate }: { item: AnmerkungItem; act
           {QUELLE_LABEL[an.quelle] ?? an.quelle}
         </span>
         {an.kategorie && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>· {an.kategorie}</span>}
+        {vonMirGelesen && !erledigt && (
+          <span title="Von dir als gelesen markiert" style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 10, color: '#9E9E9E' }}>
+            <CheckCheck size={11} /> gelesen
+          </span>
+        )}
         <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 600, color: STATUS_COLOR[an.status], display: 'flex', alignItems: 'center', gap: 4 }}>
           <span style={{ width: 7, height: 7, borderRadius: 999, background: STATUS_COLOR[an.status] }} />
           {STATUS_LABEL[an.status]}
@@ -162,8 +202,22 @@ function AnmerkungKarte({ item, active, onActivate }: { item: AnmerkungItem; act
         {bodyText(an.body)}
       </div>
 
+      {/* Gelesen-von-Liste (aktive Bestätigung) */}
+      {gelesenNamen.length > 0 && (
+        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 4 }}>
+          <CheckCheck size={11} style={{ flexShrink: 0 }} />
+          <span>Gelesen von: {gelesenNamen.join(', ')}</span>
+        </div>
+      )}
+
       {/* Aktionen */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }} onClick={e => e.stopPropagation()}>
+        {!erledigt && (
+          <ActionBtn icon={<CheckCheck size={13} />} label={vonMirGelesen ? 'Gelesen ✓' : 'Gelesen'}
+            color={vonMirGelesen ? '#9E9E9E' : undefined}
+            onClick={() => a.toggleGelesen(an.id)}
+            title={vonMirGelesen ? 'Als ungelesen markieren' : 'Als gelesen markieren (bleibt sichtbar)'} />
+        )}
         {a.canResolve && editierbar && (
           <>
             <ActionBtn icon={<Check size={13} />} label="Übernehmen" color="#00C853"

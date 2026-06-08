@@ -55,8 +55,9 @@ export const SW_ANNOT_CSS = `
 .sw-annot              { border-radius: 2px; cursor: pointer; transition: background 0.15s; }
 .sw-annot--offen       { background:#FAEEDA; border-bottom:2px solid #EF9F27; }
 .sw-annot--in_arbeit   { background:#FAEEDA; border-bottom:2px solid #FFCC00; }
+.sw-annot--gelesen     { background:#F0F0F0; border-bottom:2px solid #BDBDBD; } /* offen, von mir gelesen — dezent */
 .sw-annot--uebernommen { background:#EAF3DE; border-bottom:2px solid #00C853; }
-.sw-annot--abgelehnt   { opacity:.5; text-decoration:line-through; }
+.sw-annot--abgelehnt   { opacity:.5; }
 .sw-annot--active      { box-shadow: 0 0 0 2px rgba(0,122,255,0.5); border-radius: 3px; }
 @keyframes sw-annot-flash {
   0%   { background:#CFE3FB; }

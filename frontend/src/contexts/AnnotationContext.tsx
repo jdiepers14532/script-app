@@ -28,6 +28,8 @@ export interface AnmerkungData {
   aufgeloest_von: string | null
   aufgeloest_am: string | null
   aufloesung: string | null
+  gelesen_von: string[]       // user_ids, die aktiv "Gelesen" markiert haben
+  gelesen_von_mir: boolean    // habe ICH sie als gelesen markiert?
 }
 export interface AnmerkungItem { anmerkung: AnmerkungData; anker: AnmerkungAnker }
 
@@ -49,6 +51,7 @@ interface AnnotationCtx {
   createContent: (p: { node_id: string | null; selektor: Selektor; quelle: string; kategorie?: string; body: any }) => Promise<void>
   createKopffeld: (p: { feldname: string; quelle: string; kategorie?: string; body: any }) => Promise<void>
   patchStatus: (id: string, status: string, aufloesung?: string) => Promise<void>
+  toggleGelesen: (id: string) => Promise<void>
   addKommentar: (id: string, body: any) => Promise<void>
   getKommentare: (id: string) => Promise<any[]>
   addTags: (id: string, userIds: string[]) => Promise<void>
@@ -144,7 +147,9 @@ export function AnnotationProvider({
       node_id: it.anker.node_id,
       feldname: it.anker.feldname,
       selektor: it.anker.selektor,
-      status: it.anmerkung.status,
+      // Anzeige-Status fürs Highlight: offen + von mir gelesen → dezent grau ('gelesen'),
+      // sonst der echte Status (offen=orange, in_arbeit=gelb). uebernommen/abgelehnt sind raus.
+      status: (it.anmerkung.gelesen_von_mir && it.anmerkung.status === 'offen') ? 'gelesen' : it.anmerkung.status,
       quelle: it.anmerkung.quelle,
     })), [items])
 
@@ -190,6 +195,12 @@ export function AnnotationProvider({
     notifyChanged()
   }, [notifyChanged])
 
+  // Eigenen Lesestatus togglen (per User) — ändert rot/grau in der Szenenliste nur für mich.
+  const toggleGelesen = useCallback(async (id: string) => {
+    await jfetch(`/api/anmerkungen/${id}/gelesen`, { method: 'POST' })
+    notifyChanged()
+  }, [notifyChanged])
+
   const addKommentar = useCallback(async (id: string, body: any) => {
     await jfetch(`/api/anmerkungen/${id}/kommentare`, { method: 'POST', body: JSON.stringify({ body }) })
   }, [])
@@ -212,7 +223,7 @@ export function AnnotationProvider({
     items, loading, me, istAutor, canResolve,
     anmerkenModus, setAnmerkenModus,
     activeAnmerkungId, setActiveAnmerkungId, decoAnker, kopffeldItems,
-    reload, createContent, createKopffeld, patchStatus, addKommentar, getKommentare, addTags, getTaggbareUser,
+    reload, createContent, createKopffeld, patchStatus, toggleGelesen, addKommentar, getKommentare, addTags, getTaggbareUser,
   }
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }
