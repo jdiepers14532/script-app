@@ -788,15 +788,15 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
   if (i < lines.length && isCharacterLine(lines[i])) {
     charaktere = lines[i].trim().split(',').map(c => c.replace(/\s*\(.*?\)\s*/g, '').trim()).filter(Boolean)
     i = skipBlanks(lines, i + 1)
-  } else if (i < lines.length) {
-    // Lookahead: if next non-blank line is INT/EXT, current line is likely a single character name
+  } else if (i < lines.length && isSingleCharacterName(lines[i]?.trim() || '')) {
+    // Lookahead: if next non-blank line is INT/EXT, current line is likely a single character name.
+    // isSingleCharacterName rejects sentence-like lines ("Zeit vergeht.", "Tag etablieren")
+    // so Regie-/Establishing-Anweisungen werden nicht als Figur erkannt.
     const candidate = lines[i].trim()
     const nextIdx = skipBlanks(lines, i + 1)
     const nextLine = lines[nextIdx]?.trim() || ''
-    if (candidate && !DURATION_RE.test(candidate) && !SCENE_NUM_RE.test(candidate) &&
-        !INT_EXT_SPIELTAG_RE.test(candidate) && INT_EXT_SPIELTAG_RE.test(nextLine) &&
-        candidate.length < 40 && candidate.split(/\s+/).length <= 4) {
-      charaktere = candidate.split(',').map(c => c.replace(/\s*\(.*?\)\s*/g, '').trim()).filter(Boolean)
+    if (INT_EXT_SPIELTAG_RE.test(nextLine)) {
+      charaktere = [candidate.replace(/\s*\(.*?\)\s*/g, '').trim()].filter(Boolean)
       i = skipBlanks(lines, i + 1)
     }
   }
@@ -830,21 +830,17 @@ function parseSceneHeader(lines: string[], startIdx: number): SceneHeader | null
   if (charaktere.length === 0 && i < lines.length && isCharacterLine(lines[i])) {
     charaktere = lines[i].trim().split(',').map(c => c.replace(/\s*\(.*?\)\s*/g, '').trim()).filter(Boolean)
     i = skipBlanks(lines, i + 1)
-  } else if (charaktere.length === 0 && i < lines.length) {
-    // Single-character check (no commas)
+  } else if (charaktere.length === 0 && i < lines.length && isSingleCharacterName(lines[i]?.trim() || '')) {
+    // Single-character check (no commas). isSingleCharacterName rejects sentence-like
+    // lines and lines with lowercase words, so Regie-/Establishing-Anweisungen
+    // ("Zeit vergeht", "Nacht etablieren") werden nicht als Figur erkannt.
     const candidate = lines[i].trim()
-    if (candidate && !DURATION_RE.test(candidate) && !SCENE_NUM_RE.test(candidate) &&
-        !INT_EXT_SPIELTAG_RE.test(candidate) && !KOMPARSEN_RE.test(candidate) &&
-        !WECHSELSCHNITT_RE.test(candidate) && !/^Bild aus Block/i.test(candidate) &&
-        candidate.length < 40 && candidate.split(/\s+/).length <= 4 &&
-        /^[A-ZÄÖÜ]/.test(candidate)) {
-      // Lookahead: next non-blank should be zusammenfassung text (long line) or duration
-      const nextIdx = skipBlanks(lines, i + 1)
-      const nextLine = lines[nextIdx]?.trim() || ''
-      if (nextLine.length > 40 || DURATION_RE.test(nextLine)) {
-        charaktere = candidate.split(',').map(c => c.replace(/\s*\(.*?\)\s*/g, '').trim()).filter(Boolean)
-        i = skipBlanks(lines, i + 1)
-      }
+    // Lookahead: next non-blank should be zusammenfassung text (long line) or duration
+    const nextIdx = skipBlanks(lines, i + 1)
+    const nextLine = lines[nextIdx]?.trim() || ''
+    if (nextLine.length > 40 || DURATION_RE.test(nextLine)) {
+      charaktere = [candidate.replace(/\s*\(.*?\)\s*/g, '').trim()].filter(Boolean)
+      i = skipBlanks(lines, i + 1)
     }
   }
 
