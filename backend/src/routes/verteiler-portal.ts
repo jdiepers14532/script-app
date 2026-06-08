@@ -20,6 +20,7 @@ import {
   hashToken, generateToken, portalLink, tokenAblauf,
   DRUCK_FEATURE_ENABLED, sendVerteilerMail,
 } from '../lib/verteiler'
+import { generateVerteilerPdf } from '../lib/verteilerPdf'
 
 export const verteilerPortalRouter = Router()
 
@@ -30,7 +31,7 @@ async function ladeEmpfaenger(token: string) {
   const hash = hashToken(token)
   return queryOne(
     `SELECT e.*, d.werkstufe_id, v.name AS verteiler_name, v.pdf_anhang,
-            v.email_betreff, v.email_text,
+            v.email_betreff, v.email_text, v.pdf_export_profil_id,
             w.typ AS werkstufe_typ, w.version_nummer, w.published, w.published_am,
             f.folge_nummer, f.folgen_titel, f.produktion_id,
             p.titel AS produktion_titel
@@ -126,14 +127,37 @@ verteilerPortalRouter.get('/:token/pdf', async (req, res) => {
     if (e.pdf_path && fs.existsSync(e.pdf_path)) {
       buffer = fs.readFileSync(e.pdf_path)   // Cache-Treffer
     } else {
-      // TODO Schritt 7: echtes Export-Modul + ZWC/sichtbares Wasserzeichen + Sides-Filter.
-      buffer = makeStubPdf(`Verteiler-PDF (Platzhalter) - ${e.name ?? ''} - ${e.werkstufe_typ} v${e.version_nummer}`)
+      // Generierungs-Lock je Empfänger (pg_advisory_lock): serialisiert parallele
+      // /pdf-Treffer desselben Empfängers → keine Doppelerzeugung.
+      const lockClient = await pool.connect()
       try {
-        fs.mkdirSync(PDF_CACHE_DIR, { recursive: true })
-        const p = path.join(PDF_CACHE_DIR, `${e.id}.pdf`)
-        fs.writeFileSync(p, buffer)
-        await pool.query(`UPDATE distribution_empfaenger SET pdf_path = $2 WHERE id = $1`, [e.id, p])
-      } catch { /* Cache-Schreibfehler ist nicht fatal — PDF wird trotzdem ausgeliefert */ }
+        await lockClient.query('SELECT pg_advisory_lock(hashtext($1))', [e.id])
+        // Race: ein paralleler Request kann inzwischen erzeugt haben
+        const fresh = await queryOne('SELECT pdf_path FROM distribution_empfaenger WHERE id = $1', [e.id])
+        if (fresh?.pdf_path && fs.existsSync(fresh.pdf_path)) {
+          buffer = fs.readFileSync(fresh.pdf_path)
+        } else {
+          const profil = e.pdf_export_profil_id
+            ? await queryOne('SELECT * FROM pdf_export_profil WHERE id = $1', [e.pdf_export_profil_id])
+            : null
+          buffer = await generateVerteilerPdf({
+            werkstufeId: e.werkstufe_id, correlationId: e.id,
+            name: e.name, email: e.email_resolved,
+            werkstufe: e.werkstufe_typ, version: e.version_nummer,
+            sidesFiguren: Array.isArray(e.sides_figuren) ? e.sides_figuren : null,
+            profil,
+          })
+          try {
+            fs.mkdirSync(PDF_CACHE_DIR, { recursive: true })
+            const p = path.join(PDF_CACHE_DIR, `${e.id}.pdf`)
+            fs.writeFileSync(p, buffer)
+            await pool.query(`UPDATE distribution_empfaenger SET pdf_path = $2 WHERE id = $1`, [e.id, p])
+          } catch { /* Cache-Schreibfehler nicht fatal — PDF wird trotzdem ausgeliefert */ }
+        }
+      } finally {
+        try { await lockClient.query('SELECT pg_advisory_unlock(hashtext($1))', [e.id]) } catch {}
+        lockClient.release()
+      }
     }
     // Engagement: downloaded_at einmalig setzen
     if (!e.downloaded_at) {
