@@ -216,7 +216,7 @@ export default function KomparsenPage() {
 
                 {/* Szenen, in denen der Komparse vorkommt */}
                 {selectedId && produktionId && (
-                  <SzenenPanel produktionId={produktionId} typ="komparse" entityId={selectedId} />
+                  <SzenenPanel produktionId={produktionId} typ="komparse" entityId={selectedId} entitaetName={selected?.name} />
                 )}
               </div>
             </div>

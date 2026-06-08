@@ -14,7 +14,9 @@ interface SzenenPanelProps {
   typ: 'rolle' | 'komparse' | 'motiv'
   /** character_id (Rolle/Komparse) oder motiv_id (Motiv) */
   entityId?: string
-  /** Motiv-Name als ort_name-Fallback (nur Motiv) */
+  /** Name der Entität — für ort_name-Fallback (Motiv) und Modal-Navigation */
+  entitaetName?: string
+  /** Motiv-Name als ort_name-Fallback (nur Motiv) — falls abweichend von entitaetName */
   motivName?: string
   /** Motiv-Badges (I/A + T/N) anzeigen */
   showBadges?: boolean
@@ -35,7 +37,7 @@ const tzKuerzel = (tz: string | null): string => {
   return t[0] ?? ''
 }
 
-export default function SzenenPanel({ produktionId, typ, entityId, motivName, showBadges }: SzenenPanelProps) {
+export default function SzenenPanel({ produktionId, typ, entityId, entitaetName, motivName, showBadges }: SzenenPanelProps) {
   const [open, setOpen] = useState(true)
   const [szenen, setSzenen] = useState<SzeneRow[]>([])
   const [bloecke, setBloecke] = useState<any[]>([])
@@ -183,6 +185,8 @@ export default function SzenenPanel({ produktionId, typ, entityId, motivName, sh
         <SzeneLeseModal
           szenen={flat}
           startIndex={modalIndex}
+          produktionId={produktionId}
+          entitaetName={entitaetName ?? motivName ?? ''}
           onClose={() => setModalIndex(null)}
         />
       )}

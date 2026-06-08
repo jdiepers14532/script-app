@@ -456,6 +456,7 @@ export default function MotivenPage() {
                     produktionId={produktionId}
                     typ="motiv"
                     entityId={selected.id}
+                    entitaetName={selected.name}
                     motivName={selected.name}
                     showBadges
                   />

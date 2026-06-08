@@ -389,7 +389,7 @@ export default function RollenPage() {
 
                 {/* Szenen, in denen die Rolle vorkommt */}
                 {selectedId && produktionId && (
-                  <SzenenPanel produktionId={produktionId} typ="rolle" entityId={selectedId} />
+                  <SzenenPanel produktionId={produktionId} typ="rolle" entityId={selectedId} entitaetName={selected?.name} />
                 )}
               </div>
             </div>
