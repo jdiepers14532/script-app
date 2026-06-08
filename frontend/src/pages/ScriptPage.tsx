@@ -17,6 +17,7 @@ import SearchReplaceDialog from '../components/SearchReplaceDialog'
 import { useSearchReplace } from '../hooks/useSearchReplace'
 import StoryRadarPanel from '../components/StoryRadarPanel'
 import StrangVerwaltungModal from '../components/StrangVerwaltungModal'
+import LeseModusBereich from '../components/lesemodus/LeseModusBereich'
 import StoppzeitenModal from '../components/StoppzeitenModal'
 import { resolveSzeneSwitch } from '../utils/resolveSzeneSwitch'
 import { matchesShortcut } from '../shortcuts'
@@ -587,6 +588,7 @@ export default function ScriptPage() {
   const [showMetaDaten, setShowMetaDaten] = useState(false)
   const [showRadar, setShowRadar] = useState(false)
   const [showStrangPanel, setShowStrangPanel] = useState(false)
+  const [viewMode, setViewMode] = useState<'edit' | 'read'>('edit')  // Bearbeiten ↔ Lesen/Anmerken
   const [showStoppzeiten, setShowStoppzeiten] = useState(false)
   const [gotoOpen, setGotoOpen] = useState(false)
   const [statSections, setStatSections] = useState<StatModalSection[]>([...DEFAULT_SECTIONS])
@@ -1345,9 +1347,31 @@ export default function ScriptPage() {
           </button>
         </div>
 
-        {/* Editor area — per-panel SceneEditor + DockedEditorPanels OR Strang panel */}
+        {/* Editor area — per-panel SceneEditor + DockedEditorPanels OR Strang panel OR Lese-Modus */}
         <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          {showStrangPanel && selectedProduktionId ? (
+          {/* Modus-Umschalter: Bearbeiten ↔ Lesen/Anmerken (nur in echten Folgen) */}
+          {selectedFolgeId != null && !freiDokId && (
+            <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', padding: '6px 12px', borderBottom: '1px solid var(--border)' }}>
+              <div style={{ display: 'inline-flex', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+                {(['edit', 'read'] as const).map(m => (
+                  <button key={m} onClick={() => setViewMode(m)}
+                    style={{
+                      padding: '5px 14px', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600, fontFamily: 'inherit',
+                      background: viewMode === m ? 'var(--text-primary)' : 'transparent',
+                      color: viewMode === m ? 'var(--bg-surface)' : 'var(--text-secondary)',
+                    }}>
+                    {m === 'edit' ? 'Bearbeiten' : 'Lesen / Anmerken'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {viewMode === 'read' && selectedFolgeId != null && !freiDokId ? (
+            <LeseModusBereich
+              folgeId={selectedFolgeId}
+              initialWerkId={selectedStageId ? String(selectedStageId) : null}
+            />
+          ) : showStrangPanel && selectedProduktionId ? (
             <StrangVerwaltungModal
               produktionId={selectedProduktionId}
               open={true}

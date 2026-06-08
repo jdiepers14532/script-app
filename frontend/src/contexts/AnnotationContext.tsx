@@ -48,7 +48,7 @@ interface AnnotationCtx {
   decoAnker: DecoAnker[]     // content-Anker der Szene (für Editor-Decorations)
   kopffeldItems: (feldname: string) => AnmerkungItem[]
   reload: () => void
-  createContent: (p: { node_id: string | null; selektor: Selektor; quelle: string; kategorie?: string; body: any }) => Promise<void>
+  createContent: (p: { node_id: string | null; selektor: Selektor; quelle: string; kategorie?: string; body: any; scene_identity_id?: string }) => Promise<void>
   createKopffeld: (p: { feldname: string; quelle: string; kategorie?: string; body: any }) => Promise<void>
   patchStatus: (id: string, status: string, aufloesung?: string) => Promise<void>
   toggleGelesen: (id: string) => Promise<void>
@@ -160,14 +160,15 @@ export function AnnotationProvider({
     window.dispatchEvent(new CustomEvent('sw-anmerkungen-changed', { detail: { werkstufeId } }))
   }, [werkstufeId])
 
-  const createContent = useCallback(async (p: { node_id: string | null; selektor: Selektor; quelle: string; kategorie?: string; body: any }) => {
-    if (!werkstufeId || !sceneIdentityId) return
-    // Weg B: scene_identity_id ist der Pflicht-Scope (aus dem Provider); node_id optionaler Hinweis,
-    // block_index lebt im selektor.
+  const createContent = useCallback(async (p: { node_id: string | null; selektor: Selektor; quelle: string; kategorie?: string; body: any; scene_identity_id?: string }) => {
+    // Weg B: scene_identity_id ist der Pflicht-Scope. Editor → aus dem Provider; Lese-Modus (ganze
+    // Werkstufe) → aus der Selektion (p.scene_identity_id-Override). node_id optionaler Hinweis.
+    const sid = p.scene_identity_id ?? sceneIdentityId
+    if (!werkstufeId || !sid) return
     await jfetch('/api/anmerkungen', {
       method: 'POST',
       body: JSON.stringify({
-        werkstufe_id: werkstufeId, scene_identity_id: sceneIdentityId,
+        werkstufe_id: werkstufeId, scene_identity_id: sid,
         store: 'content', node_id: p.node_id ?? null, selektor: p.selektor,
         quelle: p.quelle, kategorie: p.kategorie, body: p.body,
       }),

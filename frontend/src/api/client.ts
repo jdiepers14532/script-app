@@ -116,6 +116,21 @@ export const api = {
       'GET',
       `/lesemodus/szene/${sceneIdentityId}/html?werkstufe_id=${encodeURIComponent(werkstufeId)}`,
     ),
+  // Sichtbare Fassungen einer Folge (fail-closed über fn_werkstufe_sichtbar) + Default.
+  getLesemodusWerkstufen: (folgeId: number) =>
+    request<{ werkstufen: any[]; default_werkstuf_id: string | null }>(
+      'GET',
+      `/lesemodus/werkstufen?folge_id=${folgeId}`,
+    ),
+  // Druckgleiche A4-Vorschau einer Werkstufe als KOMPLETTES HTML (text/html, kein JSON).
+  // Enthält data-block-index / data-scene-identity-id für den Anmerkungs-DOM-Anker.
+  getExportPreviewHtml: async (werkstufId: string): Promise<string> => {
+    const res = await fetch(`/api/export/preview?werkstufId=${encodeURIComponent(werkstufId)}`, {
+      credentials: 'include', cache: 'no-store',
+    })
+    if (!res.ok) throw new Error(`Vorschau fehlgeschlagen (${res.status})`)
+    return res.text()
+  },
 
   // Folgen metadata (arbeitstitel, synopsis, air_date)
   getFolge: (produktionId: string, folgeNummer: number) =>
