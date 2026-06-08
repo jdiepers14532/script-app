@@ -9,7 +9,7 @@ import {
   Bold as BoldIcon, Italic as ItalicIcon, Underline as UnderlineIcon,
   AlignLeft, AlignCenter, AlignRight,
   List, ListOrdered, ImageIcon, Maximize2, Minimize2, Pin, PinOff,
-  Undo2, Redo2, Wand2, Download,
+  Undo2, Redo2, Wand2, Download, Send,
 } from 'lucide-react'
 import Tooltip from '../Tooltip'
 import { useEditor, EditorContent, Extension } from '@tiptap/react'
@@ -349,6 +349,8 @@ interface UniversalEditorProps {
   sceneIdentityId?: string | null
   werkstufeId?: string | null
   onMagicOpen?: () => void
+  onPublishOpen?: () => void
+  canPublish?: boolean
   onExportOpen?: () => void
   exportOpen?: boolean
 }
@@ -393,6 +395,8 @@ export default function UniversalEditor({
   sceneIdentityId,
   werkstufeId,
   onMagicOpen,
+  onPublishOpen,
+  canPublish,
   onExportOpen,
   exportOpen = false,
 }: UniversalEditorProps) {
@@ -2200,6 +2204,12 @@ export default function UniversalEditor({
               {onMagicOpen && (
                 <ToolbarBtn onClick={onMagicOpen} tooltip={"Magic-Funktionen\nCtrl+M"}>
                   <Wand2 size={13} style={{ color: '#AF52DE' }} />
+                </ToolbarBtn>
+              )}
+
+              {onPublishOpen && canPublish && (
+                <ToolbarBtn onClick={onPublishOpen} tooltip={"Veröffentlichen — an Verteiler senden (mit Bestätigung)"}>
+                  <Send size={13} style={{ color: '#00C853' }} />
                 </ToolbarBtn>
               )}
 

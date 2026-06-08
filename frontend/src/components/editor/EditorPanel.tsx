@@ -19,6 +19,7 @@ import MagicFunktionenModal from './MagicFunktionenModal'
 import BatchCheckModal from '../BatchCheckModal'
 import SynopsenGenerierungModal from './SynopsenGenerierungModal'
 import NeueWerkstufeModal, { type NeueWerkstufeParams } from '../NeueWerkstufeModal'
+import VeroeffentlichenDialog from './VeroeffentlichenDialog'
 import PlatzhalterSzenenDialog from '../PlatzhalterSzenenDialog'
 import ExportDrawer from './ExportDrawer'
 import UeberschreibWarnungModal from '../UeberschreibWarnungModal'
@@ -95,6 +96,15 @@ export default function EditorPanel({
 
   // ── Magic-Funktionen ──────────────────────────────────────────────────────
   const [magicOpen, setMagicOpen] = useState(false)
+  // ── Veröffentlichen (Freigabe-Berechtigung = Tier-1/dk_settings_access) ─────
+  const [publishOpen, setPublishOpen] = useState(false)
+  const [canPublish, setCanPublish] = useState(false)
+  useEffect(() => {
+    if (!produktionId) { setCanPublish(false); return }
+    api.getDkProductions()
+      .then(d => setCanPublish(!!d.global || (d.production_ids || []).includes(produktionId)))
+      .catch(() => setCanPublish(false))
+  }, [produktionId])
   const [synopsenOpen, setSynopsenOpen] = useState(false)
   const [batchCheckOpen, setBatchCheckOpen] = useState(false)
 
@@ -1255,6 +1265,8 @@ export default function EditorPanel({
               sceneIdentityId={currentSzene?.scene_identity_id ?? undefined}
               werkstufeId={currentSzene?.werkstufe_id ?? undefined}
               onMagicOpen={() => setMagicOpen(true)}
+              onPublishOpen={() => setPublishOpen(true)}
+              canPublish={canPublish}
               onExportOpen={() => setExportOpen(v => !v)}
               exportOpen={exportOpen}
             />
@@ -1290,6 +1302,11 @@ export default function EditorPanel({
           onConfirm={handleNeueFassungConfirm}
           onClose={() => setNeueFassungModal(null)}
         />
+      )}
+
+      {/* Veröffentlichen-Bestätigungsdialog (löst erst nach Bestätigung echten Versand aus) */}
+      {publishOpen && selectedWerk?.id && (
+        <VeroeffentlichenDialog werkstufeId={selectedWerk.id} onClose={() => setPublishOpen(false)} />
       )}
 
       {/* Magic-Funktionen Modal */}

@@ -267,6 +267,15 @@ export const api = {
   createPdfProfil: (data: any) => request<any>('POST', '/pdf-export-profil', data),
   updatePdfProfil: (id: string, data: any) => request<any>('PUT', `/pdf-export-profil/${id}`, data),
   deletePdfProfil: (id: string) => request<void>('DELETE', `/pdf-export-profil/${id}`),
+  // Veröffentlichen (Editor-Button): byte-genaue Preview (read-only) + Auslösen
+  veroeffentlichenPreview: (werkstufeId: string, includeRevision?: boolean) =>
+    request<{
+      werkstufe_id: string; folge: number; version: number; typ: string
+      verteiler: { verteiler_id: string; verteiler_name: string; empfaenger_count: number }[]
+      total_empfaenger: number; uebersprungen_count: number
+    }>('GET', `/werkstufen/${werkstufeId}/veroeffentlichen/preview${includeRevision ? '?include_revision=1' : ''}`),
+  veroeffentlichen: (werkstufeId: string, body?: any) =>
+    request<any>('POST', `/werkstufen/${werkstufeId}/veroeffentlichen`, body || {}),
 
   // Revision Colors
   getRevisionColors: (produktionId: string) =>

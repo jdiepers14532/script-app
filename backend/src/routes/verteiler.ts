@@ -538,10 +538,83 @@ distributionenRouter.post('/:id/resend', async (req, res) => {
 })
 
 // ══════════════════════════════════════════════════════════════════════════════
-// veroeffentlichenRouter — /api/werkstufen  (POST /:id/veroeffentlichen)
+// Gemeinsame Auswahl-Logik (Preview UND Versand nutzen DIESELBEN Funktionen,
+// damit die Empfängerzahl im Dialog byte-genau dem tatsächlichen Versand entspricht).
+// `db` kann der Pool (Preview, read-only) oder der Transaktions-Client (POST) sein.
+// ══════════════════════════════════════════════════════════════════════════════
+type Queryable = { query: (sql: string, params?: any[]) => Promise<{ rows: any[]; rowCount: number | null }> }
+
+async function matchVerteiler(
+  db: Queryable, produktionId: string, typ: string,
+  opts: { include_revision?: boolean; verteiler_ids?: any }
+): Promise<any[]> {
+  const r = await db.query(
+    `SELECT * FROM verteiler
+     WHERE produktion_id = $1 AND aktiv = true
+       AND ((scope = 'werkstufe_typ' AND werkstufe_typ = $2) OR ($3::boolean AND scope = 'revision'))
+       AND ($4::uuid[] IS NULL OR id = ANY($4))`,
+    [produktionId, typ, !!opts.include_revision,
+     Array.isArray(opts.verteiler_ids) && opts.verteiler_ids.length ? opts.verteiler_ids : null]
+  )
+  return r.rows
+}
+
+/** Aktive Mitglieder mit auflösbarer E-Mail = exakt die Menge, die distribution_empfaenger-Zeilen erhält. */
+async function resolveEmpfaenger(
+  db: Queryable, verteilerId: string
+): Promise<{ ok: Array<{ m: any; email: string; name: string | null }>; uebersprungen: Array<{ verteiler_id: string; mitglied_id: string; grund: string }> }> {
+  const r = await db.query(`SELECT * FROM verteiler_mitglied WHERE verteiler_id = $1 AND aktiv = true`, [verteilerId])
+  const ok: Array<{ m: any; email: string; name: string | null }> = []
+  const uebersprungen: Array<{ verteiler_id: string; mitglied_id: string; grund: string }> = []
+  for (const m of r.rows) {
+    let email: string | null = m.freie_email ?? null
+    let name: string | null = m.name ?? null
+    if (!email && m.kontakt_id) {
+      const k = await resolveKontaktEmail(m.kontakt_id)
+      if (k) { email = k.email; name = name ?? k.name }
+    }
+    if (email) ok.push({ m, email, name })
+    else uebersprungen.push({ verteiler_id: verteilerId, mitglied_id: m.id, grund: 'email_nicht_aufloesbar' })
+  }
+  return { ok, uebersprungen }
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// veroeffentlichenRouter — /api/werkstufen  (POST /:id/veroeffentlichen + GET .../preview)
 // ══════════════════════════════════════════════════════════════════════════════
 export const veroeffentlichenRouter = Router()
 veroeffentlichenRouter.use(authMiddleware)
+
+// GET /api/werkstufen/:id/veroeffentlichen/preview — read-only Dry-Run für den
+// Bestätigungsdialog. Nutzt dieselbe Auswahl-Logik wie der Versand → byte-genaue Zahl.
+veroeffentlichenRouter.get('/:id/veroeffentlichen/preview', async (req, res) => {
+  const include_revision = req.query.include_revision === '1' || req.query.include_revision === 'true'
+  try {
+    const ws = await queryOne(
+      `SELECT w.id, w.typ, w.version_nummer, f.produktion_id, f.folge_nummer
+       FROM werkstufen w JOIN folgen f ON f.id = w.folge_id WHERE w.id = $1`,
+      [req.params.id]
+    )
+    if (!ws) return res.status(404).json({ error: 'Werkstufe nicht gefunden' })
+    if (!(await hatDkZugriff(req, ws.produktion_id))) {
+      return res.status(403).json({ error: 'Keine Freigabe-Berechtigung für diese Produktion' })
+    }
+    const matched = await matchVerteiler(pool as any, ws.produktion_id, ws.typ, { include_revision })
+    const verteiler: Array<{ verteiler_id: string; verteiler_name: string; empfaenger_count: number }> = []
+    let total = 0, uebersprungen = 0
+    for (const v of matched) {
+      const { ok, uebersprungen: sk } = await resolveEmpfaenger(pool as any, v.id)
+      verteiler.push({ verteiler_id: v.id, verteiler_name: v.name, empfaenger_count: ok.length })
+      total += ok.length; uebersprungen += sk.length
+    }
+    res.json({
+      werkstufe_id: ws.id, folge: ws.folge_nummer, version: ws.version_nummer, typ: ws.typ,
+      verteiler, total_empfaenger: total, uebersprungen_count: uebersprungen,
+    })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
 
 // POST /api/werkstufen/:id/veroeffentlichen
 // Body (optional): { include_revision?: boolean, verteiler_ids?: string[] }
@@ -574,19 +647,8 @@ veroeffentlichenRouter.post('/:id/veroeffentlichen', async (req, res) => {
       [ws.id, req.user!.user_id]
     )
 
-    // Passende Verteiler ermitteln: scope='werkstufe_typ' AND werkstufe_typ=typ,
-    // optional zusätzlich scope='revision' (include_revision). Optional explizite IDs.
-    const matchRes = await client.query(
-      `SELECT * FROM verteiler
-       WHERE produktion_id = $1 AND aktiv = true
-         AND (
-           (scope = 'werkstufe_typ' AND werkstufe_typ = $2)
-           OR ($3::boolean AND scope = 'revision')
-         )
-         AND ($4::uuid[] IS NULL OR id = ANY($4))`,
-      [ws.produktion_id, ws.typ, !!include_revision,
-       Array.isArray(verteiler_ids) && verteiler_ids.length ? verteiler_ids : null]
-    )
+    // Passende Verteiler — IDENTISCHE Auswahl wie die Preview (matchVerteiler).
+    const matched = await matchVerteiler(client, ws.produktion_id, ws.typ, { include_revision, verteiler_ids })
 
     const ablauf = tokenAblauf()
     const ergebnis: any[] = []
@@ -594,7 +656,7 @@ veroeffentlichenRouter.post('/:id/veroeffentlichen', async (req, res) => {
     // Mailversand erst NACH Commit (Zeilen müssen existieren); Klartext-Token nur hier in-memory.
     const mailJobs: Array<VerteilerMailCtx & { empfaengerId: string }> = []
 
-    for (const v of matchRes.rows) {
+    for (const v of matched) {
       // Idempotenz: jede Veröffentlichung legt eine NEUE distribution an.
       const dist = await client.query(
         `INSERT INTO distribution (werkstufe_id, verteiler_id, ausgeloest_von)
@@ -603,23 +665,11 @@ veroeffentlichenRouter.post('/:id/veroeffentlichen', async (req, res) => {
       )
       const distId = dist.rows[0].id
 
-      const mitglieder = await client.query(
-        `SELECT * FROM verteiler_mitglied WHERE verteiler_id = $1 AND aktiv = true`, [v.id]
-      )
+      // Byte-gleiche Empfänger-Auswahl wie die Preview (resolveEmpfaenger).
+      const { ok, uebersprungen: skipped } = await resolveEmpfaenger(client, v.id)
+      uebersprungen.push(...skipped)
       const links: Array<{ empfaenger_id: string; email: string; link: string }> = []
-      for (const m of mitglieder.rows) {
-        // E-Mail auflösen: freie_email direkt, sonst über vertraege (Source of Truth).
-        let email: string | null = m.freie_email ?? null
-        let name: string | null = m.name ?? null
-        if (!email && m.kontakt_id) {
-          const k = await resolveKontaktEmail(m.kontakt_id)
-          if (k) { email = k.email; name = name ?? k.name }
-        }
-        if (!email) {
-          uebersprungen.push({ verteiler_id: v.id, mitglied_id: m.id, grund: 'email_nicht_aufloesbar' })
-          continue
-        }
-
+      for (const { m, email, name } of ok) {
         // Sides-Snapshot: nur bei sides_nur_eigene + erkannter Schauspieler:in.
         let sidesFiguren: string[] | null = null
         if (m.sides_nur_eigene) {
@@ -679,7 +729,7 @@ veroeffentlichenRouter.post('/:id/veroeffentlichen', async (req, res) => {
       distributionen: ergebnis,
       gesendet, versandfehler,
       uebersprungen,
-      hinweis: matchRes.rows.length === 0 ? 'Kein passender aktiver Verteiler für diesen Werkstufe-Typ.' : undefined,
+      hinweis: matched.length === 0 ? 'Kein passender aktiver Verteiler für diesen Werkstufe-Typ.' : undefined,
     })
   } catch (err) {
     await client.query('ROLLBACK')
