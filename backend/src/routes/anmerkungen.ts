@@ -184,7 +184,11 @@ anmerkungenRouter.get('/', async (req, res) => {
     const rows = await query(
       `SELECT an.*, a.werkstufe_id, a.konzept_version_id, a.future_version_id,
               a.scene_identity_id, a.store, a.node_id, a.feldname, a.selektor,
-              a.anker_status, a.konfidenz
+              a.anker_status, a.konfidenz,
+              (SELECT COALESCE(array_agg(g.user_id ORDER BY g.gelesen_am), '{}')
+                 FROM anmerkung_gelesen g WHERE g.anmerkung_id = an.id) AS gelesen_von,
+              EXISTS (SELECT 1 FROM anmerkung_gelesen g
+                       WHERE g.anmerkung_id = an.id AND g.user_id = $1) AS gelesen_von_mir
        FROM anmerkung an
        JOIN anker a ON a.id = an.anker_id
        WHERE a.werkstufe_id IS NOT NULL
@@ -214,6 +218,7 @@ anmerkungenRouter.get('/', async (req, res) => {
           id: r.id, anker_id: r.anker_id, quelle: r.quelle, kategorie: r.kategorie,
           status: r.status, body: r.body, erstellt_von: r.erstellt_von, erstellt_am: r.erstellt_am,
           aufgeloest_von: r.aufgeloest_von, aufgeloest_am: r.aufgeloest_am, aufloesung: r.aufloesung,
+          gelesen_von: r.gelesen_von ?? [], gelesen_von_mir: !!r.gelesen_von_mir,
         },
         anker: {
           id: r.anker_id, werkstufe_id: r.werkstufe_id, scene_identity_id: r.scene_identity_id,
@@ -236,6 +241,63 @@ anmerkungenRouter.get('/taggbare-user', async (_req, res) => {
   try {
     const users = await getScriptUsers()
     res.json(users.map(u => ({ id: u.id, name: u.name })))
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ── GET /api/anmerkungen/counts?werkstufe_id= — Aggregat pro Szene für die Szenenliste ──
+// total = alle Anmerkungen der Szene (alle Status); offen_ungelesen = offen/in_arbeit, die ICH
+// noch nicht als gelesen markiert habe (steuert rot/grau pro Person).
+anmerkungenRouter.get('/counts', async (req, res) => {
+  const user = req.user!
+  const autor = istAutor(req)
+  const werkstufeId = req.query.werkstufe_id as string | undefined
+  if (!werkstufeId) return res.status(400).json({ error: 'werkstufe_id erforderlich' })
+  try {
+    const rows = await query(
+      `SELECT a.scene_identity_id,
+              count(*)::int AS total,
+              count(*) FILTER (WHERE an.status IN ('offen','in_arbeit')
+                AND NOT EXISTS (SELECT 1 FROM anmerkung_gelesen g
+                                WHERE g.anmerkung_id = an.id AND g.user_id = $1))::int AS offen_ungelesen
+       FROM anmerkung an JOIN anker a ON a.id = an.anker_id
+       WHERE a.werkstufe_id = $2 AND a.scene_identity_id IS NOT NULL
+         AND fn_werkstufe_sichtbar(a.werkstufe_id, $1, $3)
+       GROUP BY a.scene_identity_id`,
+      [user.user_id, werkstufeId, autor]
+    )
+    res.json(rows)
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
+  }
+})
+
+// ── POST /api/anmerkungen/:id/gelesen — eigenen Lesestatus togglen (per User) ───
+anmerkungenRouter.post('/:id/gelesen', async (req, res) => {
+  const user = req.user!
+  try {
+    const row = await queryOne(
+      `SELECT a.werkstufe_id
+       FROM anmerkung an JOIN anker a ON a.id = an.anker_id WHERE an.id = $1`,
+      [req.params.id]
+    )
+    if (!row) return res.status(404).json({ error: 'Anmerkung nicht gefunden' })
+    if (row.werkstufe_id) {
+      const sichtbar = await darfWerkstufeSehen(row.werkstufe_id, user.user_id, istAutor(req))
+      if (!sichtbar) return res.status(403).json({ error: 'Keine Sicht auf diese Anmerkung' })
+    }
+    const existing = await queryOne(
+      `SELECT 1 FROM anmerkung_gelesen WHERE anmerkung_id = $1 AND user_id = $2`,
+      [req.params.id, user.user_id]
+    )
+    if (existing) {
+      await query(`DELETE FROM anmerkung_gelesen WHERE anmerkung_id = $1 AND user_id = $2`, [req.params.id, user.user_id])
+      res.json({ gelesen: false })
+    } else {
+      await query(`INSERT INTO anmerkung_gelesen (anmerkung_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [req.params.id, user.user_id])
+      res.json({ gelesen: true })
+    }
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }

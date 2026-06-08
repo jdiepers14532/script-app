@@ -544,6 +544,8 @@ async function runMigrations() {
     'v203_import_batch_jobs_renumber.sql',
     // Auto-Vergabe Rollen-/Komparsennummer pro Produktion (BEFORE-INSERT-Trigger)
     'v204_auto_character_nummer.sql',
+    // Anmerkungen: Per-User-Lesestatus (Gelesen-Markierung, rot/grau pro Person)
+    'v205_anmerkung_gelesen.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
