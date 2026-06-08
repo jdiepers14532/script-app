@@ -263,6 +263,34 @@ folgeWerkstufenRouter.post('/', async (req, res) => {
           [werkstufe.id, user.name || user.user_id, predecessorId]
         )
       }
+
+      // ── Block 2: Offene Anmerkungen der Vorgänger-Fassung vererben ──────────
+      // Nur offen/in_arbeit; uebernommen/abgelehnt bleiben in ihrer Fassung. Read-State + Thread
+      // werden NICHT kopiert (in der neuen Fassung ist die Anmerkung wieder frisch zu beachten).
+      // stammt_von_anker_id verkettet die Kopien zum Original.
+      const offeneAnker = await client.query(
+        `SELECT a.id AS alt_anker, a.scene_identity_id, a.store, a.node_id, a.feldname, a.selektor,
+                a.anker_status, a.konfidenz, COALESCE(a.stammt_von_anker_id, a.id) AS stammt_von,
+                an.quelle, an.kategorie, an.status, an.body, an.erstellt_von
+         FROM anker a JOIN anmerkung an ON an.anker_id = a.id
+         WHERE a.werkstufe_id = $1 AND an.status IN ('offen','in_arbeit')`,
+        [predecessorId]
+      )
+      for (const o of offeneAnker.rows) {
+        const na = await client.query(
+          `INSERT INTO anker (werkstufe_id, scene_identity_id, store, node_id, feldname, selektor,
+                              anker_status, konfidenz, stammt_von_anker_id)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+          [werkstufe.id, o.scene_identity_id, o.store, o.node_id, o.feldname,
+           o.selektor ? JSON.stringify(o.selektor) : null, o.anker_status, o.konfidenz, o.stammt_von]
+        )
+        await client.query(
+          `INSERT INTO anmerkung (anker_id, quelle, kategorie, status, body, erstellt_von)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [na.rows[0].id, o.quelle, o.kategorie, o.status,
+           o.body != null ? JSON.stringify(o.body) : '{}', o.erstellt_von]
+        )
+      }
     }
 
     await client.query('COMMIT')

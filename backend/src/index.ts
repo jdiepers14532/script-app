@@ -546,6 +546,8 @@ async function runMigrations() {
     'v204_auto_character_nummer.sql',
     // Anmerkungen: Per-User-Lesestatus (Gelesen-Markierung, rot/grau pro Person)
     'v205_anmerkung_gelesen.sql',
+    // Anmerkungen Block 2: stammt_von_anker_id (offene Anker beim Fassungs-Copy vererben)
+    'v206_anker_stammt_von.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
