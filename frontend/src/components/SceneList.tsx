@@ -1069,11 +1069,15 @@ export default function SceneList({
                     const c = scene.scene_identity_id ? anmerkungCounts[scene.scene_identity_id] : null
                     if (!c || c.total <= 0) return null
                     const rot = c.offen_ungelesen > 0
-                    const farbe = rot ? '#FF3B30' : '#9E9E9E'
                     return (
                       <div title={rot ? `${c.total} Anmerkung(en) — offene ungelesene vorhanden` : `${c.total} Anmerkung(en) — alle gelesen/erledigt`}
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: 2, color: farbe, fontSize: 11, fontWeight: 600, lineHeight: 1 }}>
-                        <MessageCircle size={11} />
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 3, lineHeight: 1,
+                          padding: '2px 6px', borderRadius: 999, fontSize: 11, fontWeight: 600,
+                          color: 'var(--text-primary)',
+                          background: rot ? 'rgba(255,59,48,0.18)' : 'rgba(158,158,158,0.20)',
+                        }}>
+                        <MessageCircle size={10} style={{ color: rot ? '#FF3B30' : '#9E9E9E' }} />
                         <span>{c.total > 99 ? '99+' : c.total}</span>
                       </div>
                     )

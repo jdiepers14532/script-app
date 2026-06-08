@@ -287,15 +287,28 @@ anmerkungenRouter.post('/:id/gelesen', async (req, res) => {
       const sichtbar = await darfWerkstufeSehen(row.werkstufe_id, user.user_id, istAutor(req))
       if (!sichtbar) return res.status(403).json({ error: 'Keine Sicht auf diese Anmerkung' })
     }
+    // Über die stammt_von-Kette: "einmal gelesen, überall gelesen" (alle Fassungs-Kopien).
+    const ketteRows = await query(
+      `SELECT an2.id FROM anmerkung an2 JOIN anker a2 ON a2.id = an2.anker_id
+       WHERE COALESCE(a2.stammt_von_anker_id, a2.id) = (
+         SELECT COALESCE(a.stammt_von_anker_id, a.id)
+         FROM anker a JOIN anmerkung an ON an.anker_id = a.id WHERE an.id = $1)`,
+      [req.params.id]
+    )
+    const ketteIds: string[] = ketteRows.map((r: any) => r.id)
     const existing = await queryOne(
       `SELECT 1 FROM anmerkung_gelesen WHERE anmerkung_id = $1 AND user_id = $2`,
       [req.params.id, user.user_id]
     )
     if (existing) {
-      await query(`DELETE FROM anmerkung_gelesen WHERE anmerkung_id = $1 AND user_id = $2`, [req.params.id, user.user_id])
+      await query(`DELETE FROM anmerkung_gelesen WHERE anmerkung_id = ANY($1::uuid[]) AND user_id = $2`, [ketteIds, user.user_id])
       res.json({ gelesen: false })
     } else {
-      await query(`INSERT INTO anmerkung_gelesen (anmerkung_id, user_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [req.params.id, user.user_id])
+      await query(
+        `INSERT INTO anmerkung_gelesen (anmerkung_id, user_id)
+         SELECT unnest($1::uuid[]), $2 ON CONFLICT DO NOTHING`,
+        [ketteIds, user.user_id]
+      )
       res.json({ gelesen: true })
     }
   } catch (err) {
@@ -370,17 +383,25 @@ anmerkungenRouter.patch('/:id/status', async (req, res) => {
     }
 
     // Übernehmen = NUR Status + Audit, KEIN Auto-Content. Ablehnen berührt keinen content.
+    // Propagiert über die stammt_von-Kette: eine logische Anmerkung (in mehreren Fassungen kopiert)
+    // wird überall aufgelöst — auch in eingefrorenen Fassungen (nur Status-Metadaten, kein content).
     const istAufloesung = status === 'uebernommen' || status === 'abgelehnt'
-    const updated = await queryOne(
+    const updatedRows = await query(
       `UPDATE anmerkung SET
          status = $1,
          aufloesung = CASE WHEN $2 THEN $3 ELSE aufloesung END,
          aufgeloest_von = CASE WHEN $2 THEN $4 ELSE NULL END,
          aufgeloest_am = CASE WHEN $2 THEN now() ELSE NULL END
-       WHERE id = $5 RETURNING *`,
+       WHERE anker_id IN (
+         SELECT a2.id FROM anker a2
+         WHERE COALESCE(a2.stammt_von_anker_id, a2.id) = (
+           SELECT COALESCE(a.stammt_von_anker_id, a.id)
+           FROM anker a JOIN anmerkung an ON an.anker_id = a.id
+           WHERE an.id = $5))
+       RETURNING *`,
       [status, istAufloesung, aufloesung ?? null, user.user_id, req.params.id]
     )
-    res.json(updated)
+    res.json(updatedRows.find((r: any) => r.id === req.params.id) ?? updatedRows[0])
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }
