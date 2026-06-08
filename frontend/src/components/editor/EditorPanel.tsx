@@ -1297,6 +1297,7 @@ export default function EditorPanel({
         <NeueWerkstufeModal
           requestedTyp={neueFassungModal}
           werkstufen={werkstufen}
+          aktuelleWerkstufeId={selectedWerkId}
           folgeNummer={folgeNummer}
           produktionId={produktionId}
           onConfirm={handleNeueFassungConfirm}

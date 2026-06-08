@@ -16,6 +16,7 @@ export interface NeueWerkstufeParams {
 interface Props {
   requestedTyp: 'drehbuch' | 'storyline' | 'notiz'
   werkstufen: WerkstufeMeta[]
+  aktuelleWerkstufeId?: string | null   // aktuell ausgewählte Fassung → Default-Vorgänger
   folgeNummer: number | null
   produktionId: string
   onConfirm: (params: NeueWerkstufeParams) => void
@@ -28,10 +29,10 @@ const TYP_LABEL_STATIC: Record<string, string> = {
 }
 
 export default function NeueWerkstufeModal({
-  requestedTyp, werkstufen, folgeNummer, produktionId, onConfirm, onClose,
+  requestedTyp, werkstufen, aktuelleWerkstufeId, folgeNummer, produktionId, onConfirm, onClose,
 }: Props) {
   const { t } = useTerminologie()
-  const TYP_LABEL = { ...TYP_LABEL_STATIC, drehbuch: t('drehbuch') }
+  const TYP_LABEL: Record<string, string> = { ...TYP_LABEL_STATIC, drehbuch: t('drehbuch') }
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     document.addEventListener('keydown', h)
@@ -57,7 +58,20 @@ export default function NeueWerkstufeModal({
       .sort((a, b) => b.version_nummer - a.version_nummer)[0] ?? null
   }, [nonNotizWerkstufen, requestedTyp])
 
-  const effectivePred = predWerk ?? crossPred
+  // Vorgänger-Kandidaten desselben Typs (für das Dropdown), neueste zuerst.
+  const vorgaengerKandidaten = useMemo(() =>
+    [...nonNotizWerkstufen].filter(w => w.typ === requestedTyp).sort((a, b) => b.version_nummer - a.version_nummer),
+    [nonNotizWerkstufen, requestedTyp]
+  )
+  // Default-Vorgänger = aktuell ausgewählte Fassung (wenn vom passenden Typ), sonst die neueste.
+  const [gewaehlterVorgaengerId, setGewaehlterVorgaengerId] = useState<string | undefined>(() => {
+    const aktuell = aktuelleWerkstufeId ? vorgaengerKandidaten.find(w => w.id === aktuelleWerkstufeId) : null
+    return aktuell?.id ?? predWerk?.id
+  })
+  const gewaehlterPred = vorgaengerKandidaten.find(w => w.id === gewaehlterVorgaengerId) ?? predWerk
+  const istNichtNeueste = !!(gewaehlterPred && predWerk && gewaehlterPred.id !== predWerk.id)
+
+  const effectivePred = gewaehlterPred ?? crossPred
   const hasNotizScenes = useMemo(() => werkstufen.some(w => w.typ === 'notiz' && w.szenen_count > 0), [werkstufen])
 
   // --- Option list ---
@@ -70,7 +84,7 @@ export default function NeueWerkstufeModal({
       list.push({
         id: 'full',
         label: 'Szenen vollständig duplizieren',
-        desc: `Alle Szenenköpfe + Body-Inhalt aus ${TYP_LABEL[requestedTyp]} V${predWerk.version_nummer} übernehmen`,
+        desc: `Alle Szenenköpfe + Body-Inhalt aus ${TYP_LABEL[requestedTyp]} V${gewaehlterPred?.version_nummer} übernehmen`,
       })
     }
     if (effectivePred) {
@@ -90,7 +104,7 @@ export default function NeueWerkstufeModal({
     list.push({ id: 'empty', label: 'Leere Werkstufe anlegen', desc: 'Keine Szenen kopieren — mit einer neuen Szene starten' })
     list.push({ id: 'platzhalter', label: 'Platzhalter-Szenen anlegen', desc: 'Leere Werkstufe mit mehreren Platzhalter-Szenen füllen' })
     return list
-  }, [predWerk, crossPred, effectivePred, requestedTyp])
+  }, [predWerk, crossPred, effectivePred, gewaehlterPred, requestedTyp])
 
   // --- State ---
   const defaultOption = options[0].id
@@ -98,13 +112,13 @@ export default function NeueWerkstufeModal({
   const [kopiereNotizen, setKopiereNotizen] = useState(true)
   const [dualview, setDualview] = useState(false)
 
-  // Derive which vorgaenger_id to use based on selected option
+  // Derive which vorgaenger_id to use based on selected option (gewählte Vorfassung statt höchste)
   const vorgaengerId = useMemo(() => {
-    if (selectedOption === 'full' && predWerk) return predWerk.id
+    if (selectedOption === 'full' && gewaehlterPred) return gewaehlterPred.id
     if (selectedOption === 'headers_only') return effectivePred?.id
     if (selectedOption === 'storyline_body_as_txt') return crossPred?.id
     return undefined
-  }, [selectedOption, predWerk, effectivePred, crossPred])
+  }, [selectedOption, gewaehlterPred, effectivePred, crossPred])
 
   const handleConfirm = () => {
     onConfirm({
@@ -169,10 +183,40 @@ export default function NeueWerkstufeModal({
           </div>
         )}
 
-        {/* Predecessor info */}
-        {predWerk && (
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14 }}>
-            Vorfassung: {TYP_LABEL[predWerk.typ]} V{predWerk.version_nummer} · {predWerk.szenen_count} Szenen
+        {/* Vorfassung wählen (Default = aktuell ausgewählte Fassung) */}
+        {vorgaengerKandidaten.length > 0 && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
+              Vorfassung
+            </div>
+            <select
+              value={gewaehlterVorgaengerId ?? ''}
+              onChange={e => setGewaehlterVorgaengerId(e.target.value || undefined)}
+              disabled={vorgaengerKandidaten.length < 2}
+              style={{
+                width: '100%', fontSize: 13, padding: '7px 10px', borderRadius: 8,
+                border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)',
+                fontFamily: 'inherit', cursor: vorgaengerKandidaten.length < 2 ? 'default' : 'pointer',
+              }}
+            >
+              {vorgaengerKandidaten.map(w => (
+                <option key={w.id} value={w.id}>
+                  {TYP_LABEL[w.typ]} V{w.version_nummer} · {w.szenen_count} Szenen{predWerk && w.id === predWerk.id ? ' (aktuellste)' : ''}
+                </option>
+              ))}
+            </select>
+            {istNichtNeueste && predWerk && gewaehlterPred && (
+              <div style={{
+                display: 'flex', gap: 8, alignItems: 'flex-start',
+                background: '#FF950015', border: '1px solid #FF950040',
+                borderRadius: 8, padding: '10px 12px', marginTop: 10, fontSize: 12,
+              }}>
+                <AlertTriangle size={14} style={{ color: '#FF9500', flexShrink: 0, marginTop: 1 }} />
+                <span style={{ color: 'var(--text-primary)' }}>
+                  Achtung: Sie erstellen aus <b>V{gewaehlterPred.version_nummer}</b>, die aktuellste Fassung ist <b>V{predWerk.version_nummer}</b>. Es entsteht ein paralleler Versions-Strang. Weitermachen?
+                </span>
+              </div>
+            )}
           </div>
         )}
 
