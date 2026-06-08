@@ -51,7 +51,8 @@ export function KopffeldAnmerkung({
     fetch(`/api/anmerkungen?werkstufe_id=${encodeURIComponent(werkstufeId)}`, { credentials: 'include' })
       .then(r => r.ok ? r.json() : { items: [] })
       .then(d => setItems((d.items ?? []).filter((it: any) =>
-        it.anker.scene_identity_id === sceneIdentityId && it.anker.store === 'kopffeld' && it.anker.feldname === feldname)))
+        it.anker.scene_identity_id === sceneIdentityId && it.anker.store === 'kopffeld' && it.anker.feldname === feldname
+        && (it.anmerkung.status === 'offen' || it.anmerkung.status === 'in_arbeit'))))
       .catch(() => setItems([]))
   }, [werkstufeId, sceneIdentityId, feldname])
 

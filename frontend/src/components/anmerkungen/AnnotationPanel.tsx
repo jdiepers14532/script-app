@@ -41,13 +41,15 @@ function fmt(iso: string): string {
 export function AnnotationPanel() {
   const a = useAnnotations()
   const { items, loading, activeAnmerkungId, setActiveAnmerkungId } = a
+  // Erledigte (uebernommen/abgelehnt) verschwinden aus der Liste — nur offen/in_arbeit bleiben.
+  const sichtbar = items.filter(it => it.anmerkung.status === 'offen' || it.anmerkung.status === 'in_arbeit')
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: 'var(--bg-surface)', borderLeft: '1px solid var(--border)' }}>
       <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
         <MessageSquare size={14} />
         <span style={{ fontSize: 13, fontWeight: 600 }}>Anmerkungen</span>
-        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{items.length}</span>
+        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{sichtbar.length}</span>
         <button
           onClick={() => a.setAnmerkenModus(!a.anmerkenModus)}
           title={a.anmerkenModus ? 'Anmerken-Modus aktiv — Klick zum Ausschalten (stört das Schreiben nicht)' : 'Anmerken-Modus einschalten — Text markieren → Anmerken'}
@@ -66,13 +68,13 @@ export function AnnotationPanel() {
       </div>
       <div style={{ flex: 1, overflowY: 'auto', padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
         {loading && <div style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', padding: 12 }}>Lädt…</div>}
-        {!loading && items.length === 0 && (
+        {!loading && sichtbar.length === 0 && (
           <div style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', padding: 16, lineHeight: 1.6 }}>
-            Keine Anmerkungen in dieser Szene.<br />
+            Keine offenen Anmerkungen in dieser Szene.<br />
             {a.anmerkenModus ? 'Text markieren → „Anmerken".' : 'Oben „Anmerken" einschalten, dann Text markieren.'}
           </div>
         )}
-        {items.map(it => (
+        {sichtbar.map(it => (
           <AnmerkungKarte
             key={it.anmerkung.id}
             item={it}

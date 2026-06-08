@@ -132,8 +132,12 @@ export function AnnotationProvider({
   const istAutor = (me?.roles?.length ?? 0) > 0
   const canResolve = istAutor && canEdit
 
+  // Erledigte (uebernommen/abgelehnt) verschwinden überall aus der Anzeige — nur offen/in_arbeit
+  // sind aktiv (kein Durchstreichen im Editor, keine Karte in der Liste).
+  const istAktiv = (s: string) => s === 'offen' || s === 'in_arbeit'
+
   const decoAnker: DecoAnker[] = useMemo(() => items
-    .filter(it => it.anker.store === 'content')
+    .filter(it => it.anker.store === 'content' && istAktiv(it.anmerkung.status))
     .map(it => ({
       anmerkung_id: it.anmerkung.id,
       store: it.anker.store,
@@ -145,7 +149,7 @@ export function AnnotationProvider({
     })), [items])
 
   const kopffeldItems = useCallback((feldname: string) =>
-    items.filter(it => it.anker.store === 'kopffeld' && it.anker.feldname === feldname), [items])
+    items.filter(it => it.anker.store === 'kopffeld' && it.anker.feldname === feldname && istAktiv(it.anmerkung.status)), [items])
 
   const notifyChanged = useCallback(() => {
     window.dispatchEvent(new CustomEvent('sw-anmerkungen-changed', { detail: { werkstufeId } }))
