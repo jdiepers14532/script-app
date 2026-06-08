@@ -45,7 +45,7 @@ import themePresetsRouter from './routes/theme-presets'
 import { dokumentSzenenRouter, sceneIdentitiesRouter, stockshotArchivRouter, stockshotTemplatesRouter } from './routes/dokument-szenen'
 import { folgenV2Router } from './routes/folgen-v2'
 import { statistikRouter } from './routes/statistik'
-import { folgeWerkstufenRouter, werkstufenRouter, werkstufenSzenenRouter } from './routes/werkstufen'
+import { folgeWerkstufenRouter, werkstufenRouter, werkstufenSzenenRouter, szenenFassungsDiffRouter } from './routes/werkstufen'
 import { dokumentVorlagenRouter } from './routes/dokument-vorlagen'
 import { absatzformateRouter, absatzformatPresetsRouter } from './routes/absatzformate'
 import { editorUploadsRouter } from './routes/editor-uploads'
@@ -189,6 +189,7 @@ app.use('/api/v2/folgen/:folgeId/werkstufen', (req, _res, next) => {
   (req.params as any).folgeId = req.params.folgeId; next()
 }, folgeWerkstufenRouter)
 app.use('/api/werkstufen', werkstufenRouter)
+app.use('/api/szenen-fassungs-diff', szenenFassungsDiffRouter)
 app.use('/api/werkstufen/:werkId/szenen', (req, _res, next) => {
   (req.params as any).werkId = req.params.werkId; next()
 }, werkstufenSzenenRouter)
@@ -550,6 +551,8 @@ async function runMigrations() {
     'v206_anker_stammt_von.sql',
     // Verteiler 4b: kontakt_id UUID -> TEXT (vertraege-Person-IDs sind Integer)
     'v207_verteiler_kontakt_id_text.sql',
+    // Verteiler 4b-2: per-Mitglied Sides-Rollenauswahl (sides_character_ids)
+    'v208_verteiler_sides_character_ids.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

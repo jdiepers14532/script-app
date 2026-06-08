@@ -60,8 +60,9 @@ folgeWerkstufenRouter.post('/', async (req, res) => {
   const folgeId = parseInt((req.params as any).folgeId)
   const {
     typ, label, sichtbarkeit, vorgaenger_id,
-    mode = 'full',         // 'full' | 'headers_only' | 'storyline_body_as_txt' | 'empty'
+    mode = 'full',         // 'full' | 'headers_only' | 'storyline_body_as_txt' | 'empty' | 'szenenweise'
     kopiere_notizen = true, // bool — copy notiz-format scenes from predecessor
+    szenen_quellen,        // mode='szenenweise': { [scene_identity_id]: quell_werkstufe_id } — pro Szene
   } = req.body
   const user = req.user!
 
@@ -139,7 +140,84 @@ folgeWerkstufenRouter.post('/', async (req, res) => {
 
     let copiedCount = 0
 
-    if (predecessorId && mode !== 'empty') {
+    // ── mode='szenenweise': pro Szene aus der gewählten Quell-Fassung kopieren ──
+    if (mode === 'szenenweise' && szenen_quellen && typeof szenen_quellen === 'object') {
+      for (const [sceneIdentityId, quellWerkId] of Object.entries(szenen_quellen as Record<string, string>)) {
+        if (!quellWerkId) continue
+        // dokument_szene dieser Identität aus der Quell-Fassung übernehmen (voller content)
+        const r = await client.query(
+          `INSERT INTO dokument_szenen
+             (werkstufe_id, scene_identity_id, sort_order, scene_nummer, scene_nummer_suffix,
+              format, ort_name, int_ext, tageszeit, spieltag, zusammenfassung, spielzeit,
+              szeneninfo, seiten, stoppzeit_sek, content, updated_by, page_length,
+              notiz, motiv_id, sondertyp, stockshot_kategorie, stockshot_neu_drehen,
+              flashback_referenz_id, flashback_ganze_szene, flashback_referenz_werkstufe_id,
+              flashback_referenz_freitext, ws_spezifikation, vorlage_id, pre_vorlage_content, element_type)
+           SELECT $1, scene_identity_id, sort_order, scene_nummer, scene_nummer_suffix,
+                  format, ort_name, int_ext, tageszeit, spieltag, zusammenfassung, spielzeit,
+                  szeneninfo, seiten, stoppzeit_sek, content, $2, page_length,
+                  notiz, motiv_id, sondertyp, stockshot_kategorie, stockshot_neu_drehen,
+                  flashback_referenz_id, flashback_ganze_szene, flashback_referenz_werkstufe_id,
+                  flashback_referenz_freitext, ws_spezifikation, vorlage_id, pre_vorlage_content, element_type
+           FROM dokument_szenen
+           WHERE werkstufe_id = $3 AND scene_identity_id = $4 AND geloescht = false`,
+          [werkstufe.id, user.name || user.user_id, quellWerkId, sceneIdentityId]
+        )
+        copiedCount += r.rowCount ?? 0
+        // scene_characters dieser Szene aus derselben Quelle
+        await client.query(
+          `INSERT INTO scene_characters
+             (werkstufe_id, scene_identity_id, character_id, kategorie_id,
+              anzahl, spiel_typ, repliken_anzahl, header_o_t)
+           SELECT $1, scene_identity_id, character_id, kategorie_id,
+                  anzahl, spiel_typ, repliken_anzahl, header_o_t
+           FROM scene_characters
+           WHERE werkstufe_id = $2 AND scene_identity_id = $3`,
+          [werkstufe.id, quellWerkId, sceneIdentityId]
+        )
+        // offene Anker dieser Szene aus derselben Quelle vererben (analog Block 2)
+        const offene = await client.query(
+          `SELECT a.scene_identity_id, a.store, a.node_id, a.feldname, a.selektor,
+                  a.anker_status, a.konfidenz, COALESCE(a.stammt_von_anker_id, a.id) AS stammt_von,
+                  an.quelle, an.kategorie, an.status, an.body, an.erstellt_von
+           FROM anker a JOIN anmerkung an ON an.anker_id = a.id
+           WHERE a.werkstufe_id = $1 AND a.scene_identity_id = $2 AND an.status IN ('offen','in_arbeit')`,
+          [quellWerkId, sceneIdentityId]
+        )
+        for (const o of offene.rows) {
+          const na = await client.query(
+            `INSERT INTO anker (werkstufe_id, scene_identity_id, store, node_id, feldname, selektor,
+                                anker_status, konfidenz, stammt_von_anker_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+            [werkstufe.id, o.scene_identity_id, o.store, o.node_id, o.feldname,
+             o.selektor ? JSON.stringify(o.selektor) : null, o.anker_status, o.konfidenz, o.stammt_von]
+          )
+          await client.query(
+            `INSERT INTO anmerkung (anker_id, quelle, kategorie, status, body, erstellt_von)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [na.rows[0].id, o.quelle, o.kategorie, o.status,
+             o.body != null ? JSON.stringify(o.body) : '{}', o.erstellt_von]
+          )
+        }
+      }
+      // Notizen aus dem Default-Vorgänger (falls gewünscht) — Notizen sind nicht szenen-spezifisch wählbar
+      if (kopiere_notizen && predecessorId) {
+        await client.query(
+          `INSERT INTO dokument_szenen
+             (werkstufe_id, scene_identity_id, sort_order, scene_nummer, scene_nummer_suffix,
+              format, ort_name, int_ext, tageszeit, spieltag, zusammenfassung, spielzeit,
+              szeneninfo, seiten, stoppzeit_sek, content, updated_by, page_length,
+              notiz, vorlage_id, pre_vorlage_content)
+           SELECT $1, scene_identity_id, sort_order, scene_nummer, scene_nummer_suffix,
+                  format, ort_name, int_ext, tageszeit, spieltag, zusammenfassung, spielzeit,
+                  szeneninfo, seiten, stoppzeit_sek, content, $2, page_length,
+                  notiz, vorlage_id, pre_vorlage_content
+           FROM dokument_szenen
+           WHERE werkstufe_id = $3 AND geloescht = false AND format = 'notiz'`,
+          [werkstufe.id, user.name || user.user_id, predecessorId]
+        )
+      }
+    } else if (predecessorId && mode !== 'empty') {
       if (mode === 'full') {
         // Copy all non-notiz scenes with full content
         const copyRes = await client.query(
@@ -1837,5 +1915,44 @@ werkstufenRouter.get('/:id/edit-intent-check', async (req, res) => {
   } catch (err) {
     console.error('GET edit-intent-check:', err)
     res.status(500).json({ error: 'Interner Fehler' })
+  }
+})
+
+// ── Szenen-Fassungs-Diff (für Szenenweise Übernahme) ──────────────────────────
+// GET /api/szenen-fassungs-diff?folge_id=&typ=  → je scene_identity die sichtbaren Fassungen
+// des Typs mit content-Hash; das Frontend erkennt darüber, welche Szenen sich unterscheiden.
+export const szenenFassungsDiffRouter = Router()
+szenenFassungsDiffRouter.use(authMiddleware)
+szenenFassungsDiffRouter.get('/', async (req, res) => {
+  const folgeId = req.query.folge_id ? parseInt(req.query.folge_id as string) : null
+  const typ = req.query.typ as string | undefined
+  if (!folgeId || !typ) return res.status(400).json({ error: 'folge_id und typ erforderlich' })
+  const user = req.user!
+  const istAutor = (user.roles ?? []).filter(Boolean).length > 0
+  try {
+    const rows = await query(
+      `SELECT ds.scene_identity_id,
+              (array_agg(ds.scene_nummer        ORDER BY w.version_nummer DESC))[1] AS scene_nummer,
+              (array_agg(ds.scene_nummer_suffix ORDER BY w.version_nummer DESC))[1] AS scene_nummer_suffix,
+              (array_agg(ds.ort_name            ORDER BY w.version_nummer DESC))[1] AS ort_name,
+              json_agg(json_build_object(
+                'werkstufe_id',  w.id,
+                'version_nummer', w.version_nummer,
+                'label',          w.label,
+                'content_hash',   md5(COALESCE(ds.content::text, ''))
+              ) ORDER BY w.version_nummer DESC) AS fassungen
+       FROM werkstufen w
+       JOIN dokument_szenen ds ON ds.werkstufe_id = w.id AND ds.geloescht = false
+       WHERE w.folge_id = $1 AND w.typ = $2 AND fn_werkstufe_sichtbar(w.id, $3, $4)
+         AND (ds.format IS NULL OR ds.format <> 'notiz')
+       GROUP BY ds.scene_identity_id
+       ORDER BY (array_agg(ds.scene_nummer ORDER BY w.version_nummer DESC))[1] NULLS LAST,
+                (array_agg(ds.sort_order   ORDER BY w.version_nummer DESC))[1]`,
+      [folgeId, typ, user.user_id, istAutor]
+    )
+    res.setHeader('Cache-Control', 'no-store')
+    res.json({ szenen: rows })
+  } catch (err) {
+    res.status(500).json({ error: String(err) })
   }
 })
