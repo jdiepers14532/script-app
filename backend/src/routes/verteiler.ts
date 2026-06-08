@@ -269,6 +269,7 @@ verteilerRouter.put('/:id/mitglieder/:mid', async (req, res) => {
          sides_nur_eigene     = COALESCE($10, sides_nur_eigene),
          drehplan_reihenfolge = COALESCE($11, drehplan_reihenfolge),
          aktiv                = COALESCE($12, aktiv),
+         sides_character_ids  = CASE WHEN $13 THEN $14::uuid[] ELSE sides_character_ids END,
          updated_at           = now()
        WHERE id = $2 AND verteiler_id = $1 RETURNING *`,
       [
@@ -278,6 +279,7 @@ verteilerRouter.put('/:id/mitglieder/:mid', async (req, res) => {
         'name' in b, b.name ?? null,
         b.revisions_modus ?? null, b.sides_nur_eigene ?? null,
         b.drehplan_reihenfolge ?? null, b.aktiv ?? null,
+        'sides_character_ids' in b, Array.isArray(b.sides_character_ids) ? b.sides_character_ids : null,
       ]
     )
     if (!row) return res.status(404).json({ error: 'Mitglied nicht gefunden' })
@@ -704,11 +706,16 @@ veroeffentlichenRouter.post('/:id/veroeffentlichen', async (req, res) => {
       uebersprungen.push(...skipped)
       const links: Array<{ empfaenger_id: string; email: string; link: string }> = []
       for (const { m, email, name } of ok) {
-        // Sides-Snapshot: nur bei sides_nur_eigene + erkannter Schauspieler:in.
+        // Sides-Snapshot: bei sides_nur_eigene die gewählten Rollen (manuell, für
+        // JEDES Mitglied) — sonst Auto-Match der Schauspieler-Rolle als Fallback.
         let sidesFiguren: string[] | null = null
         if (m.sides_nur_eigene) {
-          const bes = await resolveBesetzung(m.kontakt_id, ws.produktion_id)
-          if (bes.ist_schauspieler) sidesFiguren = bes.figuren.map(f => f.character_id)
+          if (Array.isArray(m.sides_character_ids) && m.sides_character_ids.length) {
+            sidesFiguren = m.sides_character_ids
+          } else {
+            const bes = await resolveBesetzung(m.kontakt_id, ws.produktion_id)
+            if (bes.ist_schauspieler) sidesFiguren = bes.figuren.map(f => f.character_id)
+          }
         }
 
         const { token, hash } = generateToken()

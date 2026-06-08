@@ -44,6 +44,9 @@ export default function VerteilerTab({ produktionId }: { produktionId: string })
   const [freieEmailOpen, setFreieEmailOpen] = useState(false)
   // Kontakt-Such-Modal: mode 'add' (neues Mitglied) | 'link' (freie Adresse verknüpfen)
   const [kontaktSuche, setKontaktSuche] = useState<{ mode: 'add' | 'link'; mid?: string } | null>(null)
+  const [characters, setCharacters] = useState<any[]>([])
+  // Sides-Rollen-Picker: für welches Mitglied + vorausgewählte character_ids
+  const [rollenPicker, setRollenPicker] = useState<{ mid: string; preset: string[] } | null>(null)
 
   // editierbare Detailfelder (Verteiler-Ebene; Mitglieder speichern sofort)
   const [form, setForm] = useState<any>({})
@@ -55,6 +58,8 @@ export default function VerteilerTab({ produktionId }: { produktionId: string })
   }, [produktionId])
 
   useEffect(() => { setLoading(true); loadList().finally(() => setLoading(false)) }, [loadList])
+  // Rollen (Script-characters) für den Sides-Rollenfilter
+  useEffect(() => { api.getCharacters(produktionId).then(setCharacters).catch(() => setCharacters([])) }, [produktionId])
   useEffect(() => { const f = () => setCoarse(isCoarse()); window.addEventListener('resize', f); return () => window.removeEventListener('resize', f) }, [])
 
   const loadDetail = useCallback((id: string) => {
@@ -228,7 +233,7 @@ export default function VerteilerTab({ produktionId }: { produktionId: string })
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead><tr style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
               <th style={th}>Empfänger</th><th style={th}>Quelle</th><th style={th}>Rolle / Funktion</th>
-              <th style={{ ...th, textAlign: 'center' }}>Nur eigene Szenen</th><th style={th}>Revisionsmodus</th><th style={th}></th>
+              <th style={{ ...th, textAlign: 'center' }}>Nur bestimmte Rollen</th><th style={th}>Revisionsmodus</th><th style={th}></th>
             </tr></thead>
             <tbody>
               {(detail.mitglieder || []).map((m: Mitglied) => {
@@ -252,11 +257,24 @@ export default function VerteilerTab({ produktionId }: { produktionId: string })
                             : <span style={{ color: 'var(--text-secondary)' }}>nicht zugeordnet{!m.kontakt_id && <> · <button style={linkish} onClick={() => setKontaktSuche({ mode: 'link', mid: m.id })}>verknüpfen</button></>}</span>}
                     </td>
                     <td style={{ ...td, textAlign: 'center' }}>
-                      <Tooltip text={istSchauspieler ? 'Nur Szenen der erkannten Rolle (Sides)' : 'Nur für erkannte Schauspieler:innen verfügbar'}>
-                        <input type="checkbox" disabled={!istSchauspieler} checked={!!m.sides_nur_eigene}
-                          onChange={e => updateMitglied(m.id, { sides_nur_eigene: e.target.checked })}
-                          style={{ width: 20, height: 20, cursor: istSchauspieler ? 'pointer' : 'not-allowed', opacity: istSchauspieler ? 1 : 0.4 }} />
+                      <Tooltip text={'Nur Szenen ausgewählter Rollen. Für erkannte Schauspieler:innen wird die eigene Rolle automatisch vorgeschlagen — für alle anderen frei wählbar.'}>
+                        <input type="checkbox" checked={!!m.sides_nur_eigene}
+                          onChange={e => {
+                            if (e.target.checked) {
+                              const auto = (b?.figuren || []).map((f: any) => f.character_id)
+                              const preset = (m.sides_character_ids?.length ? m.sides_character_ids : auto) as string[]
+                              updateMitglied(m.id, { sides_nur_eigene: true })
+                              setRollenPicker({ mid: m.id, preset })
+                            } else updateMitglied(m.id, { sides_nur_eigene: false })
+                          }}
+                          style={{ width: 20, height: 20, cursor: 'pointer' }} />
                       </Tooltip>
+                      {m.sides_nur_eigene && (
+                        <div><button style={{ ...linkish, fontSize: 12, marginTop: 4 }}
+                          onClick={() => setRollenPicker({ mid: m.id, preset: (m.sides_character_ids?.length ? m.sides_character_ids : (b?.figuren || []).map((f: any) => f.character_id)) as string[] })}>
+                          Rollen ({m.sides_character_ids?.length || 0})
+                        </button></div>
+                      )}
                     </td>
                     <td style={td}>
                       <select value={m.revisions_modus || 'voll'} onChange={e => updateMitglied(m.id, { revisions_modus: e.target.value })}
@@ -278,7 +296,7 @@ export default function VerteilerTab({ produktionId }: { produktionId: string })
           <button style={linkish} onClick={() => setFreieEmailOpen(true)}>+ Freie E-Mail</button>
         </div>
         <div style={{ ...noteBox }}>
-          Schauspieler:in, Rolle &amp; Funktion werden über die Vertragsdatenbank erkannt (kein Vertrags-Ansichtsrecht nötig; E-Mail wird erst beim Versand aufgelöst). „Nur eigene Szenen" (Sides) ist für erkannte Schauspieler:innen verfügbar. Freie Adressen ohne Zuordnung lassen sich über „verknüpfen" einer Person zuordnen.
+          Schauspieler:in, Rolle &amp; Funktion werden über die Vertragsdatenbank erkannt (kein Vertrags-Ansichtsrecht nötig; E-Mail wird erst beim Versand aufgelöst). „Nur bestimmte Rollen" liefert dem Mitglied nur die Szenen der gewählten Rollen — für erkannte Schauspieler:innen ist die eigene Rolle vorausgewählt, für alle anderen (z. B. Gäste) frei wählbar. Freie Adressen ohne Zuordnung lassen sich über „verknüpfen" einer Person zuordnen.
         </div>
       </div>
 
@@ -377,6 +395,11 @@ export default function VerteilerTab({ produktionId }: { produktionId: string })
       {profilEdit && <ProfilEditModal profil={profilEdit} onClose={() => setProfilEdit(null)} onSaved={async () => { const p = await api.getPdfProfile(produktionId); setProfile(p || []); setProfilEdit(null) }} />}
       {freieEmailOpen && <FreieEmailModal onConfirm={confirmFreieEmail} onClose={() => setFreieEmailOpen(false)} />}
       {kontaktSuche && <KontaktSucheModal produktionId={produktionId} mode={kontaktSuche.mode} onPick={onKontaktPick} onClose={() => setKontaktSuche(null)} />}
+      {rollenPicker && (
+        <RollenPickerModal characters={characters} preset={rollenPicker.preset}
+          onClose={() => setRollenPicker(null)}
+          onSave={async (ids) => { const mid = rollenPicker.mid; setRollenPicker(null); await updateMitglied(mid, { sides_nur_eigene: true, sides_character_ids: ids }) }} />
+      )}
     </div>
   )
 }
@@ -585,6 +608,40 @@ function KontaktSucheModal({ produktionId, mode, onPick, onClose }: {
           {anlegen
             ? <><button style={btn} onClick={() => setAnlegen(false)} disabled={busy}>Zurück</button><button style={btnPrimary} onClick={doAnlegen} disabled={busy || !neu.name.trim()}>{busy ? 'Anlegen…' : 'Anlegen & wählen'}</button></>
             : <button style={btn} onClick={onClose}>Schließen</button>}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Sides-Rollen-Picker (welche Rollen-Szenen das Mitglied erhält) ────────────
+function RollenPickerModal({ characters, preset, onSave, onClose }: {
+  characters: any[]; preset: string[]; onSave: (ids: string[]) => void; onClose: () => void
+}) {
+  const [sel, setSel] = useState<Set<string>>(new Set(preset || []))
+  const [q, setQ] = useState('')
+  const toggle = (id: string) => setSel(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n })
+  const filtered = characters.filter(c => !q || String(c.name || '').toLowerCase().includes(q.toLowerCase()))
+  return (
+    <div style={mOverlay} onClick={onClose}>
+      <div style={mCard} onClick={e => e.stopPropagation()}>
+        <div style={mHead}><h2 style={{ fontSize: 16, fontWeight: 600 }}>Rollen wählen ({sel.size})</h2><button style={{ ...linkish, fontSize: 18 }} onClick={onClose}>✕</button></div>
+        <div style={{ padding: 20, maxHeight: '60vh', overflowY: 'auto' }}>
+          <div style={hint}>Das Mitglied erhält nur Szenen der gewählten Rollen. Für Schauspieler:innen ist die eigene Rolle vorausgewählt.</div>
+          <input style={{ ...inputStyle, margin: '10px 0' }} value={q} onChange={e => setQ(e.target.value)} placeholder="Rolle filtern…" />
+          {characters.length === 0 && <div style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Keine Rollen in dieser Produktion gefunden.</div>}
+          <div style={{ border: characters.length ? '1px solid var(--border)' : 'none', borderRadius: 8, overflow: 'hidden' }}>
+            {filtered.map(c => (
+              <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderBottom: '1px solid var(--border)', cursor: 'pointer', minHeight: 40 }}>
+                <input type="checkbox" checked={sel.has(c.id)} onChange={() => toggle(c.id)} style={{ width: 18, height: 18 }} />
+                <span>{c.name}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+        <div style={mFoot}>
+          <button style={btn} onClick={onClose}>Abbrechen</button>
+          <button style={btnPrimary} onClick={() => onSave([...sel])} disabled={sel.size === 0}>Übernehmen</button>
         </div>
       </div>
     </div>
