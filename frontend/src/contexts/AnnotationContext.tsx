@@ -39,6 +39,8 @@ interface AnnotationCtx {
   me: Me | null
   istAutor: boolean
   canResolve: boolean       // istAutor && Werkstufe editierbar
+  anmerkenModus: boolean    // AN = Editor-Highlights + "Anmerken"-Popup bei Selektion; AUS = reines Schreiben
+  setAnmerkenModus: (v: boolean) => void
   activeAnmerkungId: string | null
   setActiveAnmerkungId: (id: string | null) => void
   decoAnker: DecoAnker[]     // content-Anker der Szene (für Editor-Decorations)
@@ -86,6 +88,8 @@ export function AnnotationProvider({
   const [items, setItems] = useState<AnmerkungItem[]>([])
   const [loading, setLoading] = useState(false)
   const [me, setMe] = useState<Me | null>(null)
+  // Default AUS: kein Anmerkungs-Code im Editor (Plugin/Listener/Popup) → Schreiben + Undo unbeeinträchtigt.
+  const [anmerkenModus, setAnmerkenModus] = useState(false)
   const [activeAnmerkungId, setActiveAnmerkungId] = useState<string | null>(null)
   const taggbareCache = useRef<{ id: string; name: string }[] | null>(null)
 
@@ -202,6 +206,7 @@ export function AnnotationProvider({
 
   const value: AnnotationCtx = {
     items, loading, me, istAutor, canResolve,
+    anmerkenModus, setAnmerkenModus,
     activeAnmerkungId, setActiveAnmerkungId, decoAnker, kopffeldItems,
     reload, createContent, createKopffeld, patchStatus, addKommentar, getKommentare, addTags, getTaggbareUser,
   }

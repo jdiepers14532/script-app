@@ -849,7 +849,9 @@ export default function UniversalEditor({
   // Optionaler Context: nur aktiv, wenn der Editor in einem AnnotationProvider mit
   // Werkstufe + Szene läuft (Bearbeitungsmodus); sonst No-Op.
   const annotCtx = useAnnotationsOptional()
-  const annotation = (annotCtx && werkstufeId && sceneIdentityId) ? {
+  // Nur aktiv, wenn der Anmerken-Modus eingeschaltet ist → sonst KEIN Plugin/Listener/Overlay im Editor
+  // (Schreiben + Undo/Redo bleiben unbeeinträchtigt, kein störendes Popup).
+  const annotation = (annotCtx?.anmerkenModus && werkstufeId && sceneIdentityId) ? {
     decoAnker: annotCtx.decoAnker,
     activeAnmerkungId: annotCtx.activeAnmerkungId,
     onOpen: annotCtx.setActiveAnmerkungId,

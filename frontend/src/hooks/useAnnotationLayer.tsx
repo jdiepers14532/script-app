@@ -107,7 +107,10 @@ export function useAnnotationLayer(editor: Editor | null, opts: AnnotationLayerO
     } catch {}
   }, [editor, opts?.activeAnmerkungId])
 
-  // Selektion → "Anmerken"-Button-Position
+  // Selektion → "Anmerken"-Button-Position.
+  // KEIN blur-Handler: die <textarea autoFocus> im Popover zieht den Editor-Fokus → ein blur→setSel(null)
+  // würde das Popover sofort schließen (Klick wirkungslos). Stattdessen steuert nur selectionUpdate sel;
+  // während composing bleibt sel stabil (return), der Wrapper hält per mousedown-preventDefault die Selektion.
   useEffect(() => {
     if (!editor || !opts || !opts.canCreate) { setSel(null); return }
     const update = () => {
@@ -121,7 +124,6 @@ export function useAnnotationLayer(editor: Editor | null, opts: AnnotationLayerO
       } catch { setSel(null) }
     }
     editor.on('selectionUpdate', update)
-    editor.on('blur', () => { if (!composing) setSel(null) })
     return () => { editor.off('selectionUpdate', update) }
   }, [editor, !!opts, opts?.canCreate, composing]) // eslint-disable-line react-hooks/exhaustive-deps
 

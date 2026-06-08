@@ -48,12 +48,28 @@ export function AnnotationPanel() {
         <MessageSquare size={14} />
         <span style={{ fontSize: 13, fontWeight: 600 }}>Anmerkungen</span>
         <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{items.length}</span>
+        <button
+          onClick={() => a.setAnmerkenModus(!a.anmerkenModus)}
+          title={a.anmerkenModus ? 'Anmerken-Modus aktiv — Klick zum Ausschalten (stört das Schreiben nicht)' : 'Anmerken-Modus einschalten — Text markieren → Anmerken'}
+          style={{
+            marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 5, minHeight: 28,
+            padding: '4px 10px', borderRadius: 999, cursor: 'pointer', fontFamily: 'inherit',
+            fontSize: 11, fontWeight: 600,
+            border: `1px solid ${a.anmerkenModus ? '#00C853' : 'var(--border)'}`,
+            background: a.anmerkenModus ? '#00C8531A' : 'transparent',
+            color: a.anmerkenModus ? '#00C853' : 'var(--text-muted)',
+          }}
+        >
+          <span style={{ width: 7, height: 7, borderRadius: 999, background: a.anmerkenModus ? '#00C853' : 'var(--text-muted)' }} />
+          {a.anmerkenModus ? 'Anmerken an' : 'Anmerken aus'}
+        </button>
       </div>
       <div style={{ flex: 1, overflowY: 'auto', padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
         {loading && <div style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', padding: 12 }}>Lädt…</div>}
         {!loading && items.length === 0 && (
           <div style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: 'center', padding: 16, lineHeight: 1.6 }}>
-            Keine Anmerkungen in dieser Szene.<br />Text markieren → „Anmerken".
+            Keine Anmerkungen in dieser Szene.<br />
+            {a.anmerkenModus ? 'Text markieren → „Anmerken".' : 'Oben „Anmerken" einschalten, dann Text markieren.'}
           </div>
         )}
         {items.map(it => (
