@@ -25,9 +25,15 @@ export function useProduction() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // Öffentliche Token-Seiten (kein Login): keinen Auth-Redirect auslösen,
+    // sonst werden externe Empfänger (z.B. Verteiler-Portal /v/:token) auf die
+    // Login-Seite geworfen statt die Public-Seite zu sehen.
+    const PUBLIC_ROUTE_PREFIXES = ['/v/', '/freigabe/', '/privat-mode-token/']
+    const isPublicRoute = PUBLIC_ROUTE_PREFIXES.some(p => window.location.pathname.startsWith(p))
     Promise.all([
       fetch('/api/me/productions', { credentials: 'include' }).then(r => {
         if (r.status === 401) {
+          if (isPublicRoute) return []
           const redirectUrl = window.location.href
           sessionStorage.setItem('auth_redirect_after_login', redirectUrl)
           window.location.href = `https://auth.serienwerft.studio/?redirect=${encodeURIComponent(redirectUrl)}`
