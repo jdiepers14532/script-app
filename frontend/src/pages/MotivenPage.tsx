@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import AppShell from '../components/AppShell'
 import EntitySidebar from '../components/figuren/EntitySidebar'
 import FotoGalerie from '../components/figuren/FotoGalerie'
+import SzenenPanel from '../components/lesemodus/SzenenPanel'
 const FeldEditor = lazy(() => import('../components/figuren/FeldEditor'))
 import { api } from '../api/client'
 import { useSelectedProduction, ProductionContext } from '../contexts'
@@ -447,6 +448,17 @@ export default function MotivenPage() {
                       )
                     })}
                   </div>
+                )}
+
+                {/* Szenen, in denen das Motiv vorkommt */}
+                {selected?.id && produktionId && (
+                  <SzenenPanel
+                    produktionId={produktionId}
+                    typ="motiv"
+                    entityId={selected.id}
+                    motivName={selected.name}
+                    showBadges
+                  />
                 )}
               </div>
             </div>

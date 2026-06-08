@@ -100,6 +100,23 @@ export const api = {
   // Blöcke — live from ProdDB, returns { proddb_id, block_nummer, folge_von, folge_bis, ... }
   getBloecke: (produktionId: string) => request<any[]>('GET', `/produktionen/${produktionId}/bloecke`),
 
+  // Lesemodus — Szenen einer Entität (Rolle/Komparse/Motiv) + PDF-getreues Szenen-Lese-HTML
+  getEntitaetSzenen: (
+    produktionId: string,
+    typ: 'rolle' | 'komparse' | 'motiv',
+    opts: { entityId?: string; motivName?: string } = {},
+  ) => {
+    const p = new URLSearchParams({ produktion_id: produktionId, typ })
+    if (opts.entityId) p.set('entity_id', opts.entityId)
+    if (opts.motivName) p.set('motiv_name', opts.motivName)
+    return request<{ szenen: any[] }>('GET', `/lesemodus/entitaet-szenen?${p.toString()}`)
+  },
+  getSzeneLeseHtml: (sceneIdentityId: string, werkstufeId: string) =>
+    request<{ html: string; szenenAuswahl: string }>(
+      'GET',
+      `/lesemodus/szene/${sceneIdentityId}/html?werkstufe_id=${encodeURIComponent(werkstufeId)}`,
+    ),
+
   // Folgen metadata (arbeitstitel, synopsis, air_date)
   getFolge: (produktionId: string, folgeNummer: number) =>
     request<any>('GET', `/folgen/${produktionId}/${folgeNummer}`),

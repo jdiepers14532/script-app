@@ -6,6 +6,7 @@ import FotoGalerie from '../components/figuren/FotoGalerie'
 const FeldEditor = lazy(() => import('../components/figuren/FeldEditor'))
 import BeziehungsPanel from '../components/figuren/BeziehungsPanel'
 import RollenprofilImportModal from '../components/RollenprofilImportModal'
+import SzenenPanel from '../components/lesemodus/SzenenPanel'
 import { api } from '../api/client'
 import { useSelectedProduction, useAppSettings } from '../contexts'
 import { useTerminologie } from '../sw-ui'
@@ -385,6 +386,11 @@ export default function RollenPage() {
                     </>
                   )
                 })()}
+
+                {/* Szenen, in denen die Rolle vorkommt */}
+                {selectedId && produktionId && (
+                  <SzenenPanel produktionId={produktionId} typ="rolle" entityId={selectedId} />
+                )}
               </div>
             </div>
           )}
