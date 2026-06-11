@@ -625,15 +625,18 @@ distributionenRouter.post('/:id/resend', async (req, res) => {
 type Queryable = { query: (sql: string, params?: any[]) => Promise<{ rows: any[]; rowCount: number | null }> }
 
 async function matchVerteiler(
-  db: Queryable, produktionId: string, typ: string,
+  db: Queryable, produktionId: string, werkstufeLabel: string | null,
   opts: { include_revision?: boolean; verteiler_ids?: any }
 ): Promise<any[]> {
+  // Der Verteiler-Trigger (Spalte `werkstufe_typ`, historischer Name) speichert ein
+  // FASSUNGS-LABEL aus stage_labels (z.B. "Edit 1") — NICHT den Werkstufen-Typ
+  // (drehbuch/storyline/notiz). Daher gegen das `label` der Werkstufe matchen.
   const r = await db.query(
     `SELECT * FROM verteiler
      WHERE produktion_id = $1 AND aktiv = true
        AND ((scope = 'werkstufe_typ' AND werkstufe_typ = $2) OR ($3::boolean AND scope = 'revision'))
        AND ($4::uuid[] IS NULL OR id = ANY($4))`,
-    [produktionId, typ, !!opts.include_revision,
+    [produktionId, werkstufeLabel, !!opts.include_revision,
      Array.isArray(opts.verteiler_ids) && opts.verteiler_ids.length ? opts.verteiler_ids : null]
   )
   return r.rows
@@ -671,7 +674,7 @@ veroeffentlichenRouter.get('/:id/veroeffentlichen/preview', async (req, res) => 
   const include_revision = req.query.include_revision === '1' || req.query.include_revision === 'true'
   try {
     const ws = await queryOne(
-      `SELECT w.id, w.typ, w.version_nummer, f.produktion_id, f.folge_nummer
+      `SELECT w.id, w.typ, w.label, w.version_nummer, f.produktion_id, f.folge_nummer
        FROM werkstufen w JOIN folgen f ON f.id = w.folge_id WHERE w.id = $1`,
       [req.params.id]
     )
@@ -679,7 +682,7 @@ veroeffentlichenRouter.get('/:id/veroeffentlichen/preview', async (req, res) => 
     if (!(await hatDkZugriff(req, ws.produktion_id))) {
       return res.status(403).json({ error: 'Keine Freigabe-Berechtigung für diese Produktion' })
     }
-    const matched = await matchVerteiler(pool as any, ws.produktion_id, ws.typ, { include_revision })
+    const matched = await matchVerteiler(pool as any, ws.produktion_id, ws.label, { include_revision })
     const verteiler: Array<{ verteiler_id: string; verteiler_name: string; empfaenger_count: number }> = []
     let total = 0, uebersprungen = 0
     for (const v of matched) {
@@ -705,7 +708,7 @@ veroeffentlichenRouter.post('/:id/veroeffentlichen', async (req, res) => {
     await client.query('BEGIN')
 
     const wsRes = await client.query(
-      `SELECT w.id, w.typ, w.version_nummer, f.produktion_id, f.folge_nummer, f.folgen_titel,
+      `SELECT w.id, w.typ, w.label, w.version_nummer, f.produktion_id, f.folge_nummer, f.folgen_titel,
               p.titel AS produktion_titel
        FROM werkstufen w JOIN folgen f ON f.id = w.folge_id
        LEFT JOIN produktionen p ON p.id = f.produktion_id
@@ -728,7 +731,7 @@ veroeffentlichenRouter.post('/:id/veroeffentlichen', async (req, res) => {
     )
 
     // Passende Verteiler — IDENTISCHE Auswahl wie die Preview (matchVerteiler).
-    const matched = await matchVerteiler(client, ws.produktion_id, ws.typ, { include_revision, verteiler_ids })
+    const matched = await matchVerteiler(client, ws.produktion_id, ws.label, { include_revision, verteiler_ids })
 
     const ablauf = tokenAblauf()
     const ergebnis: any[] = []

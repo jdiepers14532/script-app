@@ -20,6 +20,7 @@ let profilId: string | null = null
 let verteilerId: string | null = null
 let werkstufeId: string | null = null
 let werkstufeTyp = 'Drehbuch'
+const werkstufeLabel = 'Verteiler-Test-Fassung'   // Verteiler-Trigger matcht das LABEL
 let createdWerkstufe = false
 
 test.beforeAll(async ({ request }) => {
@@ -44,6 +45,12 @@ test.beforeAll(async ({ request }) => {
   if (!werkstufeId && folgen.length > 0) {
     const created = await request.post(`${API}/v2/folgen/${folgen[0].id}/werkstufen`, hd({ typ: 'Drehbuch', mode: 'empty' }))
     if (created.ok()) { const w = await created.json(); werkstufeId = w.id; werkstufeTyp = w.typ ?? 'Drehbuch'; createdWerkstufe = true }
+  }
+
+  // Werkstufe ein bekanntes Fassungs-Label geben: der Verteiler-Trigger matcht auf
+  // das LABEL der Werkstufe (nicht den typ) — ohne passendes Label kein Match.
+  if (werkstufeId) {
+    await request.put(`${API}/werkstufen/${werkstufeId}`, hd({ label: werkstufeLabel })).catch(() => {})
   }
 })
 
@@ -136,7 +143,7 @@ test('Verteiler: POST anlegen + Scope-Konsistenz', async ({ request }) => {
 
   const create = await request.post(`${API}/verteiler`, hd({
     produktion_id: PROD_ID, name: 'Test-Verteiler Drehbuch', scope: 'werkstufe_typ',
-    werkstufe_typ: werkstufeTyp, pdf_export_profil_id: profilId,
+    werkstufe_typ: werkstufeLabel, pdf_export_profil_id: profilId,   // Trigger = Fassungs-Label
     email_betreff: 'Neue Fassung {Folge}', email_text: 'Hallo {Name}, {Link}',
   }))
   expect(create.status()).toBe(201)
