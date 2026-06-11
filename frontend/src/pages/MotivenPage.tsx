@@ -253,6 +253,7 @@ export default function MotivenPage() {
           loading={loading}
           belowSearch={viewToggle}
           hideList={view === 'stockshots'}
+          onHorizontalNav={dir => setView(dir === 1 ? 'stockshots' : 'motive')}
         />
 
         <div style={{ flex: 1, overflow: 'auto', padding: 24 }}>

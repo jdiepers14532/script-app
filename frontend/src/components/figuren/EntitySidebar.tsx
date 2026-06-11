@@ -27,6 +27,8 @@ interface EntitySidebarProps {
   belowSearch?: React.ReactNode
   /** When true, hides the entity list (e.g. when a different view mode is active) */
   hideList?: boolean
+  /** Called on ArrowLeft (-1) / ArrowRight (+1) — e.g. to switch between view modes */
+  onHorizontalNav?: (dir: -1 | 1) => void
 }
 
 const MIN_WIDTH = 180
@@ -43,12 +45,14 @@ export default function EntitySidebar({
   numberKey = 'rollen_nummer',
   belowSearch,
   hideList = false,
+  onHorizontalNav,
 }: EntitySidebarProps) {
   const [width, setWidth] = useState(DEFAULT_WIDTH)
   const [search, setSearch] = useState('')
   const dragging = useRef(false)
   const startX = useRef(0)
   const startW = useRef(0)
+  const searchRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const onMouseMove = (e: MouseEvent) => {
@@ -69,12 +73,53 @@ export default function EntitySidebar({
   const filtered = entities.filter(e => e.name.toLowerCase().includes(q))
   const active = filtered.filter(e => e.is_active !== false)
   const inactive = filtered.filter(e => e.is_active === false)
+  // Reihenfolge der Tastatur-Navigation entspricht der Render-Reihenfolge (aktiv, dann inaktiv)
+  const ordered = [...active, ...inactive]
+
+  // Pfeiltasten-Navigation: ↑/↓ wechselt die Auswahl, ←/→ schaltet (optional) den Ansichtsmodus.
+  // Greift nur, wenn der Fokus nicht in einem Eingabefeld liegt (Ausnahme: Suchfeld erlaubt ↑/↓).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return
+      const el = document.activeElement as HTMLElement | null
+      const isSearch = el === searchRef.current
+      const tag = el?.tagName
+      const isTextField = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || !!el?.isContentEditable
+
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        if (isTextField) return
+        if (!onHorizontalNav) return
+        onHorizontalNav(e.key === 'ArrowRight' ? 1 : -1)
+        e.preventDefault()
+        return
+      }
+
+      if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        if (hideList) return
+        if (isTextField && !isSearch) return
+        if (ordered.length === 0) return
+        const idx = ordered.findIndex(en => en.id === selectedId)
+        let next: number
+        if (idx === -1) next = e.key === 'ArrowDown' ? 0 : ordered.length - 1
+        else if (e.key === 'ArrowDown') next = Math.min(ordered.length - 1, idx + 1)
+        else next = Math.max(0, idx - 1)
+        const target = ordered[next]
+        if (target && target.id !== selectedId) {
+          onSelect(target.id)
+          e.preventDefault()
+        }
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [ordered, selectedId, onSelect, onHorizontalNav, hideList])
 
   return (
     <div style={{ width, minWidth: MIN_WIDTH, display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--border)', position: 'relative', flexShrink: 0 }}>
       {/* Header */}
       <div style={{ padding: '10px 10px 8px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 6, alignItems: 'center' }}>
         <input
+          ref={searchRef}
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Suchen…"
@@ -152,6 +197,12 @@ function EntityRow({ entity, selected, onSelect, numberKey, inactive = false, on
   const nr = entity[numberKey]
   const [previewPos, setPreviewPos] = useState<{ top: number; left: number } | null>(null)
   const thumbRef = useRef<HTMLImageElement>(null)
+  const rowRef = useRef<HTMLDivElement>(null)
+
+  // Bei Auswahl (auch per Pfeiltaste) die Zeile in den sichtbaren Bereich scrollen
+  useEffect(() => {
+    if (selected) rowRef.current?.scrollIntoView({ block: 'nearest' })
+  }, [selected])
 
   const showPreview = useCallback(() => {
     if (!thumbRef.current) return
@@ -166,6 +217,7 @@ function EntityRow({ entity, selected, onSelect, numberKey, inactive = false, on
 
   return (
     <div
+      ref={rowRef}
       onClick={() => onSelect(entity.id)}
       style={{
         display: 'flex',
