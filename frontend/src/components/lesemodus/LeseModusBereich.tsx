@@ -9,9 +9,11 @@ interface Props {
   folgeId: number
   initialWerkId?: string | null
   canEdit?: boolean
+  activeSceneIdentityId?: string | null
+  onSceneVisible?: (sceneIdentityId: string) => void
 }
 
-export default function LeseModusBereich({ folgeId, initialWerkId, canEdit = true }: Props) {
+export default function LeseModusBereich({ folgeId, initialWerkId, canEdit = true, activeSceneIdentityId, onSceneVisible }: Props) {
   const [werkstufen, setWerkstufen] = useState<any[]>([])
   const [werkId, setWerkId] = useState<string | null>(initialWerkId ?? null)
   const [loading, setLoading] = useState(true)
@@ -59,7 +61,15 @@ export default function LeseModusBereich({ folgeId, initialWerkId, canEdit = tru
         {loading && <div style={{ padding: 24, fontSize: 13, color: 'var(--text-secondary)' }}>Lädt Fassungen…</div>}
         {error && <div style={{ padding: 24, fontSize: 13, color: 'var(--danger,#FF3B30)' }}>{error}</div>}
         {!loading && !error && !werkId && <div style={{ padding: 24, fontSize: 13, color: 'var(--text-secondary)' }}>Keine lesbare Fassung in dieser Folge.</div>}
-        {!loading && !error && werkId && <LeseAnsicht key={werkId} werkstufId={werkId} canEdit={canEdit} />}
+        {!loading && !error && werkId && (
+          <LeseAnsicht
+            key={werkId}
+            werkstufId={werkId}
+            canEdit={canEdit}
+            activeSceneIdentityId={activeSceneIdentityId}
+            onSceneVisible={onSceneVisible}
+          />
+        )}
       </div>
     </div>
   )

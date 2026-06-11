@@ -1360,6 +1360,11 @@ export default function ScriptPage() {
             <LeseModusBereich
               folgeId={selectedFolgeId}
               initialWerkId={selectedStageId ? String(selectedStageId) : null}
+              activeSceneIdentityId={szenen.find(s => s.id === selectedSzeneId)?.scene_identity_id ?? null}
+              onSceneVisible={(sid) => {
+                const sz = szenen.find(s => s.scene_identity_id === sid)
+                if (sz && sz.id !== selectedSzeneId) setSelectedSzeneId(sz.id)
+              }}
             />
           ) : showStrangPanel && selectedProduktionId ? (
             <StrangVerwaltungModal

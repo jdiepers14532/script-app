@@ -32,13 +32,23 @@ interface CreateState {
   exact: string
 }
 
-function LeseAnsichtInner({ werkstufId }: { werkstufId: string }) {
+function LeseAnsichtInner({ werkstufId, activeSceneIdentityId, onSceneVisible }: {
+  werkstufId: string
+  activeSceneIdentityId?: string | null
+  onSceneVisible?: (sceneIdentityId: string) => void
+}) {
   const a = useAnnotations()
   const aRef = useRef(a)
   useEffect(() => { aRef.current = a }, [a])
 
   const docRef = useRef<Document | null>(null)
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
+  // Szenen-Sync: activeSceneRef = aktuell angesteuerte/sichtbare Szene (von Input + Output gepflegt);
+  // programmaticScrollRef unterdrückt den Output-Scroll-Spy während eines Input-Scrolls (kein Loop).
+  const activeSceneRef = useRef<string | null | undefined>(activeSceneIdentityId)
+  const programmaticScrollRef = useRef(false)
+  const onSceneVisibleRef = useRef(onSceneVisible)
+  useEffect(() => { onSceneVisibleRef.current = onSceneVisible }, [onSceneVisible])
   const [create, setCreate] = useState<CreateState | null>(null)
   const [quelle, setQuelle] = useState('produktion')
   const [text, setText] = useState('')
@@ -63,7 +73,7 @@ function LeseAnsichtInner({ werkstufId }: { werkstufId: string }) {
       })
   }, [])
 
-  const onIframeReady = useCallback((doc: Document, _win: Window, iframe: HTMLIFrameElement) => {
+  const onIframeReady = useCallback((doc: Document, win: Window, iframe: HTMLIFrameElement) => {
     docRef.current = doc
     iframeRef.current = iframe
     if (!doc.getElementById('sw-annot-css')) {
@@ -73,6 +83,32 @@ function LeseAnsichtInner({ werkstufId }: { werkstufId: string }) {
       doc.head.appendChild(style)
     }
     renderHighlights(doc)
+
+    // Bei (Neu-)Laden zur zuletzt gewählten Szene scrollen (Bearbeiten→Lesen behält die Szene).
+    if (activeSceneRef.current) {
+      const el = doc.querySelector(`[data-scene-identity-id="${activeSceneRef.current}"]`)
+      if (el) {
+        programmaticScrollRef.current = true
+        el.scrollIntoView({ block: 'start' })
+        win.setTimeout(() => { programmaticScrollRef.current = false }, 400)
+      }
+    }
+
+    // Scroll-Spy (Output): das oberste sichtbare Blatt bestimmt die aktive Szene → Szene merken.
+    const IO = (win as any).IntersectionObserver
+    if (IO) {
+      const obs = new IO((entries: any[]) => {
+        if (programmaticScrollRef.current) return
+        const visible = entries.filter(e => e.isIntersecting)
+          .sort((x, y) => x.boundingClientRect.top - y.boundingClientRect.top)
+        const sid = visible[0]?.target?.getAttribute('data-scene-identity-id')
+        if (sid && sid !== activeSceneRef.current) {
+          activeSceneRef.current = sid
+          onSceneVisibleRef.current?.(sid)
+        }
+      }, { threshold: 0.1 })
+      doc.querySelectorAll('[data-scene-identity-id]').forEach(el => obs.observe(el))
+    }
 
     // Klick auf ein Highlight → Karte im Panel aktivieren.
     doc.addEventListener('click', (e) => {
@@ -114,6 +150,20 @@ function LeseAnsichtInner({ werkstufId }: { werkstufId: string }) {
     const el = doc.querySelector(`[data-anmerkung-id="${a.activeAnmerkungId}"]`)
     if (el) { el.classList.add('sw-annot--active'); el.scrollIntoView({ behavior: 'smooth', block: 'center' }) }
   }, [a.activeAnmerkungId])
+
+  // Input: Szene per Klick/Tastatur/Moduswechsel ausgewählt → zugehöriges Blatt ins Bild scrollen.
+  // Nicht scrollen, wenn die Szene bereits sichtbar ist (Output-getriggert) → kein Ruckeln/Loop.
+  useEffect(() => {
+    const doc = docRef.current
+    if (!doc || !activeSceneIdentityId) return
+    if (activeSceneIdentityId === activeSceneRef.current) return
+    const el = doc.querySelector(`[data-scene-identity-id="${activeSceneIdentityId}"]`)
+    if (!el) return
+    activeSceneRef.current = activeSceneIdentityId
+    programmaticScrollRef.current = true
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    window.setTimeout(() => { programmaticScrollRef.current = false }, 600)
+  }, [activeSceneIdentityId])
 
   const speichern = async () => {
     if (!create || !text.trim()) return
@@ -170,10 +220,15 @@ function LeseAnsichtInner({ werkstufId }: { werkstufId: string }) {
   )
 }
 
-export default function LeseAnsicht({ werkstufId, canEdit = false }: { werkstufId: string; canEdit?: boolean }) {
+export default function LeseAnsicht({ werkstufId, canEdit = false, activeSceneIdentityId, onSceneVisible }: {
+  werkstufId: string
+  canEdit?: boolean
+  activeSceneIdentityId?: string | null
+  onSceneVisible?: (sceneIdentityId: string) => void
+}) {
   return (
     <AnnotationProvider werkstufeId={werkstufId} sceneIdentityId={null} canEdit={canEdit}>
-      <LeseAnsichtInner werkstufId={werkstufId} />
+      <LeseAnsichtInner werkstufId={werkstufId} activeSceneIdentityId={activeSceneIdentityId} onSceneVisible={onSceneVisible} />
     </AnnotationProvider>
   )
 }
