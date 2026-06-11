@@ -70,7 +70,7 @@ function SonderszenentTab() {
           <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.6 }}>
             Neben regulaeren Szenen unterstuetzt die Script-App drei Sonderszenen-Typen mit
             strukturiertem Tracking. Jede Szene kann ueber den Szenenkopf als Sondertyp markiert werden.
-            Die Terminologie (z.B. „Stockshot" vs. „Archivshot") ist produktionsweise konfigurierbar.
+            Die Terminologie (z.B. „Stockshot" vs. „Archivbild") ist produktionsweise konfigurierbar.
           </div>
         </div>
       </div>
@@ -135,7 +135,7 @@ function SonderszenentTab() {
       </Section>
 
       {/* ── 3. Stockshot ── */}
-      <Section title="3. Stockshot / Archivshot">
+      <Section title="3. Stockshot / Archivbild">
         <TypeCard icon="📷" title="Stockshot" color={C.orange} subtitle="Kurze Einstellung ohne Dialog — Ortswechsel, Zeitsprung, Stimmungswechsel">
           <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 14 }}>
             Stockshots sind kurze Aufnahmen, die zwischen Szenen eingefuegt werden — z.B. eine
@@ -282,7 +282,7 @@ function SonderszenentTab() {
             <span>Key</span><span>Standard</span><span>Alternative</span>
           </div>
           {[
-            { key: 'stockshot', std: 'Stockshot', alt: 'Archivshot' },
+            { key: 'stockshot', std: 'Stockshot', alt: 'Archivbild' },
             { key: 'flashback', std: 'Flashback', alt: 'Rueckblende' },
           ].map((r, i) => (
             <div key={i} style={{

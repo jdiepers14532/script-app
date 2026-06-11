@@ -50,8 +50,8 @@ export const TERM_OPTIONS: Record<TermKey, Record<string, TermForms>> = {
     'Episode': { s: 'Episode', p: 'Episoden', c: 'Episoden' },
   },
   stockshot: {
-    'Stockshot':  { s: 'Stockshot',  p: 'Stockshots',  c: 'Stockshot' },
-    'Archivshot': { s: 'Archivshot', p: 'Archivshots', c: 'Archivshot' },
+    'Stockshot':  { s: 'Stockshot',  p: 'Stockshots',   c: 'Stockshot' },
+    'Archivbild': { s: 'Archivbild', p: 'Archivbilder', c: 'Archivbild' },
   },
   flashback: {
     'Flashback':    { s: 'Flashback',    p: 'Flashbacks',    c: 'Flashback' },
@@ -91,7 +91,7 @@ export const TERM_LABELS: Record<TermKey, string> = {
   darsteller: 'Darsteller / Schauspieler / Cast',
   komparse: 'Komparse / Statist',
   episode: 'Episode / Folge',
-  stockshot: 'Stockshot / Archivshot',
+  stockshot: 'Stockshot / Archivbild',
   flashback: 'Flashback / Rückblende',
   spieltag: 'Spieltag / Dramaturgischer Tag',
   drehbuch: 'Drehbuch / Dialogbuch',

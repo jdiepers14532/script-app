@@ -236,7 +236,7 @@ export default function MotivenPage() {
             transition: 'all 0.12s',
           }}
         >
-          {v === 'motive' ? t('motiv') + 'e' : 'Stockshots'}
+          {v === 'motive' ? t('motiv', 'p') : t('stockshot', 'p')}
         </button>
       ))}
     </div>
@@ -477,6 +477,7 @@ function StockshotArchivPanel({ produktionId, motive, alleProduktionen }: {
   motive: any[]
   alleProduktionen: any[]
 }) {
+  const { t } = useTerminologie()
   const [archiv, setArchiv] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
   const [showAddForm, setShowAddForm] = useState(false)
@@ -552,9 +553,9 @@ function StockshotArchivPanel({ produktionId, motive, alleProduktionen }: {
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
         <div>
-          <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>Stockshot-Archiv</h2>
+          <h2 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>{t('stockshot')}-Archiv</h2>
           <p style={{ fontSize: 12, color: 'var(--text-secondary)', margin: '2px 0 0' }}>
-            Bereits gedrehte Stockshots — neue Szenen prüfen automatisch dagegen.
+            Bereits gedrehte {t('stockshot', 'p')} — neue Szenen prüfen automatisch dagegen.
           </p>
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
