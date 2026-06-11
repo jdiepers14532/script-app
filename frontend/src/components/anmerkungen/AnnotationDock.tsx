@@ -1,10 +1,11 @@
-// AnnotationDock — rechte Andockzone für das AnnotationPanel: per Drag an der Trennlinie in der
-// Breite veränderbar (Maus + Touch) und komplett ausblendbar (Button + Alt+I). Breite/Sichtbarkeit
-// liegen in den Tweaks (persistent, geteilt zwischen Lese- und Bearbeitungsmodus).
+// AnnotationDock — rechte Andockzone für das AnnotationPanel: dünne Trennlinie (per Drag in der
+// Breite veränderbar, Maus + Touch) mit Chevron-Button zum Aus-/Einblenden — gleiches Muster/Look
+// wie die Szenenübersicht (.scene-list-handle / .scene-list-collapse-btn). Breite/Sichtbarkeit
+// liegen in den Tweaks (persistent, geteilt zwischen Lese- und Bearbeitungsmodus). Alt+I togglet.
 import { type MouseEvent as RMouseEvent, type TouchEvent as RTouchEvent } from 'react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useTweaks } from '../../contexts'
 import { AnnotationPanel } from './AnnotationPanel'
-import { PanelRightOpen, PanelRightClose } from 'lucide-react'
 
 export function AnnotationDock() {
   const { tweaks, set } = useTweaks()
@@ -12,8 +13,9 @@ export function AnnotationDock() {
   const visible = tweaks.showAnnotationPanel !== false
 
   const startResize = (e: RMouseEvent | RTouchEvent) => {
+    if (!visible) return
     e.preventDefault()
-    const startX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX
+    const startX = 'touches' in e ? e.touches[0].clientX : (e as RMouseEvent).clientX
     const startW = width
     const onMove = (ev: MouseEvent | TouchEvent) => {
       const x = 'touches' in ev ? (ev as TouchEvent).touches[0].clientX : (ev as MouseEvent).clientX
@@ -32,36 +34,29 @@ export function AnnotationDock() {
     window.addEventListener('touchend', onUp)
   }
 
-  // Ausgeblendet → schmaler Streifen zum Einblenden.
-  if (!visible) {
-    return (
-      <button
-        onClick={() => set('showAnnotationPanel', true)}
-        title="Anmerkungen einblenden (Alt+I)"
-        style={{
-          width: 30, flexShrink: 0, border: 'none', borderLeft: '1px solid var(--border)',
-          background: 'var(--bg-surface)', cursor: 'pointer', display: 'flex', flexDirection: 'column',
-          alignItems: 'center', justifyContent: 'center', gap: 8, color: 'var(--text-muted)', padding: 0,
-        }}
-      >
-        <PanelRightOpen size={16} />
-        <span style={{ writingMode: 'vertical-rl', transform: 'rotate(180deg)', fontSize: 11, fontWeight: 600 }}>Anmerkungen</span>
-      </button>
-    )
-  }
-
   return (
-    <div style={{ width, flexShrink: 0, display: 'flex', minWidth: 0 }}>
-      {/* Drag-Trennlinie */}
+    <div style={{ display: 'flex', flexShrink: 0, minWidth: 0 }}>
+      {/* Trennlinie (2px via ::before) mit Chevron-Button — wie Szenenübersicht */}
       <div
-        onMouseDown={startResize}
-        onTouchStart={startResize}
-        title="Breite ziehen"
-        style={{ width: 6, flexShrink: 0, cursor: 'col-resize', background: 'var(--border)', touchAction: 'none' }}
-      />
-      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-        <AnnotationPanel onHide={() => set('showAnnotationPanel', false)} hideIcon={<PanelRightClose size={14} />} />
+        className="scene-list-handle"
+        style={{ cursor: visible ? 'col-resize' : 'default' }}
+        onMouseDown={visible ? startResize : undefined}
+        onTouchStart={visible ? startResize : undefined}
+      >
+        <button
+          className="scene-list-collapse-btn"
+          onMouseDown={e => e.stopPropagation()}
+          onClick={() => set('showAnnotationPanel', !visible)}
+          title={visible ? 'Anmerkungen ausblenden (Alt+I)' : 'Anmerkungen einblenden (Alt+I)'}
+        >
+          {visible ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+        </button>
       </div>
+      {visible && (
+        <div style={{ width, flexShrink: 0, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          <AnnotationPanel />
+        </div>
+      )}
     </div>
   )
 }

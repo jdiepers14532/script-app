@@ -1163,7 +1163,10 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
                         value={motivDropdownOpen ? motivSearch : ((() => {
                           const curMotiv = allMotive.find(m => m.id === scene.motiv_id)
                           const parent = curMotiv?.parent_id ? allMotive.find(m => m.id === curMotiv.parent_id) : curMotiv
-                          return parent ? motivDisplayLabel(parent) : (scene.ort_name ?? '')
+                          const base = parent ? motivDisplayLabel(parent) : (scene.ort_name ?? '')
+                          // Stockshot/Archivbild-Zusatz aus sondertyp + Terminologie ableiten —
+                          // reine Anzeige, wird nie in motiv_id/ort_name gespeichert.
+                          return base && scene.sondertyp === 'stockshot' ? `${base} (${t('stockshot')})` : base
                         })())}
                         placeholder={`${t('motiv')}…`}
                         onChange={e => { setMotivSearch(e.target.value); if (!motivDropdownOpen) setMotivDropdownOpen(true) }}

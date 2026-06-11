@@ -48,6 +48,22 @@ function extractFileMetadata(filename: string, buffer: Buffer): Record<string, s
   return meta
 }
 
+// Stockshot/Archivbild: führendes Präfix vom Motivnamen abschneiden.
+// Greift am String-Anfang ODER direkt hinter einem "Drehort / "-Segment.
+// Trefferwort + optionaler Trenner (:.-–—) werden entfernt; der saubere Motivname
+// bleibt stehen. Das Label „(Stockshot/Archivbild)" wird NICHT gespeichert, sondern
+// beim Rendern aus dokument_szenen.sondertyp + Terminologie abgeleitet.
+const STOCKSHOT_PREFIX_RE =
+  /(^|\/\s*)(?:archiv\s*-?\s*bild|stock\s*-?\s*shot|e[\s-]*shot|establish(?:ing)?(?:\s*shot)?)\b\s*[:.\-–—]?\s*/i
+
+function stripStockshotPrefixFromOrt(raw: string): { clean: string; wasStockshot: boolean } {
+  if (!raw || !STOCKSHOT_PREFIX_RE.test(raw)) return { clean: raw, wasStockshot: false }
+  const clean = raw.replace(STOCKSHOT_PREFIX_RE, '$1').trim()
+  // Nie auf leer reduzieren (z. B. ort_name == "Archivbild") — dann Original behalten.
+  if (!clean) return { clean: raw, wasStockshot: true }
+  return { clean, wasStockshot: true }
+}
+
 // Parse "4x PatientInnen o.T." → { name, anzahl, headerOT }
 function parseKomparseEntry(raw: string): { name: string; anzahl: number; headerOT: boolean } {
   let rest = raw.trim()
@@ -723,7 +739,15 @@ export async function runCommitImport(input: CommitImportInput) {
       if (ov.komparsen && Array.isArray(ov.komparsen)) szene.komparsen = ov.komparsen
       const sceneFormat = ov.format ? (formatMap[ov.format] || docTyp) : docTyp
       const isWechselschnitt = szene.isWechselschnitt || false
-      const isStockshot = szene.isStockshot || false
+      // „Archivbild/Stockshot …" → Präfix abschneiden + als Stockshot markieren.
+      // Greift sowohl bei explizit erkannten Stockshots (szene.isStockshot) als auch
+      // bei Importern ohne Flag, deren ort_name mit dem Präfix beginnt.
+      const rawOrt = (ov.ort_name ?? szene.ort_name) || ''
+      const { clean: cleanOrt, wasStockshot } = stripStockshotPrefixFromOrt(rawOrt)
+      // Sauberen Namen auch in die Quelle zurückschreiben, damit die Motiv-Anlage
+      // weiter unten (liest szene.ort_name) ebenfalls den sauberen Namen verwendet.
+      if (wasStockshot && cleanOrt) szene.ort_name = cleanOrt
+      const isStockshot = szene.isStockshot || wasStockshot
       const pmNodes = buildPmNodesForScene(
         szene.textelemente || [], sceneFormat, docTyp,
         useAbsatzNodes, elementTypeToFormatId, textbausteinFormats, absatzformate
@@ -734,7 +758,7 @@ export async function runCommitImport(input: CommitImportInput) {
         sceneNummerSuffix: szene.nummerSuffix ?? null,
         intExt: ov.int_ext ?? szene.int_ext ?? null,
         tageszeit: ov.tageszeit ?? szene.tageszeit ?? null,
-        ortName: (ov.ort_name ?? szene.ort_name) || null,
+        ortName: cleanOrt || null,
         spieltag: normalizeSpielTag(ov.spieltag ?? szene.spieltag),
         zusammenfassung: (ov.zusammenfassung ?? szene.zusammenfassung) || null,
         szeneninfo: (ov.szeneninfo ?? szene.szeneninfo) || null,

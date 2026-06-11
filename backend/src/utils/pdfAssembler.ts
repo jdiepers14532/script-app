@@ -464,7 +464,15 @@ function skChipValue(key: string, scene: SceneRow, folgeNummer: number, kuerzel:
     case 'episode':           return String(folgeNummer)
     case 'szene_nr':          return scene.scene_nummer != null
       ? `${scene.scene_nummer}${scene.scene_nummer_suffix ?? ''}` : '?'
-    case 'motiv':             return esc(scene.ort_name ?? '')
+    case 'motiv': {
+      const ort = scene.ort_name ?? ''
+      // Stockshot/Archivbild-Zusatz aus sondertyp + Terminologie ableiten — nie gespeichert.
+      if (ort && scene.sondertyp === 'stockshot') {
+        const term = kuerzel['__stockshot_term__'] || 'Stockshot'
+        return esc(`${ort} (${term})`)
+      }
+      return esc(ort)
+    }
     case 'innen_aussen':      return esc(scene.int_ext ?? '')
     case 'innen_aussen_kurz': {
       const ie = (scene.int_ext ?? '').toLowerCase()
@@ -1222,6 +1230,10 @@ async function assembleHtml(
         const v = termRes.rows[0].value
         const t = typeof v === 'string' ? JSON.parse(v) : v
         if (t?.folge) episodeTerminus = t.folge
+        // Stockshot-Begriff (Stockshot | Archivbild) für das abgeleitete Motiv-Label.
+        // Über einen reservierten Schlüssel in der kuerzel-Map an skChipValue gereicht,
+        // ohne alle Render-Signaturen zu ändern.
+        if (t?.stockshot) sceneKuerzel['__stockshot_term__'] = t.stockshot
       } catch { /* default */ }
     }
 
