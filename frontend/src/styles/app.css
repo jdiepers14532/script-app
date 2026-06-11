@@ -1013,20 +1013,21 @@
 .sm-label { flex: 1; }
 .sm-count { font-size: 11px; color: var(--text-muted); font-variant-numeric: tabular-nums; }
 
-/* Script page */
+/* Script page — Marker-Klasse für das A4-Blatt des PageWrapper.
+   WICHTIG: Hier KEIN max-width/width setzen. Die A4-Breite (794px) kommt als
+   Inline-Style aus PageWrapper; ein max-width hier würde sie überstimmen
+   (max-width schlägt in CSS immer die width, auch inline) → Blatt zu schmal. */
 .page {
   background:var(--bg-surface);
   border:1px solid var(--border);
   border-radius:4px;
   padding:48px 64px;
-  max-width:700px;
-  width:100%;
   box-shadow:var(--shadow-md);
   font-family:var(--font-mono);
 }
 /* Notiz/Storyline/Treatment: kein Courier-Override — Vorlage-Schriften bleiben erhalten */
 .page.page-notiz { font-family: var(--font-sans); }
-[data-mode='focus'] .page { border-color:var(--border); box-shadow:var(--shadow-sm); max-width:660px; }
+[data-mode='focus'] .page { border-color:var(--border); box-shadow:var(--shadow-sm); }
 
 /* ── Scene list drag handle + collapse button ── */
 .scene-list-handle {
