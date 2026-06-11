@@ -42,3 +42,10 @@ export { ShortcutCheatSheet } from './keymap/ShortcutCheatSheet';
 export type { ShortcutGroup, ShortcutRow, CheatSheetView } from './keymap/ShortcutCheatSheet';
 export { useKeymapHotkeys } from './keymap/useKeymapHotkeys';
 export type { KeymapHotkeyHandlers } from './keymap/useKeymapHotkeys';
+
+// ── PDF-Layout/-Struktur-Konfig (geteilt: Export + Verteiler-Profil) ─────────
+export { PdfLayoutConfig } from './PdfLayoutConfig';
+export type {
+  PdfLayoutConfigProps, PdfLayoutValue, PdfStructureItem, PdfStructureItemType,
+  PdfLayoutConfigSections, PdfOrientation, KzFzModus, LesezeichenEbene,
+} from './PdfLayoutConfig';
