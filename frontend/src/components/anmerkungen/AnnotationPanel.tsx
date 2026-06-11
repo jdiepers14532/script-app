@@ -61,7 +61,7 @@ export function AnnotationPanel() {
   const sichtbar = items.filter(it => !istErledigt(it.anmerkung.status) || erledigtEinblenden)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: 'var(--bg-surface)', borderLeft: '1px solid var(--border)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: 'var(--bg-surface)' }}>
       <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
         <MessageSquare size={14} />
         <span style={{ fontSize: 13, fontWeight: 600 }}>Anmerkungen</span>
