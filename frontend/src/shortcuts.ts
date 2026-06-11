@@ -83,6 +83,14 @@ export const SHORTCUT_DEFS: Record<string, ShortcutDef> = {
     label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+A`,
   },
 
+  // ── Lese-/Anmerkungs-Modus umschalten (Bearbeiten ↔ Lesen) ────────────────
+  // Alt+L → "L" für Lesen; frei, nicht browserreserviert. KeyL layout-stabil.
+  toggleLeseModus: {
+    codes: ['KeyL'],
+    altKey: true,
+    label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+L`,
+  },
+
   // ── Navigation (App-Nav-Menü) ─────────────────────────────────────────────
   // Alt+Buchstabe — nicht von modernen Browsern als Navigation belegt.
   // Alt+D wurde bewusst ausgelassen (fokussiert Adressleiste in Chrome/Edge).

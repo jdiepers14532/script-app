@@ -63,6 +63,7 @@ export function buildShortcutGroups(
         { keys: label('focusMode'), desc: 'Fokus-Modus an/aus' },
         { keys: 'Esc', desc: 'Fokus-Modus / Dialog verlassen' },
         { keys: label('viewSettings'), desc: 'Ansichts-Einstellungen' },
+        { keys: label('toggleLeseModus'), desc: 'Bearbeiten ↔ Lesen / Anmerken' },
         { keys: `${mod}+H`, desc: 'Suchen & Ersetzen' },
       ],
     },

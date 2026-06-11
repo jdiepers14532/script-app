@@ -722,6 +722,9 @@ export default function AppShell({
       if (matchesShortcut('viewSettings', e)) {
         e.preventDefault()
         setAnsichtsModalOpen(v => !v)
+      } else if (matchesShortcut('toggleLeseModus', e)) {
+        e.preventDefault()
+        setTweaks(t => ({ ...t, leseModus: !t.leseModus }))  // Bearbeiten ↔ Lesen/Anmerken
       }
     }
     window.addEventListener('keydown', handler)
@@ -1292,6 +1295,7 @@ export default function AppShell({
                   { id: 'act-export',     group: 'Aktion',  label: 'Exportieren …',       hint: sc('navExport'),              keywords: 'pdf fountain fdx', run: () => window.dispatchEvent(new CustomEvent('open-export-dialog')) },
                   { id: 'act-goto',       group: 'Aktion',  label: 'Gehe zu Szene …',     hint: sc('gotoSzene'),              keywords: 'springen szene nummer', run: () => window.dispatchEvent(new CustomEvent('sw-cmd-goto-szene')) },
                   { id: 'act-ansicht',    group: 'Aktion',  label: 'Ansichts-Einstellungen', hint: sc('viewSettings'),        keywords: 'theme darstellung schrift', run: () => setAnsichtsModalOpen(true) },
+                  { id: 'act-lesen',      group: 'Aktion',  label: 'Lese-/Anmerkungs-Modus umschalten', hint: sc('toggleLeseModus'), keywords: 'lesen anmerken bearbeiten vorschau a4', run: () => setTweaks(t => ({ ...t, leseModus: !t.leseModus })) },
                   { id: 'act-focus',      group: 'Aktion',  label: 'Fokus-Modus',         hint: sc('focusMode'),              keywords: 'konzentriert vollbild', run: () => toggle() },
                   { id: 'act-cheatsheet', group: 'Aktion',  label: 'Tastenkürzel-Übersicht', hint: '?',                       keywords: 'shortcuts hilfe', run: () => setCheatSheetOpen(true) },
                   { id: 'ber-script',  group: 'Bereich', label: 'Bereich Script',  hint: sc('bereichScript'), run: () => navigate('/') },
