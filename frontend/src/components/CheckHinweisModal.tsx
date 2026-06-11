@@ -23,6 +23,7 @@ interface CheckHinweisModalProps {
 
 const CHECK_TYPE_LABELS: Record<string, string> = {
   rollen_konsistenz: 'Rollen-Konsistenz',
+  rollen_grossbuchstaben: 'Rollen in Großbuchstaben',
   sondertyp_wechselschnitt: 'Sondertyp/Wechselschnitt',
   strang_zuordnung: 'Strang-Zuordnung',
   motiv_leer: 'Motiv',

@@ -7684,7 +7684,11 @@ const CHECK_DEFAULTS: Record<string, CheckDefaultEntry> = {
   },
   rollen_konsistenz: {
     label: 'Rollen-Konsistenz', auto: true, ki: false, defaultEnabled: true, defaultLockGating: 'warnung', gruppe: 'Inhalt & Rollen',
-    tooltip: 'Vergleicht Rollen im Szenenkopf mit GROSSBUCHSTABEN-Namen im Szenentext.',
+    tooltip: 'Gleicht die Rollen im Szenenkopf mit den im Szenentext erwähnten Figuren ab.\nGroß-/Kleinschreibung egal — es zählt, ob die Figur überhaupt erwähnt wird.',
+  },
+  rollen_grossbuchstaben: {
+    label: 'Rollen in Großbuchstaben', auto: false, ki: false, defaultEnabled: false, defaultLockGating: 'off', gruppe: 'Inhalt & Rollen',
+    tooltip: 'Alte Konvention: Figurennamen im Text in GROSSBUCHSTABEN schreiben.\nMeldet Rollen, die erwähnt, aber nicht in Großbuchstaben geschrieben sind.\nStandardmäßig deaktiviert.',
   },
   'rolle.einheitliche_schreibweise': {
     label: 'Rollen-Schreibweise (Rollendatei)', auto: true, ki: false, defaultEnabled: true, defaultLockGating: 'warnung', gruppe: 'Inhalt & Rollen',

@@ -31,6 +31,7 @@ interface ChecklistenModalProps {
 const CHECK_LABELS: Record<string, string> = {
   motiv_leer: 'Motiv fehlt',
   rollen_konsistenz: 'Rollen-Konsistenz',
+  rollen_grossbuchstaben: 'Rollen in Großbuchstaben',
   sondertyp_wechselschnitt: 'Wechselschnitt-Sondertyp',
   strang_zuordnung: 'Strang-Zuordnung',
   duplikat_motiv: 'Duplikat-Motiv',

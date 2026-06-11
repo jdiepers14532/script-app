@@ -259,9 +259,9 @@ test('Test 7: getEffectiveCheckConfig liefert alle Default-Checks', async ({ req
   expect(res.ok()).toBeTruthy()
   const data = await res.json()
 
-  // Alle 27 Default-Checks müssen vorhanden sein
+  // Alle Default-Checks müssen vorhanden sein
   const expectedChecks = [
-    'motiv_leer', 'rollen_konsistenz', 'sondertyp_wechselschnitt', 'strang_zuordnung',
+    'motiv_leer', 'rollen_konsistenz', 'rollen_grossbuchstaben', 'sondertyp_wechselschnitt', 'strang_zuordnung',
     'duplikat_motiv', 'fehlender_dialog', 'stoppzeit_plausibilitaet', 'spieltag_inkonsistent',
     'nt_verweis', 'oneliner_qualitaet', 'szenenkopf.pflichtfelder', 'scene.unique_szenennummer',
     'scene.empty', 'motiv.einheitliche_schreibweise', 'rolle.einheitliche_schreibweise',

@@ -43,7 +43,11 @@ const CHECK_META: Record<string, CheckMeta> = {
   // Rollen
   rollen_konsistenz: {
     label: 'Rollen-Konsistenz', ki: false, auto: true,
-    tooltip: 'Vergleicht Rollen im Szenenkopf mit GROSSBUCHSTABEN-Namen im Text.',
+    tooltip: 'Gleicht die Rollen im Szenenkopf mit den im Text erwähnten Figuren ab.\nGroß-/Kleinschreibung egal — es zählt, ob die Figur erwähnt wird.',
+  },
+  rollen_grossbuchstaben: {
+    label: 'Rollen in Großbuchstaben', ki: false, auto: false,
+    tooltip: 'Alte Konvention: Figurennamen im Text in GROSSBUCHSTABEN.\nMeldet erwähnte Rollen, die nicht in Großbuchstaben geschrieben sind.\nStandardmäßig deaktiviert.',
   },
   'rolle.einheitliche_schreibweise': {
     label: 'Rollen-Schreibweise (Rollendatei)', ki: false, auto: true,
@@ -121,7 +125,7 @@ const CHECK_META: Record<string, CheckMeta> = {
 
 const GROUPS: { label: string; keys: string[] }[] = [
   { label: 'Szenenkopf', keys: ['szenenkopf.pflichtfelder', 'motiv_leer', 'motiv.einheitliche_schreibweise', 'scene.unique_szenennummer', 'duplikat_motiv'] },
-  { label: 'Inhalt & Rollen', keys: ['scene.empty', 'rollen_konsistenz', 'rolle.einheitliche_schreibweise', 'fehlender_dialog'] },
+  { label: 'Inhalt & Rollen', keys: ['scene.empty', 'rollen_konsistenz', 'rollen_grossbuchstaben', 'rolle.einheitliche_schreibweise', 'fehlender_dialog'] },
   { label: 'Format & Text', keys: ['sondertyp_wechselschnitt', 'doppelter_sprecher', 'dialog.endet_satzzeichen', 'text.kein_leerzeichen_start', 'leere_bloecke'] },
   { label: 'Timing & Dramaturgie', keys: ['stoppzeit_plausibilitaet', 'tageszeit_sequenz', 'dramaturgischer_tag_chronologie', 'spieltag_inkonsistent', 'strang_zuordnung'] },
   { label: 'NT & Konsistenz', keys: ['nt_replik_konsistenz', 'nt_verweis'] },

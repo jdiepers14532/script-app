@@ -69,6 +69,7 @@ export type CheckConfigEntry = {
 const DEFAULT_CONFIG: Record<string, CheckConfigEntry> = {
   motiv_leer:                { enabled: true,  auto: true,  lock_gating: 'warnung' },
   rollen_konsistenz:         { enabled: true,  auto: true,  lock_gating: 'warnung', autofix_mode: '1klick' },
+  rollen_grossbuchstaben:    { enabled: false, auto: false, lock_gating: 'off' },
   sondertyp_wechselschnitt:  { enabled: true,  auto: true,  lock_gating: 'warnung' },
   strang_zuordnung:          { enabled: true,  auto: true,  lock_gating: 'off' },
   duplikat_motiv:            { enabled: true,  auto: true,  lock_gating: 'warnung' },
@@ -172,8 +173,10 @@ async function runChecks(szeneId: string, onlyAuto: boolean, checksOverride?: st
     }
   }
 
-  // ── 2. Rollen-Konsistenz ─────────────────────────────────────────────────
-  if (run('rollen_konsistenz')) {
+  // ── 2. Rollen-Checks (Konsistenz + Großbuchstaben-Konvention) ────────────────
+  const runRollenKonsistenz = run('rollen_konsistenz')
+  const runRollenGross = run('rollen_grossbuchstaben')
+  if (runRollenKonsistenz || runRollenGross) {
     const [charsRes, sceneCharsRes] = await Promise.all([
       pool.query<any>(`
         SELECT c.id, c.name
@@ -192,41 +195,86 @@ async function runChecks(szeneId: string, onlyAuto: boolean, checksOverride?: st
     const allChars = charsRes.rows
     const sceneCharIds = new Set<string>(sceneCharsRes.rows.map((r: any) => String(r.character_id)))
 
-    // Nur Non-Absatz-Text prüfen: Absatz = Erwähnung/Rede über jmd., keine Szenen-Beteiligung
-    const foundInText = allChars.filter((c: any) => {
-      const upper = c.name.toUpperCase()
-      const idx = plaintextForRollenUpper.indexOf(upper)
-      if (idx === -1) return false
-      const before = idx > 0 ? plaintextForRollenUpper[idx - 1] : ' '
-      const after = idx + upper.length < plaintextForRollenUpper.length ? plaintextForRollenUpper[idx + upper.length] : ' '
-      return /[^A-ZÄÖÜa-zäöü]/.test(before) && /[^A-ZÄÖÜa-zäöü]/.test(after)
-    })
-    const foundInTextIds = new Set<string>(foundInText.map((c: any) => String(c.id)))
-
-    const missing = foundInText.filter((c: any) => !sceneCharIds.has(String(c.id)))
-    const unused = sceneCharsRes.rows.filter((sc: any) => !foundInTextIds.has(String(sc.character_id)))
-
-    if (missing.length > 0) {
-      results.push({
-        check_typ: 'rollen_konsistenz',
-        schwere: 'warnung',
-        meldung: `${missing.map((c: any) => c.name.toUpperCase()).join(', ')} im Text, aber nicht in Rollen eingetragen`,
-        meta: {
-          missing_chars: missing.map((c: any) => ({ id: String(c.id), name: c.name })),
-          scene_identity_id: s.scene_identity_id,
-        },
-      })
+    // Wortgenaue Erwähnung — prüft ALLE Vorkommen (nicht nur das erste), case-insensitiv.
+    // haystack muss bereits in Großbuchstaben vorliegen; needle wird hier hochgesetzt.
+    const isMentioned = (name: string, haystackUpper: string): boolean => {
+      const needle = String(name || '').toUpperCase()
+      if (!needle) return false
+      let from = 0
+      for (;;) {
+        const idx = haystackUpper.indexOf(needle, from)
+        if (idx === -1) return false
+        const before = idx > 0 ? haystackUpper[idx - 1] : ' '
+        const after = idx + needle.length < haystackUpper.length ? haystackUpper[idx + needle.length] : ' '
+        if (/[^A-ZÄÖÜa-zäöü]/.test(before) && /[^A-ZÄÖÜa-zäöü]/.test(after)) return true
+        from = idx + 1
+      }
     }
-    if (unused.length > 0) {
-      results.push({
-        check_typ: 'rollen_konsistenz',
-        schwere: 'warnung',
-        meldung: `${unused.map((sc: any) => sc.name.toUpperCase()).join(', ')} in Rollen eingetragen, aber nicht im Text`,
-        meta: {
-          unused_chars: unused.map((sc: any) => ({ id: String(sc.character_id), name: sc.name })),
-          scene_identity_id: s.scene_identity_id,
-        },
-      })
+
+    if (runRollenKonsistenz) {
+      // unused: Rolle eingetragen, aber im GESAMTEN Szenentext (inkl. Prosa/Absatz) gar nicht erwähnt.
+      // Großschreibung ist KEINE Voraussetzung mehr — Erwähnung genügt (alte GROSSBUCHSTABEN-Konvention abgelöst).
+      const unused = sceneCharsRes.rows.filter((sc: any) => !isMentioned(sc.name, plaintextUpper))
+      // missing: Figur tritt strukturell auf (Nicht-Absatz, z. B. Figuren-Cue/Dialogregie), aber nicht als Rolle
+      // eingetragen. Reine Prosa-Erwähnungen (Rede ÜBER abwesende Figuren) zählen hier bewusst nicht.
+      const foundStructural = allChars.filter((c: any) => isMentioned(c.name, plaintextForRollenUpper))
+      const missing = foundStructural.filter((c: any) => !sceneCharIds.has(String(c.id)))
+
+      if (missing.length > 0) {
+        results.push({
+          check_typ: 'rollen_konsistenz',
+          schwere: 'warnung',
+          meldung: `${missing.map((c: any) => c.name.toUpperCase()).join(', ')} im Text, aber nicht in Rollen eingetragen`,
+          meta: {
+            missing_chars: missing.map((c: any) => ({ id: String(c.id), name: c.name })),
+            scene_identity_id: s.scene_identity_id,
+          },
+        })
+      }
+      if (unused.length > 0) {
+        results.push({
+          check_typ: 'rollen_konsistenz',
+          schwere: 'warnung',
+          meldung: `${unused.map((sc: any) => sc.name.toUpperCase()).join(', ')} in Rollen eingetragen, aber nicht im Text`,
+          meta: {
+            unused_chars: unused.map((sc: any) => ({ id: String(sc.character_id), name: sc.name })),
+            scene_identity_id: s.scene_identity_id,
+          },
+        })
+      }
+    }
+
+    if (runRollenGross) {
+      // Alte Konvention (default deaktiviert): Figurennamen in GROSSBUCHSTABEN schreiben.
+      // Meldet Rollen, die zwar erwähnt werden, aber nirgends in Großbuchstaben stehen.
+      // Sucht das Großbuchstaben-Wort case-SENSITIV im Rohtext (plaintext, nicht hochgesetzt).
+      const hasUpperForm = (name: string): boolean => {
+        const needle = String(name || '').toUpperCase()
+        if (!needle) return false
+        let from = 0
+        for (;;) {
+          const idx = plaintext.indexOf(needle, from)
+          if (idx === -1) return false
+          const before = idx > 0 ? plaintext[idx - 1] : ' '
+          const after = idx + needle.length < plaintext.length ? plaintext[idx + needle.length] : ' '
+          if (/[^A-ZÄÖÜa-zäöü]/.test(before) && /[^A-ZÄÖÜa-zäöü]/.test(after)) return true
+          from = idx + 1
+        }
+      }
+      const nichtGross = sceneCharsRes.rows.filter(
+        (sc: any) => isMentioned(sc.name, plaintextUpper) && !hasUpperForm(sc.name)
+      )
+      if (nichtGross.length > 0) {
+        results.push({
+          check_typ: 'rollen_grossbuchstaben',
+          schwere: 'hinweis',
+          meldung: `${nichtGross.map((sc: any) => sc.name).join(', ')} nicht in Großbuchstaben geschrieben`,
+          meta: {
+            chars: nichtGross.map((sc: any) => ({ id: String(sc.character_id), name: sc.name })),
+            scene_identity_id: s.scene_identity_id,
+          },
+        })
+      }
     }
   }
 

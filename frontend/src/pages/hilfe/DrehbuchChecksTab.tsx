@@ -180,12 +180,20 @@ export default function DrehbuchChecksTab() {
 
         <CheckRow id="rollen_konsistenz" label="Rollen-Konsistenz" auto={true} gating="warnung" autofix="1klick">
           Bidirektionaler Abgleich zwischen Szenentext und Rollen-Feld im Szenenkopf:
-          Erscheint ein Figurenname (aus der Figurendatenbank) in Großbuchstaben im Text, ist aber nicht
-          im Szenenkopf eingetragen — oder umgekehrt.
+          Eine eingetragene Rolle, die im Text <strong>gar nicht erwähnt</strong> wird — oder eine Figur,
+          die strukturell im Text auftritt, aber nicht im Szenenkopf steht.
+          <strong>Groß-/Kleinschreibung spielt keine Rolle</strong> — es zählt allein, ob die Figur erwähnt
+          wird (die alte GROSSBUCHSTABEN-Konvention ist dafür nicht mehr nötig).
           Der 1-Klick-Fix trägt fehlende Rollen automatisch nach.
           <div style={{ marginTop: 6, fontSize: 11, color: C.muted }}>
             Nur Figuren aus der Figurendatenbank dieser Produktion werden geprüft.
           </div>
+        </CheckRow>
+
+        <CheckRow id="rollen_grossbuchstaben" label="Rollen in Großbuchstaben" auto={false} gating="off">
+          Optionaler Stil-Check für die alte Konvention, Figurennamen im Text in GROSSBUCHSTABEN zu schreiben.
+          Meldet eingetragene Rollen, die zwar erwähnt werden, aber nirgends in Großbuchstaben stehen.
+          <strong> Standardmäßig deaktiviert</strong> — nur aktivieren, wenn die Produktion diese Schreibweise verlangt.
         </CheckRow>
 
         <CheckRow id="sondertyp_wechselschnitt" label="Wechselschnitt-Sondertyp" auto={true} gating="warnung">
