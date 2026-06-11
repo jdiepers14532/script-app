@@ -78,6 +78,11 @@
 .topbar .firm-logo-btn {
   display: flex;
   align-items: center;
+  justify-content: flex-start;
+  /* Feste Breite (165px Logo-Slot + 20px Freiraum rechts) — entkoppelt die Position
+     des folgenden Trennstrichs von der Logo-Breite: der Strich sitzt dadurch an einer
+     festen X-Position relativ zum linken Rand, egal welches Logo geladen ist. */
+  width: 185px;
   height: 36px;
   padding: 0 8px;
   border: none;
