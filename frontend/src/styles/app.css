@@ -92,9 +92,11 @@
 }
 .topbar .firm-logo-btn:hover { background: var(--bg-subtle); }
 .topbar .firm-logo-img {
-  height: 36px;
+  /* Ultrabreite Wortmarke (logo_url ~24.75:1): über die Höhe skalieren, damit sie
+     legible bleibt (nicht auf wenige px gequetscht). Breite folgt dem Seitenverhältnis. */
+  height: 20px;
   width: auto;
-  max-width: 200px;
+  max-width: 500px;
   object-fit: contain;
   display: block;
 }

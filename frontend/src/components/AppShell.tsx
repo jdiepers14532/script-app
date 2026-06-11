@@ -502,11 +502,11 @@ export default function AppShell({
       .then((data: any) => {
         const logos = data?.logos
         if (logos) {
-          // Bevorzugt die gestapelte Variante (logo2) — passt besser in den Header
-          // als die einzeilige, ultrabreite Wortmarke. Fallback auf light/dark.
+          // Helle Wortmarke (logos.light) hat Vorrang — wird themeunabhängig im
+          // Header genutzt (siehe Render unten). Gestapeltes logo2 nur als Fallback.
           setCompanyLogo({
-            light: logos.light2 || logos.light || null,
-            dark:  logos.dark2  || logos.dark  || null,
+            light: logos.light || logos.light2 || null,
+            dark:  logos.dark  || logos.dark2  || null,
           })
         }
         // Fallback-Text für den Header: Firmenname aus auth (nie hardcoden)
@@ -1058,9 +1058,10 @@ export default function AppShell({
           onClick={() => { setCompanyMenuOpen(v => !v); setAppSwitcherOpen(false); setUserMenuOpen(false) }}
           title="Firmenprofil"
         >
-          {(tweaks.theme === 'dark' ? companyLogo.dark : companyLogo.light) ? (
+          {/* Immer die helle Wortmarke (light primär) — themeunabhängig. */}
+          {(companyLogo.light || companyLogo.dark) ? (
             <img
-              src={(tweaks.theme === 'dark' ? companyLogo.dark : companyLogo.light)!}
+              src={(companyLogo.light || companyLogo.dark)!}
               alt="Firmenlogo"
               className="firm-logo-img"
             />
