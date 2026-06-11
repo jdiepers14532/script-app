@@ -77,10 +77,22 @@ router.post('/batch', upload.array('files', MAX_FILES_PER_BATCH), async (req, re
     const globalSichtbarkeit = ['autoren', 'produktion'].includes(req.body.import_sichtbarkeit) ? req.body.import_sichtbarkeit : 'autoren'
     const globalLabel: string | null = req.body.import_label || null
     const globalRenumber = req.body.renumber === 'true'
+    // PDF-Beschneiden (Ränder) + Seitenbereich gelten global für ALLE PDFs im Batch
+    // (im Einzelimport pro Datei einstellbar — hier einmal für den ganzen Batch).
+    const cropLeft = parseInt(req.body.pdf_crop_left || '0', 10) || 0
+    const cropRight = parseInt(req.body.pdf_crop_right || '0', 10) || 0
+    const cropBottom = parseInt(req.body.pdf_crop_bottom || '0', 10) || 0
+    const pageFrom = req.body.pdf_page_from ? parseInt(req.body.pdf_page_from, 10) : null
+    const pageTo = req.body.pdf_page_to ? parseInt(req.body.pdf_page_to, 10) : null
     const optionen = {
       save_metadata: req.body.save_metadata === 'true',
       sichtbarkeit: globalSichtbarkeit,
       pdf_method: req.body.pdf_method === 'mistral' ? 'mistral' : undefined,
+      pdf_crop_left: cropLeft || undefined,
+      pdf_crop_right: cropRight || undefined,
+      pdf_crop_bottom: cropBottom || undefined,
+      pdf_page_from: pageFrom && pageFrom > 0 ? pageFrom : undefined,
+      pdf_page_to: pageTo && pageTo > 0 ? pageTo : undefined,
     }
 
     // Ist das globale Label eine Produktionsfassung? Dann werden alle Folgen als „gelockt"
@@ -225,7 +237,14 @@ async function processBatchJob(
 // ── Batch-Jobs im Hintergrund abarbeiten (Semaphore: max MAX_PARALLEL gleichzeitig) ──
 function runBatchInBackground(batch: any, jobs: any[], user: { user_id: string; name?: string | null }) {
   const optionen = batch.optionen_json || {}
-  const parseOpts = buildParseOptsFromBody(optionen.pdf_method ? { pdf_method: optionen.pdf_method } : {})
+  const parseOpts = buildParseOptsFromBody({
+    pdf_method: optionen.pdf_method,
+    pdf_crop_left: optionen.pdf_crop_left,
+    pdf_crop_right: optionen.pdf_crop_right,
+    pdf_crop_bottom: optionen.pdf_crop_bottom,
+    pdf_page_from: optionen.pdf_page_from,
+    pdf_page_to: optionen.pdf_page_to,
+  })
 
   ;(async () => {
     let idx = 0

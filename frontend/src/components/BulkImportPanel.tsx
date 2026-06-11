@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from 'react'
-import { UploadCloud, X, CheckCircle, AlertTriangle, RefreshCw, FileText, Loader2, Trash2, Info, Lock, Search } from 'lucide-react'
+import { UploadCloud, X, CheckCircle, AlertTriangle, RefreshCw, FileText, Loader2, Trash2, Info, Lock, Search, Scissors, BookOpen } from 'lucide-react'
 import Tooltip from './Tooltip'
 import { api } from '../api/client'
 import BulkPreviewModal from './BulkPreviewModal'
@@ -76,6 +76,15 @@ export default function BulkImportPanel({
   // Globale Neunummerierung (Szenen ab 1) — nicht persistiert, da pro Import situativ.
   const [globalRenumber, setGlobalRenumber] = useState(false)
   const [pdfMistral, setPdfMistral] = useState(false)
+  // PDF-Beschneiden (Ränder) + Seitenbereich — global für ALLE PDFs im Batch.
+  // Die Ränder werden (wie im Einzelimport) pro Benutzer persistiert; einmal eingestellt,
+  // gelten sie für alle weiteren Dateien und Importe.
+  const [pdfCropLeft, setPdfCropLeft] = useState(0)
+  const [pdfCropRight, setPdfCropRight] = useState(0)
+  const [pdfCropBottom, setPdfCropBottom] = useState(0)
+  const [pdfPageFrom, setPdfPageFrom] = useState<number | ''>('')
+  const [pdfPageTo, setPdfPageTo] = useState<number | ''>('')
+  const cropSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [batch, setBatch] = useState<Batch | null>(null)
@@ -107,6 +116,13 @@ export default function BulkImportPanel({
       const ui = s?.ui_settings || {}
       if (ui.last_import_label) setGlobalLabel(ui.last_import_label)
       if (ui.last_import_sichtbarkeit) setSichtbarkeit(ui.last_import_sichtbarkeit)
+      // Beschneiden-Ränder aus den gemeinsamen Import-Settings (auch vom Einzelimport gesetzt)
+      const crop = ui.pdf_crop
+      if (crop) {
+        if (crop.left != null) setPdfCropLeft(crop.left)
+        if (crop.right != null) setPdfCropRight(crop.right)
+        if (crop.bottom != null) setPdfCropBottom(crop.bottom)
+      }
     }).catch(() => {})
   }, [])
   useEffect(() => {
@@ -117,6 +133,15 @@ export default function BulkImportPanel({
     }, 600)
     return () => { if (saveTimer.current) clearTimeout(saveTimer.current) }
   }, [globalLabel, sichtbarkeit])
+  // Beschneiden-Ränder debounced persistieren (eigener top-level Key — überschreibt Label/Sichtbarkeit nicht).
+  useEffect(() => {
+    if (!defaultsLoaded.current) return
+    if (cropSaveTimer.current) clearTimeout(cropSaveTimer.current)
+    cropSaveTimer.current = setTimeout(() => {
+      api.updateSettings({ ui_settings: { pdf_crop: { left: pdfCropLeft, right: pdfCropRight, bottom: pdfCropBottom } } }).catch(() => {})
+    }, 800)
+    return () => { if (cropSaveTimer.current) clearTimeout(cropSaveTimer.current) }
+  }, [pdfCropLeft, pdfCropRight, pdfCropBottom])
 
   const coarse = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches
   const inputStyle = { padding: coarse ? '11px 12px' : '8px 10px', borderRadius: 6, border: '1px solid #e0e0e0', fontSize: 14 }
@@ -148,6 +173,8 @@ export default function BulkImportPanel({
 
   // „Metadaten speichern" wirkt nur bei Fountain/FDX (dateiinterne Metadaten) — bei PDF/Word nutzlos.
   const hasMetaCapableFiles = files.some(f => /\.(fountain|fdx)$/i.test(f.name))
+  // Beschneiden/Seitenbereich nur sinnvoll, wenn überhaupt PDFs im Batch sind.
+  const hasPdfFiles = files.some(f => /\.pdf$/i.test(f.name))
   const totalBytes = files.reduce((s, f) => s + f.size, 0)
   const oversize = files.find(f => f.size > MAX_FILE_MB * 1024 * 1024)
   const batchTooBig = totalBytes > MAX_BATCH_MB * 1024 * 1024
@@ -164,6 +191,12 @@ export default function BulkImportPanel({
       if (globalLabel) fd.append('import_label', globalLabel)
       if (globalRenumber) fd.append('renumber', 'true')
       if (pdfMistral) fd.append('pdf_method', 'mistral')
+      // PDF-Beschneiden + Seitenbereich (global für alle PDFs im Batch)
+      if (pdfCropLeft > 0) fd.append('pdf_crop_left', String(pdfCropLeft))
+      if (pdfCropRight > 0) fd.append('pdf_crop_right', String(pdfCropRight))
+      if (pdfCropBottom > 0) fd.append('pdf_crop_bottom', String(pdfCropBottom))
+      if (pdfPageFrom !== '') fd.append('pdf_page_from', String(pdfPageFrom))
+      if (pdfPageTo !== '') fd.append('pdf_page_to', String(pdfPageTo))
       for (const f of files) fd.append('files', f)
       const res = await fetch('/api/import/batch', { method: 'POST', body: fd, credentials: 'include' })
       const data = await res.json()
@@ -297,6 +330,12 @@ export default function BulkImportPanel({
         try {
           const fd = new FormData()
           fd.append('file', f)
+          if (pdfMistral) fd.append('pdf_method', 'mistral')
+          if (pdfCropLeft > 0) fd.append('pdf_crop_left', String(pdfCropLeft))
+          if (pdfCropRight > 0) fd.append('pdf_crop_right', String(pdfCropRight))
+          if (pdfCropBottom > 0) fd.append('pdf_crop_bottom', String(pdfCropBottom))
+          if (pdfPageFrom !== '') fd.append('pdf_page_from', String(pdfPageFrom))
+          if (pdfPageTo !== '') fd.append('pdf_page_to', String(pdfPageTo))
           const r = await fetch('/api/import/preview', { method: 'POST', body: fd, credentials: 'include' })
           if (!r.ok) throw new Error()
           const d = await r.json()
@@ -414,6 +453,65 @@ export default function BulkImportPanel({
               <InfoDot text={`Globale Sichtbarkeit für alle Folgen (auf Seite 2 pro Folge überschreibbar):\n• Autoren — nur das Autorenteam (Standard).\n• Produktion — auch für die Produktion freigegeben.`} placement="bottom" />
             </label>
           </div>
+
+          {/* PDF-Beschneiden + Seitenbereich — global für alle PDFs im Batch */}
+          {hasPdfFiles && (
+            <div style={{ border: '1px solid #e0e0e0', borderRadius: 8, padding: '12px 14px', marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
+                <Scissors size={13} color="#757575" />
+                <span style={{ fontSize: 12, fontWeight: 600, color: '#333' }}>PDF: Beschneiden &amp; Seitenbereich</span>
+                <InfoDot text={`Gilt für ALLE PDFs im Batch. Einmal eingestellt, wird es für alle weiteren Dateien und Importe übernommen (pro Benutzer gespeichert).\n\nRänder wegschneiden hilft, wenn Fußzeilen oder Zeilennummern die Texterkennung stören. Der Seitenbereich lässt z. B. Deckblätter aus.`} placement="bottom" />
+              </div>
+              <div style={{ display: 'flex', gap: 14, alignItems: 'center', fontSize: 11, color: '#757575', flexWrap: 'wrap' }}>
+                <Tooltip text="Linken Rand abschneiden (z. B. Zeilennummern). In Prozent der Seitenbreite." placement="bottom">
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 130, flex: 1, cursor: 'help' }}>
+                    <span style={{ whiteSpace: 'nowrap' }}>L {pdfCropLeft}%</span>
+                    <input type="range" min={0} max={30} value={pdfCropLeft}
+                      onChange={e => setPdfCropLeft(parseInt(e.target.value))} style={{ flex: 1, height: 4 }} />
+                  </label>
+                </Tooltip>
+                <Tooltip text="Rechten Rand abschneiden (z. B. Notizspalten). In Prozent der Seitenbreite." placement="bottom">
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 130, flex: 1, cursor: 'help' }}>
+                    <span style={{ whiteSpace: 'nowrap' }}>R {pdfCropRight}%</span>
+                    <input type="range" min={0} max={30} value={pdfCropRight}
+                      onChange={e => setPdfCropRight(parseInt(e.target.value))} style={{ flex: 1, height: 4 }} />
+                  </label>
+                </Tooltip>
+                <Tooltip text="Unteren Rand abschneiden (z. B. Fußzeilen, Seitenzahlen). In Prozent der Seitenhöhe." placement="bottom">
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 130, flex: 1, cursor: 'help' }}>
+                    <span style={{ whiteSpace: 'nowrap' }}>U {pdfCropBottom}%</span>
+                    <input type="range" min={0} max={30} value={pdfCropBottom}
+                      onChange={e => setPdfCropBottom(parseInt(e.target.value))} style={{ flex: 1, height: 4 }} />
+                  </label>
+                </Tooltip>
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12, fontSize: 11, color: '#757575' }}>
+                <BookOpen size={12} color="#757575" />
+                <span style={{ fontWeight: 600 }}>Seiten</span>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  von
+                  <input
+                    type="number" min={1}
+                    value={pdfPageFrom}
+                    onChange={e => setPdfPageFrom(e.target.value === '' ? '' : parseInt(e.target.value))}
+                    placeholder="1"
+                    style={{ width: 48, padding: '3px 5px', borderRadius: 4, border: '1px solid #e0e0e0', fontSize: 11, textAlign: 'center' }}
+                  />
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  bis
+                  <input
+                    type="number" min={1}
+                    value={pdfPageTo}
+                    onChange={e => setPdfPageTo(e.target.value === '' ? '' : parseInt(e.target.value))}
+                    placeholder="Ende"
+                    style={{ width: 48, padding: '3px 5px', borderRadius: 4, border: '1px solid #e0e0e0', fontSize: 11, textAlign: 'center' }}
+                  />
+                </label>
+                <span style={{ color: '#bbb', fontSize: 10 }}>leer = ganzes Dokument</span>
+              </div>
+            </div>
+          )}
 
           {isLockLabel(globalLabel) && (
             <div style={{ marginBottom: 16, padding: '10px 12px', borderRadius: 8, background: '#FFF3E0', border: '1px solid #FFB74D', fontSize: 12, color: '#7a5c00', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
@@ -614,6 +712,11 @@ export default function BulkImportPanel({
           file={fileForJob(previewJob)!}
           folgeNummer={previewJob.folge_nummer}
           pdfMistral={pdfMistral}
+          cropLeft={pdfCropLeft}
+          cropRight={pdfCropRight}
+          cropBottom={pdfCropBottom}
+          pageFrom={pdfPageFrom !== '' ? pdfPageFrom : undefined}
+          pageTo={pdfPageTo !== '' ? pdfPageTo : undefined}
           renumber={batch?.jobs.find(j => j.id === previewJob.id)?.renumber === true}
           onToggleRenumber={v => updateJob(previewJob.id, { renumber: v })}
           onClose={() => setPreviewJob(null)}

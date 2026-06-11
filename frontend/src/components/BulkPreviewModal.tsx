@@ -20,11 +20,17 @@ interface PreviewScene {
  * wenn das Drehbuch nicht bei Szene 1 beginnt. Parst die Datei on-demand.
  */
 export default function BulkPreviewModal({
-  file, folgeNummer, pdfMistral, renumber, onToggleRenumber, onClose,
+  file, folgeNummer, pdfMistral, cropLeft = 0, cropRight = 0, cropBottom = 0, pageFrom, pageTo,
+  renumber, onToggleRenumber, onClose,
 }: {
   file: File
   folgeNummer: number | null
   pdfMistral: boolean
+  cropLeft?: number
+  cropRight?: number
+  cropBottom?: number
+  pageFrom?: number
+  pageTo?: number
   renumber: boolean
   onToggleRenumber: (v: boolean) => void
   onClose: () => void
@@ -55,13 +61,18 @@ export default function BulkPreviewModal({
     const fd = new FormData()
     fd.append('file', file)
     if (pdfMistral) fd.append('pdf_method', 'mistral')
+    if (cropLeft > 0) fd.append('pdf_crop_left', String(cropLeft))
+    if (cropRight > 0) fd.append('pdf_crop_right', String(cropRight))
+    if (cropBottom > 0) fd.append('pdf_crop_bottom', String(cropBottom))
+    if (pageFrom) fd.append('pdf_page_from', String(pageFrom))
+    if (pageTo) fd.append('pdf_page_to', String(pageTo))
     fetch('/api/import/preview', { method: 'POST', body: fd, credentials: 'include' })
       .then(r => r.ok ? r.json() : r.json().then((e: any) => Promise.reject(e.error || `Fehler ${r.status}`)))
       .then((d: any) => { if (!cancelled) setSzenen(d.szenen || []) })
       .catch((e: any) => { if (!cancelled) setError(String(e)) })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [file, pdfMistral])
+  }, [file, pdfMistral, cropLeft, cropRight, cropBottom, pageFrom, pageTo])
 
   const minNr = useMemo(() => {
     const nums = szenen.map(s => s.nummer).filter(n => typeof n === 'number')
@@ -104,7 +115,15 @@ export default function BulkPreviewModal({
           {/* Links: Dokument-Vorschau */}
           <div style={{ width: '50%', flexShrink: 0, borderRight: '1px solid #e0e0e0', background: '#f5f5f5', overflow: 'hidden', position: 'relative' }}>
             {isPdf && fileUrl ? (
-              <PdfPageViewer fileUrl={fileUrl} requestPage={targetPage} />
+              <PdfPageViewer
+                fileUrl={fileUrl}
+                cropLeft={cropLeft}
+                cropRight={cropRight}
+                cropBottom={cropBottom}
+                pageFrom={pageFrom}
+                pageTo={pageTo}
+                requestPage={targetPage}
+              />
             ) : fileText ? (
               <pre style={{ margin: 0, padding: 16, height: '100%', overflowY: 'auto', fontSize: 11, lineHeight: 1.5, fontFamily: "'Courier New', monospace", whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: '#333' }}>
                 {fileText}
