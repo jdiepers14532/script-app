@@ -392,6 +392,8 @@ const PROFIL_FELDER = [
   'szenen_nummerierung', 'seiten_nummerierung',
   'lesezeichen_aktiv', 'lesezeichen_ebene', 'lesezeichen_label',
   'revisions_stil',
+  // v209: Struktur/Layout als Profil-Vorlage
+  'struktur_json', 'pdf_orientation', 'kz_fz_modus', 'fz_text',
 ] as const
 pdfExportProfilRouter.put('/:id', async (req, res) => {
   const client = await pool.connect()
