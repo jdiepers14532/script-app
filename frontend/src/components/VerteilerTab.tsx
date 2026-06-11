@@ -79,8 +79,9 @@ export default function VerteilerTab({ produktionId }: { produktionId: string })
   }, [])
 
   // Auslöser-Optionen: real konfigurierte Werkstufen-Typen + „Revision"
+  // stage_labels liefert die Bezeichnung in `name` (nicht `label`).
   const auslOptions = [
-    ...Array.from(new Set((labels || []).map(l => l.label).filter(Boolean))),
+    ...Array.from(new Set((labels || []).map(l => l.name).filter(Boolean))),
     'Revision',
   ]
   const currentAusl = form.scope === 'revision' ? 'Revision' : (form.werkstufe_typ ?? '')
@@ -91,7 +92,7 @@ export default function VerteilerTab({ produktionId }: { produktionId: string })
   }
 
   async function createVerteiler() {
-    const firstLabel = (labels || []).map(l => l.label).filter(Boolean)[0]
+    const firstLabel = (labels || []).map(l => l.name).filter(Boolean)[0]
     try {
       const v = await api.createVerteiler({
         produktion_id: produktionId, name: 'Neuer Verteiler',
@@ -156,11 +157,18 @@ export default function VerteilerTab({ produktionId }: { produktionId: string })
     setForm((f: any) => ({ ...f, email_text: (f.email_text || '') + ph }))
   }
 
-  async function createStandardProfil() {
+  // Legt ein neues Profil an; das erste einer Produktion wird automatisch Standard.
+  // Danach: auswählen + direkt den Editor öffnen.
+  async function createProfil() {
+    const istErste = profile.length === 0
+    const vorschlag = istErste ? 'Standard-Profil' : 'Neues Profil'
+    const name = window.prompt('Name des PDF-Export-Profils:', vorschlag)?.trim()
+    if (!name) return
     try {
-      const p = await api.createPdfProfil({ produktion_id: produktionId, name: 'Standard-Profil', ist_standard: true })
+      const p = await api.createPdfProfil({ produktion_id: produktionId, name, ist_standard: istErste })
       const profs = await api.getPdfProfile(produktionId); setProfile(profs || [])
       setForm((f: any) => ({ ...f, pdf_export_profil_id: p.id }))
+      setProfilEdit({ ...p })
     } catch (e: any) { setErr(String(e?.message || e)) }
   }
 
@@ -336,7 +344,7 @@ export default function VerteilerTab({ produktionId }: { produktionId: string })
             {profile.map(p => <option key={p.id} value={p.id}>{p.name}{p.ist_standard ? ' (Standard)' : ''}</option>)}
           </select>
           {assignedProfil && <button style={linkish} onClick={() => setProfilEdit({ ...assignedProfil })}>Profil bearbeiten ↗</button>}
-          {profile.length === 0 && <button style={linkish} onClick={createStandardProfil}>Standard-Profil anlegen</button>}
+          <button style={linkish} onClick={createProfil}>+ Neues Profil</button>
         </div>
         {assignedProfil && (
           <div style={{ marginTop: 12, padding: 14, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 8 }}>
@@ -458,7 +466,10 @@ function ProfilEditModal({ profil, onClose, onSaved }: { profil: any; onClose: (
           {row('Position', <select style={inputStyle} value={p.wz_sichtbar_position} onChange={e => set('wz_sichtbar_position', e.target.value)}>
             {['kopf', 'fuss', 'kopf_fuss', 'diagonal', 'kopf_fuss_diagonal'].map(o => <option key={o} value={o}>{o}</option>)}
           </select>)}
-          {row('Inhalt (Template)', <input style={inputStyle} value={p.wz_sichtbar_inhalt || ''} onChange={e => set('wz_sichtbar_inhalt', e.target.value)} />)}
+          {row('Wasserzeichen-Text (Vorlage)', <>
+            <input style={inputStyle} value={p.wz_sichtbar_inhalt || ''} onChange={e => set('wz_sichtbar_inhalt', e.target.value)} placeholder="{empfaenger_name} · {datum}" />
+            <div style={hint}>Wird pro Empfänger auf jede Seite gestempelt. Platzhalter: {'{empfaenger_name}'} · {'{datum}'} · {'{werkstufe}'} · {'{version}'}</div>
+          </>)}
           <div style={{ display: 'flex', gap: 12 }}>
             <div style={{ flex: 1 }}>{row('Opazität (%)', <input type="number" min={0} max={100} style={inputStyle} value={p.wz_sichtbar_opacity ?? 20} onChange={e => set('wz_sichtbar_opacity', Number(e.target.value))} />)}</div>
             <div style={{ flex: 1 }}>{row('Größe', <select style={inputStyle} value={p.wz_sichtbar_groesse} onChange={e => set('wz_sichtbar_groesse', e.target.value)}>{['klein', 'mittel', 'gross'].map(o => <option key={o} value={o}>{o}</option>)}</select>)}</div>
