@@ -237,11 +237,10 @@ export default function SceneEditor({ szeneId, stageId, produktionId, folgeNumme
 
   const ieAbbr = (ie: string) => ie === 'int' ? 'I' : 'A'
   const tzAbbr = (tz: string) => {
-    if (stimmungenList.length > 0) {
-      const found = stimmungenList.find(s => s.name === tz)
-      if (found) return found.kuerzel
-    }
-    return ({ TAG: 'T', NACHT: 'N', ABEND: 'A' }[tz] ?? tz.charAt(0))
+    // Stimmungs-Kürzel immer in Großbuchstaben (auch bei klein gepflegten Altdaten).
+    const found = stimmungenList.length > 0 ? stimmungenList.find(s => s.name === tz) : null
+    const base = found?.kuerzel ?? ({ TAG: 'T', NACHT: 'N', ABEND: 'A' }[tz] ?? tz.charAt(0))
+    return base.toUpperCase()
   }
 
   const handlePbodyWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {

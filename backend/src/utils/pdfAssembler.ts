@@ -481,7 +481,8 @@ function skChipValue(key: string, scene: SceneRow, folgeNummer: number, kuerzel:
     case 'tageszeit_lang':    return esc(scene.tageszeit ?? '')
     case 'tageszeit_kurz': {
       const tzKey = (scene.tageszeit ?? '').toLowerCase()
-      return esc(kuerzel[tzKey] ?? DEFAULT_SCENE_KUERZEL[tzKey] ?? (scene.tageszeit ? scene.tageszeit.charAt(0) : ''))
+      // Stimmungs-Kürzel immer in Großbuchstaben (auch bei klein gepflegten Altdaten).
+      return esc((kuerzel[tzKey] ?? DEFAULT_SCENE_KUERZEL[tzKey] ?? (scene.tageszeit ? scene.tageszeit.charAt(0) : '')).toUpperCase())
     }
     case 'spielzeit':         return esc(scene.spielzeit ?? '')
     case 'dt':                return scene.spieltag != null ? String(scene.spieltag) : ''
@@ -635,7 +636,7 @@ function buildBookmarkLabel(scene: SceneRow, folgeNummer: number, kuerzel: Recor
   const ie = (scene.int_ext ?? '').toLowerCase()
   const tz = (scene.tageszeit ?? '').toLowerCase()
   const ieKurz = kuerzel[ie] ?? DEFAULT_SCENE_KUERZEL[ie] ?? (scene.int_ext?.charAt(0) ?? '')
-  const tzKurz = kuerzel[tz] ?? DEFAULT_SCENE_KUERZEL[tz] ?? (scene.tageszeit ? scene.tageszeit.charAt(0).toUpperCase() : '')
+  const tzKurz = (kuerzel[tz] ?? DEFAULT_SCENE_KUERZEL[tz] ?? (scene.tageszeit ? scene.tageszeit.charAt(0) : '')).toUpperCase()
   return [
     `${folgeNummer}.${szNr}`,
     scene.ort_name     ? esc(scene.ort_name) : '',

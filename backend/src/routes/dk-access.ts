@@ -216,7 +216,7 @@ router.post('/:productionId/stimmungen',
          VALUES ($1, $2, $3, 0)
          ON CONFLICT (production_id, name) DO NOTHING
          RETURNING id, name, kuerzel, position`,
-        [pid, name.trim(), kuerzel.trim().substring(0, 3)]
+        [pid, name.trim(), kuerzel.trim().toUpperCase().substring(0, 3)]
       )
       if (!rows[0]) return res.status(409).json({ error: 'Stimmung mit diesem Namen existiert bereits' })
       res.json(rows[0])
@@ -267,7 +267,7 @@ router.put('/:productionId/stimmungen/:id',
         `UPDATE tageszeit_stimmungen SET name = $1, kuerzel = $2
          WHERE id = $3 AND production_id = $4
          RETURNING id, name, kuerzel, position`,
-        [name.trim(), kuerzel.trim().substring(0, 3), req.params.id, req.params.productionId]
+        [name.trim(), kuerzel.trim().toUpperCase().substring(0, 3), req.params.id, req.params.productionId]
       )
       if (!rows[0]) return res.status(404).json({ error: 'Nicht gefunden' })
       res.json(rows[0])

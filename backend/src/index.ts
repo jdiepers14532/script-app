@@ -555,6 +555,8 @@ async function runMigrations() {
     'v208_verteiler_sides_character_ids.sql',
     // PDF-Profil: Struktur-/Layout-Felder (Profil als Single Source of Truth)
     'v209_pdf_profil_struktur_layout.sql',
+    // Stimmungs-Kürzel immer Großbuchstaben (Altbestände hochziehen)
+    'v210_stimmung_kuerzel_uppercase.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
