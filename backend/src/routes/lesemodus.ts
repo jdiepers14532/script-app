@@ -1,7 +1,6 @@
 import { Router } from 'express'
 import { query } from '../db'
 import { authMiddleware } from '../auth'
-import { assemblePreviewHtml } from '../utils/pdfAssembler'
 
 // Lese-/Anmerkungs-Modus (Handoff 3 §3): welche Werkstufen darf der Anfragende lesen?
 // Auflösung über fn_werkstufe_sichtbar (NICHT die permissive Alt-Listing-Query in werkstufen.ts).
@@ -100,55 +99,6 @@ lesemodusRouter.get('/entitaet-szenen', async (req, res) => {
       )
     }
     res.json({ szenen: rows })
-  } catch (err) {
-    res.status(500).json({ error: String(err) })
-  }
-})
-
-// GET /api/lesemodus/szene/:sceneIdentityId/html?werkstufe_id= — PDF-getreues Lese-HTML EINER Szene.
-// Nutzt die bestehende Export-Pipeline (assemblePreviewHtml) gefiltert auf eine Szenennummer,
-// ohne Titelseite/Kopf-/Fußzeile → reiner Szenenkopf + Content, exakt wie im PDF.
-lesemodusRouter.get('/szene/:sceneIdentityId/html', async (req, res) => {
-  const sceneIdentityId = req.params.sceneIdentityId
-  const werkstufeId = req.query.werkstufe_id as string | undefined
-  if (!werkstufeId) return res.status(400).json({ error: 'werkstufe_id erforderlich' })
-  const user = req.user!
-  const istAutor = (user.roles ?? []).filter(Boolean).length > 0
-
-  try {
-    // Fail-closed: nur sichtbare Werkstufen rendern
-    const sicht = await query(`SELECT fn_werkstufe_sichtbar($1, $2, $3) AS ok`, [werkstufeId, user.user_id, istAutor])
-    if (!sicht[0]?.ok) return res.status(403).json({ error: 'Keine Leseberechtigung für diese Fassung' })
-
-    // Szenennummer (+Suffix) der Szene in dieser Werkstufe → szenenAuswahl-Filter
-    const szRows = await query(
-      `SELECT scene_nummer, scene_nummer_suffix FROM dokument_szenen
-       WHERE scene_identity_id = $1 AND werkstufe_id = $2 AND geloescht = false LIMIT 1`,
-      [sceneIdentityId, werkstufeId]
-    )
-    if (!szRows.length) return res.status(404).json({ error: 'Szene in dieser Fassung nicht gefunden' })
-    const { scene_nummer, scene_nummer_suffix } = szRows[0]
-    if (scene_nummer == null) {
-      return res.status(422).json({ error: 'Szene ohne Szenennummer kann nicht einzeln gerendert werden' })
-    }
-    const szenenAuswahl = `${scene_nummer}${scene_nummer_suffix ?? ''}`
-
-    const html = await assemblePreviewHtml(
-      {
-        werkstufId: werkstufeId,
-        userId: user.user_id,
-        userName: user.name,
-        options: {
-          szenenAuswahl,
-          hauptinhaltAktiv: true,
-          kzAktivOverride: false,
-          fzAktivOverride: false,
-          userTimezone: (req.query.tz as string) || undefined,
-        },
-      },
-      () => {}
-    )
-    res.json({ html, szenenAuswahl })
   } catch (err) {
     res.status(500).json({ error: String(err) })
   }

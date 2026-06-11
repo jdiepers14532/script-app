@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronLeft, ChevronRight, X } from 'lucide-react'
-import SceneReadView from './SceneReadView'
+import DokumentVorschau from './DokumentVorschau'
 
 export interface SzeneRef {
   scene_identity_id: string
@@ -13,24 +13,32 @@ export interface SzeneRef {
 }
 
 interface SzeneLeseModalProps {
-  /** Trefferliste in Anzeige-Reihenfolge — Vor/Zurück blättert hier durch */
+  /** Trefferliste (Vorkommen der Entität) in Anzeige-Reihenfolge */
   szenen: SzeneRef[]
   startIndex: number
-  produktionId: string
-  /** Name der Rolle/Komparse/Motiv — für die Navigations-Beschriftung */
+  /** Name der Rolle/Komparse/Motiv — für die Pfeil-Beschriftung */
   entitaetName: string
   onClose: () => void
 }
 
-const navLink = (enabled: boolean): React.CSSProperties => ({
+const navBtn = (enabled: boolean): React.CSSProperties => ({
   display: 'inline-flex', alignItems: 'center', gap: 4, padding: '6px 10px',
   border: '1px solid var(--border)', borderRadius: 7, background: 'transparent',
   color: enabled ? 'var(--text)' : 'var(--text-secondary)', fontSize: 12, fontWeight: 500,
   cursor: enabled ? 'pointer' : 'default', opacity: enabled ? 1 : 0.4, whiteSpace: 'nowrap',
 })
 
-export default function SzeneLeseModal({ szenen, startIndex, produktionId, entitaetName, onClose }: SzeneLeseModalProps) {
+/**
+ * Liest-Modal für EINE Trefferliste: zeigt die Folge der aktuellen Szene als
+ * druckgleiches A4-iframe (DokumentVorschau, mode='read') und scrollt zur
+ * angeklickten Szene. Die Pfeile (oben) + ←/→ springen zum nächsten/vorherigen
+ * Vorkommen der Entität — bei gleicher Fassung nur Scrollen (kein Reload).
+ */
+export default function SzeneLeseModal({ szenen, startIndex, entitaetName, onClose }: SzeneLeseModalProps) {
   const [index, setIndex] = useState(startIndex)
+  const docRef = useRef<Document | null>(null)
+  const loadedWerkRef = useRef<string | null>(null)
+
   const aktuell = szenen[index]
   const hasPrev = index > 0
   const hasNext = index < szenen.length - 1
@@ -48,19 +56,29 @@ export default function SzeneLeseModal({ szenen, startIndex, produktionId, entit
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose, prev, next])
 
+  const scrollToScene = useCallback((doc: Document, sid: string, smooth: boolean) => {
+    const el = doc.querySelector(`[data-scene-identity-id="${sid}"]`)
+    if (el) (el as HTMLElement).scrollIntoView({ block: 'start', behavior: smooth ? 'smooth' : 'auto' })
+  }, [])
+
+  // iframe geladen (neue Fassung) → doc merken + zur aktuellen Szene scrollen
+  const onIframeReady = useCallback((doc: Document) => {
+    docRef.current = doc
+    loadedWerkRef.current = aktuell?.werkstufe_id ?? null
+    if (aktuell) scrollToScene(doc, aktuell.scene_identity_id, false)
+  }, [aktuell, scrollToScene])
+
+  // Navigation innerhalb derselben Fassung (kein iframe-Reload) → selbst scrollen.
+  // Bei Fassungswechsel ändert sich werkstufId → DokumentVorschau lädt neu → onIframeReady scrollt.
+  useEffect(() => {
+    if (!aktuell) return
+    if (docRef.current && loadedWerkRef.current === aktuell.werkstufe_id) {
+      scrollToScene(docRef.current, aktuell.scene_identity_id, true)
+    }
+  }, [index, aktuell, scrollToScene])
+
   if (!aktuell) return null
   const szLabel = `SZ ${aktuell.scene_nummer ?? '?'}${aktuell.scene_nummer_suffix ?? ''}`
-
-  const PrevLink = ({ label }: { label: string }) => (
-    <button onClick={prev} disabled={!hasPrev} title="Vorherige Szene (←)" style={navLink(hasPrev)}>
-      <ChevronLeft size={14} /> {label}
-    </button>
-  )
-  const NextLink = ({ label }: { label: string }) => (
-    <button onClick={next} disabled={!hasNext} title="Nächste Szene (→)" style={navLink(hasNext)}>
-      {label} <ChevronRight size={14} />
-    </button>
-  )
 
   return createPortal(
     <div
@@ -71,31 +89,26 @@ export default function SzeneLeseModal({ szenen, startIndex, produktionId, entit
         onClick={e => e.stopPropagation()}
         style={{ background: 'var(--bg)', borderRadius: 12, width: 'min(900px, 96vw)', height: '96vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}
       >
-        {/* Toolbar oben: Pfeile mit Entitätsname + Zähler + X */}
+        {/* Toolbar: Pfeile zum nächsten Vorkommen der Entität + X */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-          <PrevLink label={`Vorherige Szene von ${entitaetName}`} />
-          <NextLink label={`Nächste Szene von ${entitaetName}`} />
+          <button onClick={prev} disabled={!hasPrev} title="Vorheriges Vorkommen (←)" style={navBtn(hasPrev)}>
+            <ChevronLeft size={14} /> Vorherige Szene von {entitaetName}
+          </button>
+          <button onClick={next} disabled={!hasNext} title="Nächstes Vorkommen (→)" style={navBtn(hasNext)}>
+            Nächste Szene von {entitaetName} <ChevronRight size={14} />
+          </button>
           <div style={{ flex: 1 }} />
           <span style={{ fontSize: 12, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
             {szLabel} · Folge {aktuell.folge_nummer ?? '?'} · {index + 1}/{szenen.length}
           </span>
-          <button onClick={onClose} title="Schließen (Esc)" style={{ ...navLink(true), padding: 6, marginLeft: 4 }}>
+          <button onClick={onClose} title="Schließen (Esc)" style={{ ...navBtn(true), padding: 6, marginLeft: 4 }}>
             <X size={16} />
           </button>
         </div>
 
-        {/* Blatt + Navigation am Blattende */}
-        <div style={{ flex: 1, overflowY: 'auto', background: 'var(--bg-subtle)' }}>
-          <SceneReadView
-            sceneIdentityId={aktuell.scene_identity_id}
-            werkstufeId={aktuell.werkstufe_id}
-            produktionId={produktionId}
-            folgeNummer={aktuell.folge_nummer}
-          />
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, padding: '12px 24px 28px', maxWidth: 794 + 48, margin: '0 auto' }}>
-            <PrevLink label="Vorherige Szene" />
-            <NextLink label="Nächste Szene" />
-          </div>
+        {/* A4-Vorschau der Folge, gescrollt zur aktuellen Szene */}
+        <div style={{ flex: 1, overflow: 'hidden' }}>
+          <DokumentVorschau werkstufId={aktuell.werkstufe_id} mode="read" onIframeReady={onIframeReady} />
         </div>
       </div>
     </div>,

@@ -111,11 +111,6 @@ export const api = {
     if (opts.motivName) p.set('motiv_name', opts.motivName)
     return request<{ szenen: any[] }>('GET', `/lesemodus/entitaet-szenen?${p.toString()}`)
   },
-  getSzeneLeseHtml: (sceneIdentityId: string, werkstufeId: string) =>
-    request<{ html: string; szenenAuswahl: string }>(
-      'GET',
-      `/lesemodus/szene/${sceneIdentityId}/html?werkstufe_id=${encodeURIComponent(werkstufeId)}`,
-    ),
   // Sichtbare Fassungen einer Folge (fail-closed über fn_werkstufe_sichtbar) + Default.
   getLesemodusWerkstufen: (folgeId: number) =>
     request<{ werkstufen: any[]; default_werkstuf_id: string | null }>(

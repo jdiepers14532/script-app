@@ -185,7 +185,6 @@ export default function SzenenPanel({ produktionId, typ, entityId, entitaetName,
         <SzeneLeseModal
           szenen={flat}
           startIndex={modalIndex}
-          produktionId={produktionId}
           entitaetName={entitaetName ?? motivName ?? ''}
           onClose={() => setModalIndex(null)}
         />
