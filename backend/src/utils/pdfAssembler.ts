@@ -706,7 +706,8 @@ function renderMainScenes(
   kuerzel: Record<string, string>,
   szenenkopfTemplate: any,
   folgeNummer: number,
-  bodyMarginLeftCm = 0
+  bodyMarginLeftCm = 0,
+  readMode = false
 ): string {
   return scenes.map((scene, index) => {
     let headHtml: string
@@ -728,7 +729,12 @@ function renderMainScenes(
     const bodyHtml = scene.content ? renderDoc(scene.content, fmtById, fmtByName, ctx) : ''
     const inner = `${headHtml}\n${bodyHtml}`
     // Szenen-Abschnitt fürs DOM-Anchoring (Handoff 3 §2): data-scene-identity-id.
-    // display:contents = layout-/umbruch-neutral (kein Effekt auf @page/PDF); closest() läuft durch.
+    // PDF/Vorschau: display:contents (layout-/umbruch-neutral, kein @page-Effekt; closest() läuft durch).
+    // Lesemodus: jede Szene als eigenes A4-Blatt (.a4-page) → getrennte Blätter im Browser.
+    if (readMode) {
+      const sid = scene.scene_identity_id ? ` data-scene-identity-id="${esc(String(scene.scene_identity_id))}"` : ''
+      return `<div class="a4-page"${sid}>${inner}</div>`
+    }
     return scene.scene_identity_id
       ? `<div data-scene-identity-id="${esc(String(scene.scene_identity_id))}" style="display:contents">${inner}</div>`
       : inner
@@ -1696,7 +1702,7 @@ async function assembleHtml(
     if (hauptinhaltAktiv) {
       mainHtml = isNotizDoc
         ? renderNotizWerkstufe(szRes.rows, fmtById, fmtByName, ctx)
-        : renderMainScenes(mainScenes, fmtById, fmtByName, ctx, sceneKuerzel, szenenkopfTemplate, w.folge_nummer, bodyMargins.links / 10)
+        : renderMainScenes(mainScenes, fmtById, fmtByName, ctx, sceneKuerzel, szenenkopfTemplate, w.folge_nummer, bodyMargins.links / 10, readMode)
     }
 
     // ── 9. Body-HTML zusammenbauen ────────────────────────────────────────────

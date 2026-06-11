@@ -495,12 +495,15 @@ ${fontResource}
     ${readMode ? 'background:#e9e9e9;' : ''}
   }
   ${pageRule}
-  ${readMode ? `.sw-a4-sheet {
-    width: 210mm; max-width: 100%; margin: 20px auto;
+  ${readMode ? `.sw-a4-sheet { padding: 20px 0; }
+  /* Jede Szene = getrenntes A4-Blatt (weiss, Schatten, Luecke, korrekte Innenraender) */
+  .a4-page {
+    width: 210mm; max-width: 100%; margin: 0 auto 18px;
     background: #fff; box-shadow: 0 1px 12px rgba(0,0,0,0.22);
     padding: ${pageMarginTop}mm ${bmr}mm ${pageMarginBottom}mm ${bml}mm;
-    min-height: 297mm;
-  }` : ''}
+    min-height: 297mm; box-sizing: border-box;
+  }
+  .a4-page:last-child { margin-bottom: 0; }` : ''}
   @media print {
     body { padding: 0 !important; margin: 0 !important; }
     .no-print { display: none; }
