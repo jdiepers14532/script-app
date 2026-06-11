@@ -3,6 +3,7 @@ import { UploadCloud, X, CheckCircle, AlertTriangle, RefreshCw, FileText, Loader
 import Tooltip from './Tooltip'
 import { api } from '../api/client'
 import BulkPreviewModal from './BulkPreviewModal'
+import BulkCropPreviewModal from './BulkCropPreviewModal'
 
 // Kleines Info-Icon mit Tooltip — für Felder, deren Funktion nicht selbsterklärend ist.
 function InfoDot({ text, placement }: { text: string; placement?: 'top' | 'bottom' | 'right' }) {
@@ -85,6 +86,7 @@ export default function BulkImportPanel({
   const [pdfPageFrom, setPdfPageFrom] = useState<number | ''>('')
   const [pdfPageTo, setPdfPageTo] = useState<number | ''>('')
   const cropSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [showCropPreview, setShowCropPreview] = useState(false)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [batch, setBatch] = useState<Batch | null>(null)
@@ -461,6 +463,19 @@ export default function BulkImportPanel({
                 <Scissors size={13} color="#757575" />
                 <span style={{ fontSize: 12, fontWeight: 600, color: '#333' }}>PDF: Beschneiden &amp; Seitenbereich</span>
                 <InfoDot text={`Gilt für ALLE PDFs im Batch. Einmal eingestellt, wird es für alle weiteren Dateien und Importe übernommen (pro Benutzer gespeichert).\n\nRänder wegschneiden hilft, wenn Fußzeilen oder Zeilennummern die Texterkennung stören. Der Seitenbereich lässt z. B. Deckblätter aus.`} placement="bottom" />
+                <Tooltip text="PDF mit Live-Vorschau der Ränder anzeigen und dort einstellen.">
+                  <button
+                    onClick={() => setShowCropPreview(true)}
+                    style={{
+                      marginLeft: 'auto', padding: '3px 10px', borderRadius: 6,
+                      border: '1px solid #e0e0e0', background: '#f5f5f5', fontSize: 11,
+                      cursor: 'pointer', color: '#1565C0', fontWeight: 600,
+                      display: 'inline-flex', alignItems: 'center', gap: 4,
+                    }}
+                  >
+                    <Search size={12} /> Vorschau
+                  </button>
+                </Tooltip>
               </div>
               <div style={{ display: 'flex', gap: 14, alignItems: 'center', fontSize: 11, color: '#757575', flexWrap: 'wrap' }}>
                 <Tooltip text="Linken Rand abschneiden (z. B. Zeilennummern). In Prozent der Seitenbreite." placement="bottom">
@@ -720,6 +735,24 @@ export default function BulkImportPanel({
           renumber={batch?.jobs.find(j => j.id === previewJob.id)?.renumber === true}
           onToggleRenumber={v => updateJob(previewJob.id, { renumber: v })}
           onClose={() => setPreviewJob(null)}
+        />
+      )}
+
+      {/* Beschnitt-Vorschau (Live-Overlays, steuert die globalen Werte) */}
+      {showCropPreview && (
+        <BulkCropPreviewModal
+          pdfFiles={files.filter(f => /\.pdf$/i.test(f.name))}
+          cropLeft={pdfCropLeft}
+          cropRight={pdfCropRight}
+          cropBottom={pdfCropBottom}
+          pageFrom={pdfPageFrom}
+          pageTo={pdfPageTo}
+          onCropLeft={setPdfCropLeft}
+          onCropRight={setPdfCropRight}
+          onCropBottom={setPdfCropBottom}
+          onPageFrom={setPdfPageFrom}
+          onPageTo={setPdfPageTo}
+          onClose={() => setShowCropPreview(false)}
         />
       )}
     </div>
