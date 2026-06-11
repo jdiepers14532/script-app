@@ -91,6 +91,14 @@ export const SHORTCUT_DEFS: Record<string, ShortcutDef> = {
     label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+L`,
   },
 
+  // ── Anmerkungs-Panel ein-/ausblenden ──────────────────────────────────────
+  // Alt+I → frei, nicht browserreserviert. KeyI layout-stabil.
+  toggleAnnotationPanel: {
+    codes: ['KeyI'],
+    altKey: true,
+    label: (_layout, isMac) => `${isMac ? '⌥' : 'Alt'}+I`,
+  },
+
   // ── Navigation (App-Nav-Menü) ─────────────────────────────────────────────
   // Alt+Buchstabe — nicht von modernen Browsern als Navigation belegt.
   // Alt+D wurde bewusst ausgelassen (fokussiert Adressleiste in Chrome/Edge).

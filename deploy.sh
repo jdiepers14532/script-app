@@ -16,11 +16,16 @@
 set -euo pipefail
 
 ENV="${1:-prod}"
+REF="${2:-}"   # optionaler Branch/Ref — NUR Staging; Prod deployt immer main
 case "$ENV" in
   prod)    DIR=/srv/script;         PM2=script-backend;         PORT=3014 ;;
   staging) DIR=/srv/script-staging; PM2=script-backend-staging; PORT=3114 ;;
-  *) echo "Usage: deploy.sh [prod|staging]"; exit 1 ;;
+  *) echo "Usage: deploy.sh [prod|staging] [branch]"; exit 1 ;;
 esac
+
+if [ -n "$REF" ] && [ "$ENV" = "prod" ]; then
+  echo "✗ Prod deployt ausschließlich main — kein Branch-Argument erlaubt."; exit 1
+fi
 
 # Lock pro Umgebung
 exec 9>"/tmp/deploy-script-$ENV.lock"
@@ -29,7 +34,13 @@ flock -n 9 || { echo "✗ Deploy ($ENV) läuft bereits — abgebrochen."; exit 1
 cd "$DIR"
 OLD=$(git rev-parse HEAD)
 echo "▶ Deploy $ENV ($DIR) — Stand vorher: ${OLD:0:7}"
-git pull origin main
+if [ -n "$REF" ]; then
+  echo "▶ Branch-Deploy (nur Staging): $REF"
+  git fetch origin "$REF"
+  git checkout -B "$REF" "origin/$REF"
+else
+  git pull origin main          # unverändertes Default-Verhalten (Prod + Staging/main)
+fi
 NEW=$(git rev-parse HEAD)
 
 if [ "$OLD" = "$NEW" ]; then

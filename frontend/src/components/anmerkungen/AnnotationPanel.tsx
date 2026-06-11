@@ -2,7 +2,7 @@
 // Wiederverwendet im Lese-Modus (Handoff 3). Karte: Quelle-Badge, Status, Anker-Vorschau,
 // "prüfen"-Hinweis, Thread, Aktionen (zur Stelle, Übernehmen/Ablehnen [nur canResolve],
 // kommentieren, taggen). Brücke über activeAnmerkungId aus dem AnnotationContext.
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, type ReactNode } from 'react'
 import { Check, X, MessageSquare, AtSign, MapPin, AlertTriangle, Eye, CheckCheck } from 'lucide-react'
 import { useAnnotations, type AnmerkungItem } from '../../contexts/AnnotationContext'
 
@@ -40,7 +40,7 @@ function fmt(iso: string): string {
 
 const istErledigt = (s: string) => s === 'uebernommen' || s === 'abgelehnt'
 
-export function AnnotationPanel() {
+export function AnnotationPanel({ onHide, hideIcon }: { onHide?: () => void; hideIcon?: ReactNode } = {}) {
   const a = useAnnotations()
   const { items, loading, activeAnmerkungId, setActiveAnmerkungId } = a
   const [erledigtEinblenden, setErledigtEinblenden] = useState(false)
@@ -81,6 +81,12 @@ export function AnnotationPanel() {
           <span style={{ width: 7, height: 7, borderRadius: 999, background: a.anmerkenModus ? '#00C853' : 'var(--text-muted)' }} />
           {a.anmerkenModus ? 'Anmerken an' : 'Anmerken aus'}
         </button>
+        {onHide && (
+          <button onClick={onHide} title="Anmerkungen ausblenden (Alt+I)"
+            style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--text-muted)', borderRadius: 6, flexShrink: 0 }}>
+            {hideIcon ?? <X size={14} />}
+          </button>
+        )}
       </div>
       {erledigtCount > 0 && (
         <button

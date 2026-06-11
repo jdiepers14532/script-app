@@ -87,7 +87,7 @@ export default function SzeneLeseModal({ szenen, startIndex, entitaetName, onClo
     >
       <div
         onClick={e => e.stopPropagation()}
-        style={{ background: 'var(--bg)', borderRadius: 12, width: 'min(900px, 96vw)', height: '96vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}
+        style={{ background: 'var(--bg-surface)', borderRadius: 12, width: 'min(900px, 96vw)', height: '96vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}
       >
         {/* Toolbar: Pfeile zum nächsten Vorkommen der Entität + X */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>

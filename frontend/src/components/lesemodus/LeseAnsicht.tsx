@@ -8,7 +8,7 @@ import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 import DokumentVorschau from './DokumentVorschau'
 import { AnnotationProvider, useAnnotations, type AnmerkungItem } from '../../contexts/AnnotationContext'
-import { AnnotationPanel } from '../anmerkungen/AnnotationPanel'
+import { AnnotationDock } from '../anmerkungen/AnnotationDock'
 import {
   selektorFromDomSelection, highlightAnker, clearHighlights, DOM_ANNOT_CSS, type DomAnker,
 } from '../../utils/domAnchor'
@@ -182,9 +182,7 @@ function LeseAnsichtInner({ werkstufId, activeSceneIdentityId, onSceneVisible }:
       <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
         <DokumentVorschau werkstufId={werkstufId} onIframeReady={onIframeReady} />
       </div>
-      <div style={{ width: 320, flexShrink: 0 }}>
-        <AnnotationPanel />
-      </div>
+      <AnnotationDock />
 
       {create && createPortal(
         <>
