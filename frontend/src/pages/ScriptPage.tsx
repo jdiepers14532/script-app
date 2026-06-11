@@ -1296,6 +1296,9 @@ export default function ScriptPage() {
                     last_stage_id: selectedStageId,
                     last_szene_id: id,
                   } }).catch(() => {})
+                // Lese-Modus: kein SceneEditor → niemand beantwortet req-leave-check. Direkt
+                // navigieren (read-only, nichts zu speichern) — sonst haengt die Navigation.
+                if (viewMode === 'read') { setSelectedSzeneId(id); return }
                 // Wenn aktuelle Szene eine UUID ist → Leave-Check vor Navigation
                 if (selectedSzeneId && typeof selectedSzeneId === 'string') {
                   pendingNavRef.current = { targetId: id }
