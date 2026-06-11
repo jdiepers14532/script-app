@@ -92,9 +92,9 @@
 }
 .topbar .firm-logo-btn:hover { background: var(--bg-subtle); }
 .topbar .firm-logo-img {
-  /* Feste Breite (124px) — bleibt gleich, auch wenn das Logo in auth getauscht wird.
-     Höhe folgt dem Seitenverhältnis des jeweiligen Logos. */
-  width: 124px;
+  /* Feste Breite (149px ≈ 120% von 124px) — bleibt gleich, auch wenn das Logo
+     in auth getauscht wird. Höhe folgt dem Seitenverhältnis des jeweiligen Logos. */
+  width: 149px;
   height: auto;
   object-fit: contain;
   display: block;
