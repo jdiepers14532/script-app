@@ -352,12 +352,11 @@ export function PdfLayoutConfig({ value, onChange, sceneLabel, onConfigureItem, 
         </div>
       )}
 
-      {/* ── Nummerierung / Titelblatt (Profil) ── */}
+      {/* ── Nummerierung (Profil) — Titelblatt läuft über das Struktur-Element „Titelseite" ── */}
       {s.numbering && (
         <div>
-          <span style={SEC}>Nummerierung &amp; Titelblatt</span>
+          <span style={SEC}>Nummerierung</span>
           {([
-            { k: 'titelblatt' as const, label: 'Titelblatt' },
             { k: 'szenenNummerierung' as const, label: 'Szenen-Nummerierung' },
             { k: 'seitenNummerierung' as const, label: 'Seiten-Nummerierung' },
           ]).map(({ k, label }) => (

@@ -13,6 +13,8 @@
 import { Router, Request, Response, NextFunction } from 'express'
 import { pool, query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
+import { assemblePdf } from '../utils/pdfAssembler'
+import type { OrderedExportItem, ExportJobOptions } from '../utils/exportJobQueue'
 import {
   generateToken, portalLink, tokenAblauf,
   resolveKontaktEmail, resolveBesetzung, deriveAnzeigeStatus,
@@ -439,6 +441,94 @@ pdfExportProfilRouter.delete('/:id', async (req, res) => {
     res.status(204).send()
   } catch (err) {
     res.status(500).json({ error: String(err) })
+  }
+})
+
+// ── Resolver: PDF-Profil (Typ-Struktur) → assemblePdf-Optionen ────────────────
+// Wird später (Phase 5) von der Verteiler-PDF-Erzeugung wiederverwendet.
+// Hinweis: statistik/onliner/synopse brauchen Folge-Auflösung + Sections und sind
+// in der Vorschau noch NICHT enthalten (X-Preview-Skipped-Header meldet das).
+const STRUKTUR_LABELS: Record<string, string> = {
+  titelseite: 'Titelseite', statistik: 'Statistik', onliner: 'Onliner',
+  synopse: 'Synopsen', fsk: 'FSK & Inhaltskennzeichnung',
+}
+function profilSlotsToItems(
+  slots: any[], titelseiteVorlagen: { id: string; name: string }[],
+): { items: OrderedExportItem[]; skipped: string[] } {
+  const items: OrderedExportItem[] = []
+  const skipped: string[] = []
+  for (const slot of (slots || [])) {
+    if (!slot || slot.enabled === false) continue
+    switch (slot.type) {
+      case 'titelseite':
+        for (const v of titelseiteVorlagen) items.push({ type: 'notiz', vorlageId: v.id, label: v.name, enabled: true })
+        break
+      case 'fsk':
+        items.push({ type: 'fsk', enabled: true, label: STRUKTUR_LABELS.fsk })
+        break
+      case 'statistik': case 'onliner': case 'synopse':
+        skipped.push(STRUKTUR_LABELS[slot.type] || slot.type)
+        break
+    }
+  }
+  return { items, skipped }
+}
+function profilKzFzOverrides(modus: string | null, fzText: string | null): Partial<ExportJobOptions> {
+  if (!modus || modus === 'standard') return {}
+  if (modus === 'kz')    return { kzAktivOverride: true,  fzAktivOverride: false }
+  if (modus === 'keine') return { kzAktivOverride: false, fzAktivOverride: false }
+  return { kzAktivOverride: false, fzAktivOverride: true, fzTextOverride: (fzText || '').trim() || undefined } // 'fz'
+}
+
+// POST /api/pdf-export-profil/:id/preview — Live-PDF-Vorschau gegen die Trigger-Werkstufe.
+// Body: { produktion_id, werkstufe_typ? } — neueste Werkstufe dieses Typs (Fallback:
+// neueste der Produktion); rendert das Profil über den echten Renderer (assemblePdf).
+pdfExportProfilRouter.post('/:id/preview', async (req, res) => {
+  const { produktion_id, werkstufe_typ } = req.body || {}
+  if (!produktion_id) return res.status(400).json({ error: 'produktion_id erforderlich' })
+  try {
+    const profil = await queryOne(`SELECT * FROM pdf_export_profil WHERE id = $1`, [req.params.id])
+    if (!profil) return res.status(404).json({ error: 'PDF-Profil nicht gefunden' })
+
+    const wsRows = await query(
+      `SELECT w.id FROM werkstufen w JOIN folgen f ON f.id = w.folge_id
+       WHERE f.produktion_id = $1
+       ORDER BY ($2::text IS NOT NULL AND w.label = $2) DESC, w.version_nummer DESC NULLS LAST, w.id DESC
+       LIMIT 1`,
+      [produktion_id, werkstufe_typ ?? null]
+    )
+    const werkstufId = wsRows[0]?.id
+    if (!werkstufId) return res.status(404).json({ error: 'Keine Werkstufe in dieser Produktion für die Vorschau gefunden' })
+
+    const vorlagen = await query(
+      `SELECT id, name FROM dokument_vorlagen WHERE produktion_id = $1 AND ist_titelseite = true ORDER BY created_at DESC`,
+      [produktion_id]
+    )
+    const sj: any = (profil.struktur_json && typeof profil.struktur_json === 'object') ? profil.struktur_json : {}
+    const pre  = profilSlotsToItems(sj.preItems, vorlagen)
+    const post = profilSlotsToItems(sj.postItems, vorlagen)
+
+    const user = req.user!
+    const result = await assemblePdf({
+      werkstufId, userId: user.user_id, userName: user.name,
+      options: {
+        preItems: pre.items,
+        postItems: post.items,
+        hauptinhaltAktiv: sj.szenenAktiv !== false,
+        pdfBookmarks: profil.lesezeichen_aktiv !== false,
+        pdfLandscape: profil.pdf_orientation === 'landscape',
+        ...profilKzFzOverrides(profil.kz_fz_modus, profil.fz_text),
+      },
+    }, () => {})
+
+    const skipped = [...new Set([...pre.skipped, ...post.skipped])]
+    if (skipped.length) res.setHeader('X-Preview-Skipped', encodeURIComponent(skipped.join(', ')))
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', 'inline')
+    res.setHeader('Cache-Control', 'no-store')
+    res.send(result.buffer)
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message ?? 'Profil-Vorschau fehlgeschlagen' })
   }
 })
 
