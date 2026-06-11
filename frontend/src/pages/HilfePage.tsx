@@ -22,6 +22,7 @@ const WerkstufenLabelsTab  = lazy(() => import('./hilfe/WerkstufenLabelsTab'))
 const SeitenzahlenTab      = lazy(() => import('./hilfe/SeitenzahlenTab'))
 const VorlagenOcrTab       = lazy(() => import('./hilfe/VorlagenOcrTab'))
 const ExportKopfzeilen     = lazy(() => import('./hilfe/ExportKopfzeilen'))
+const VerteilerProfilTab   = lazy(() => import('./hilfe/VerteilerProfilTab'))
 const DatensicherheitUserTab = lazy(() => import('./hilfe/DatensicherheitUserTab'))
 const TeamWorkTab          = lazy(() => import('./hilfe/TeamWorkTab'))
 const AutorenplanHilfeTab  = lazy(() => import('./hilfe/AutorenplanHilfeTab'))
@@ -92,6 +93,8 @@ const NAV_ITEMS = [
     keywords: 'vorlage template ocr mistral erkennen scan pdf einscannen' },
   { id: 'export-kopfzeilen',    label: 'Export & Kopf-/Fußzeilen',  icon: '📤',
     keywords: 'export pdf fountain fdx kopfzeile fusszeile wasserzeichen drucken herunterladen dokumentstruktur statistik lesezeichen filter rollen motive drag drop job fortschritt persönlicher ausdruck revision' },
+  { id: 'verteiler-profil',     label: 'Verteiler & PDF-Profil',    icon: '📬',
+    keywords: 'verteiler distribution profil pdf-profil vorlage versand empfänger struktur titelseite statistik onliner synopse fsk lesezeichen layout hochformat querformat kopfzeile fusszeile wasserzeichen vorschau aus profil übernehmen in profil speichern preset' },
   { id: 'datensicherheit-user', label: 'Datensicherheit',           icon: '🛡️',
     keywords: 'datensicherheit backup autosave sync sicherheit verlust daten' },
   { id: 'team-work',            label: 'Team-Work',                 icon: '👥',
@@ -195,6 +198,7 @@ function HilfePage() {
       case 'seitenzahlen':       return <SeitenzahlenTab isAdmin={isAdmin} />
       case 'vorlagen-ocr':       return <VorlagenOcrTab />
       case 'export-kopfzeilen':  return <ExportKopfzeilen />
+      case 'verteiler-profil':   return <VerteilerProfilTab />
       case 'datensicherheit-user': return <DatensicherheitUserTab />
       case 'team-work':          return <TeamWorkTab />
       case 'autorenplan':        return <AutorenplanHilfeTab />

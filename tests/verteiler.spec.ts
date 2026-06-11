@@ -86,6 +86,48 @@ test('PDF-Profil: GET Liste der Produktion', async ({ request }) => {
   expect(list.some((x: any) => x.id === profilId)).toBeTruthy()
 })
 
+// ── PDF-Profil: Live-Vorschau / Resolver (Phase 3+5) ──────────────────────────
+// Der Resolver (lib/pdfProfilResolver.ts) mappt die Profil-Struktur auf
+// assemblePdf-Optionen — genutzt von Vorschau UND echtem Versand.
+
+test('PDF-Profil: Live-Vorschau liefert echtes PDF', async ({ request }) => {
+  test.skip(!profilId, 'kein Profil angelegt')
+  // Struktur auf Titelseite + Szenen setzen (rendert sicher etwas)
+  await request.put(`${API}/pdf-export-profil/${profilId}`, hd({
+    struktur_json: {
+      preItems: [{ type: 'titelseite', enabled: true }],
+      szenenAktiv: true, postItems: [],
+    },
+  }))
+  const res = await request.post(`${API}/pdf-export-profil/${profilId}/preview`, hd({ produktion_id: PROD_ID }))
+  expect(res.status(), 'Vorschau muss 200 liefern').toBe(200)
+  expect(res.headers()['content-type']).toContain('application/pdf')
+  const body = await res.body()
+  expect(body.subarray(0, 5).toString(), 'Body muss ein PDF sein').toBe('%PDF-')
+  expect(body.length).toBeGreaterThan(1000)
+})
+
+test('PDF-Profil: Statistik wird aufgelöst, nicht übersprungen', async ({ request }) => {
+  test.skip(!profilId, 'kein Profil angelegt')
+  // Statistik im Folge-Modus aktivieren — der Resolver muss daraus ein
+  // statistik-Item mit Folge-Bezug bauen (sonst X-Preview-Skipped: Statistik).
+  await request.put(`${API}/pdf-export-profil/${profilId}`, hd({
+    struktur_json: {
+      preItems: [
+        { type: 'titelseite', enabled: true },
+        { type: 'statistik', enabled: true, mode: 'folge' },
+      ],
+      szenenAktiv: true, postItems: [],
+    },
+  }))
+  const res = await request.post(`${API}/pdf-export-profil/${profilId}/preview`, hd({ produktion_id: PROD_ID }))
+  expect(res.status()).toBe(200)
+  const body = await res.body()
+  expect(body.subarray(0, 5).toString()).toBe('%PDF-')
+  const skipped = res.headers()['x-preview-skipped'] ?? ''
+  expect(decodeURIComponent(skipped), 'Statistik darf nicht übersprungen werden').not.toMatch(/statistik/i)
+})
+
 // ── Verteiler-CRUD ────────────────────────────────────────────────────────────
 test('Verteiler: POST anlegen + Scope-Konsistenz', async ({ request }) => {
   // scope='revision' mit werkstufe_typ → 400
