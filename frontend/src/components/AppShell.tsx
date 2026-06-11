@@ -490,21 +490,27 @@ export default function AppShell({
   const lightColorInputRef = useRef<HTMLInputElement>(null)
   const darkColorInputRef  = useRef<HTMLInputElement>(null)
   const [companyLogo, setCompanyLogo] = useState<{ light: string | null; dark: string | null }>({ light: null, dark: null })
+  const [companyName, setCompanyName] = useState<string | null>(null)
 
   const set = <K extends keyof TweakState>(k: K, v: TweakState[K]) =>
     setTweaks(t => ({ ...t, [k]: v }))
 
-  // ── Firmenlogo von auth.app laden ─────────────────────────────────────────
+  // ── Firmenlogo + -name von auth.app laden ─────────────────────────────────
   useEffect(() => {
     fetch('https://auth.serienwerft.studio/api/public/company-info')
       .then(r => r.json())
       .then((data: any) => {
-        if (data?.logos) {
+        const logos = data?.logos
+        if (logos) {
+          // Bevorzugt die gestapelte Variante (logo2) — passt besser in den Header
+          // als die einzeilige, ultrabreite Wortmarke. Fallback auf light/dark.
           setCompanyLogo({
-            light: data.logos.light || null,
-            dark:  data.logos.dark  || null,
+            light: logos.light2 || logos.light || null,
+            dark:  logos.dark2  || logos.dark  || null,
           })
         }
+        // Fallback-Text für den Header: Firmenname aus auth (nie hardcoden)
+        setCompanyName(data?.company_name || null)
       })
       .catch(() => {})
   }, [])
@@ -1058,9 +1064,9 @@ export default function AppShell({
               alt="Firmenlogo"
               className="firm-logo-img"
             />
-          ) : (
-            <span className="firm-logo-text">Serienwerft</span>
-          )}
+          ) : companyName ? (
+            <span className="firm-logo-text">{companyName}</span>
+          ) : null}
         </button>
 
         <div className="divider" />

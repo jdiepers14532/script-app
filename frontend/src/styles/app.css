@@ -94,7 +94,7 @@
 .topbar .firm-logo-img {
   height: 36px;
   width: auto;
-  max-width: 160px;
+  max-width: 200px;
   object-fit: contain;
   display: block;
 }
@@ -103,7 +103,7 @@
   font-weight: 600;
   color: var(--text-secondary);
   white-space: nowrap;
-  max-width: 110px;
+  max-width: 160px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
