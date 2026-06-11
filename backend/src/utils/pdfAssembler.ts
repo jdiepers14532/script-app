@@ -25,6 +25,7 @@ import {
   ExportContext,
 } from './exportAssembler'
 import { encodeWatermark, buildPayload } from './watermark'
+import { calcContentLinesPerBlock } from './calcPageLength'
 import { renderStatistikHtml, renderOnlinerHtml, StatistikFormatConfig, OnlinerFormatConfig, StatistikExportConfig } from './statistikHtmlRenderer'
 
 // ── Warm-Browser-Pool ─────────────────────────────────────────────────────────
@@ -707,7 +708,8 @@ function renderMainScenes(
   szenenkopfTemplate: any,
   folgeNummer: number,
   bodyMarginLeftCm = 0,
-  readMode = false
+  readMode = false,
+  linesPerPage = 59  // A4-Default; im Lesemodus für 297mm-Seitenumbrüche (block-weise, ~Sidebar-Seitenzahlen)
 ): string {
   return scenes.map((scene, index) => {
     let headHtml: string
@@ -730,10 +732,35 @@ function renderMainScenes(
     const inner = `${headHtml}\n${bodyHtml}`
     // Szenen-Abschnitt fürs DOM-Anchoring (Handoff 3 §2): data-scene-identity-id.
     // PDF/Vorschau: display:contents (layout-/umbruch-neutral, kein @page-Effekt; closest() läuft durch).
-    // Lesemodus: jede Szene als eigenes A4-Blatt (.a4-page) → getrennte Blätter im Browser.
+    // Lesemodus: echte 297mm-Seiten — Content block-weise auf .a4-page-Blätter verteilt (gleiche
+    // Zeilen-/Seitenlogik wie die Sidebar-Seitenzahlen). Jedes Blatt einer Szene trägt dieselbe
+    // data-scene-identity-id (domAnchor sammelt die Blöcke über alle Blatt-Teile ein).
     if (readMode) {
-      const sid = scene.scene_identity_id ? ` data-scene-identity-id="${esc(String(scene.scene_identity_id))}"` : ''
-      return `<div class="a4-page"${sid}>${inner}</div>`
+      const sidAttr = scene.scene_identity_id ? ` data-scene-identity-id="${esc(String(scene.scene_identity_id))}"` : ''
+      const docObj = typeof scene.content === 'string' ? JSON.parse(scene.content || 'null') : scene.content
+      const nodesArr: any[] = !docObj ? []
+        : Array.isArray(docObj) ? docObj
+        : (docObj.type === 'doc' ? (docObj.content ?? []) : [docObj])
+      const blockLines = calcContentLinesPerBlock(scene.content)
+      // Szenenkopf-Höhe grob aus dem gerenderten HTML (Zeilen + Rand).
+      const headLines = Math.max(1,
+        (headHtml.match(/<p /g) ?? []).length +
+        (headHtml.match(/display:flex/g) ?? []).length +
+        (headHtml.match(/<hr /g) ?? []).length) + 1
+      const pages: string[][] = [[]]
+      let acc = headLines
+      for (let bi = 0; bi < nodesArr.length; bi++) {
+        const bl = blockLines[bi] ?? 1
+        // Umbruch wenn die Seite voll ist (aber nie eine leere Seite erzwingen).
+        if (pages[pages.length - 1].length > 0 && acc + bl > linesPerPage) {
+          pages.push([]); acc = 0
+        }
+        pages[pages.length - 1].push(renderAbsatzNode(nodesArr[bi], fmtById, fmtByName, ctx, bi))
+        acc += bl
+      }
+      return pages.map((blocks, pi) =>
+        `<div class="a4-page"${sidAttr}>${pi === 0 ? headHtml + '\n' : ''}${blocks.join('\n')}</div>`
+      ).join('\n')
     }
     return scene.scene_identity_id
       ? `<div data-scene-identity-id="${esc(String(scene.scene_identity_id))}" style="display:contents">${inner}</div>`
@@ -1700,9 +1727,13 @@ async function assembleHtml(
 
     let mainHtml = ''
     if (hauptinhaltAktiv) {
+      // Lesemodus: Zeilen/Seite aus der nutzbaren A4-Höhe (gleiche Logik wie recalcPageNumbers →
+      // ~Sidebar-Seitenzahlen). 12pt/Zeile, 5pt Render-Buffer.
+      const usablePt = (297 - bodyMargins.oben - bodyMargins.unten) * (72 / 25.4)
+      const linesPerPage = Math.max(30, Math.floor((usablePt - 5) / 12))
       mainHtml = isNotizDoc
         ? renderNotizWerkstufe(szRes.rows, fmtById, fmtByName, ctx)
-        : renderMainScenes(mainScenes, fmtById, fmtByName, ctx, sceneKuerzel, szenenkopfTemplate, w.folge_nummer, bodyMargins.links / 10, readMode)
+        : renderMainScenes(mainScenes, fmtById, fmtByName, ctx, sceneKuerzel, szenenkopfTemplate, w.folge_nummer, bodyMargins.links / 10, readMode, linesPerPage)
     }
 
     // ── 9. Body-HTML zusammenbauen ────────────────────────────────────────────

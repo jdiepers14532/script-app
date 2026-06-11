@@ -43,83 +43,74 @@ function wrapLines(text: string, charsPerLine: number): number {
   return total
 }
 
-// Counts raw logical lines from content nodes — shared by calcPageLength and calcContentLinesRaw.
-function countLines(content: any): number {
-  const nodes: any[] = Array.isArray(content)
+function topLevelNodes(content: any): any[] {
+  return Array.isArray(content)
     ? content
     : (content?.content && Array.isArray(content.content) ? content.content : [])
+}
 
-  if (nodes.length === 0) return 0
+/**
+ * Zeilen je Top-Level-Block (inkl. Spacing zum Folgeblock) — Index-gleich mit renderDoc/
+ * data-block-index. Summe = countLines. Genutzt für block-weise Browser-Pagination (Lesemodus).
+ */
+export function calcContentLinesPerBlock(content: any): number[] {
+  const nodes = topLevelNodes(content)
+  if (nodes.length === 0) return []
 
-  let totalLines = 0
-
+  const result: number[] = []
   for (let i = 0; i < nodes.length; i++) {
     const node = nodes[i]
-    if (!node) continue
+    if (!node) { result.push(0); continue }
 
     const text = getTextFromNode(node)
     const type = node.type
-    // screenplay_element uses element_type; absatz uses format_name (normalised to lowercase)
     const elementType: string =
       node.attrs?.element_type ??
       (node.attrs?.format_name as string | undefined)?.toLowerCase() ??
       ''
 
+    let lines: number
     if (type === 'screenplay_element') {
       switch (elementType) {
         case 'character':
         case 'transition':
-          totalLines += 1
-          break
         case 'parenthetical':
-          totalLines += 1
-          break
+          lines = 1; break
         case 'dialogue':
-          totalLines += wrapLines(text, CHARS_PER_LINE_DIALOGUE)
-          break
-        case 'action':
-        case 'scene_heading':
+          lines = wrapLines(text, CHARS_PER_LINE_DIALOGUE); break
         default:
-          totalLines += wrapLines(text, CHARS_PER_LINE_ACTION)
-          break
+          lines = wrapLines(text, CHARS_PER_LINE_ACTION); break
       }
     } else if (type === 'absatz') {
-      // Use format-aware column width for absatz nodes
-      if (elementType === 'dialogue') {
-        totalLines += wrapLines(text, CHARS_PER_LINE_DIALOGUE)
-      } else if (elementType === 'character' || elementType === 'parenthetical' || elementType === 'transition') {
-        totalLines += 1
-      } else {
-        totalLines += wrapLines(text, CHARS_PER_LINE_ACTION)
-      }
+      if (elementType === 'dialogue') lines = wrapLines(text, CHARS_PER_LINE_DIALOGUE)
+      else if (elementType === 'character' || elementType === 'parenthetical' || elementType === 'transition') lines = 1
+      else lines = wrapLines(text, CHARS_PER_LINE_ACTION)
     } else if (type === 'paragraph' || type === 'heading') {
-      totalLines += wrapLines(text, CHARS_PER_LINE_ACTION)
+      lines = wrapLines(text, CHARS_PER_LINE_ACTION)
     } else {
-      if (text) totalLines += wrapLines(text, CHARS_PER_LINE_ACTION)
-      else totalLines += 1
+      lines = text ? wrapLines(text, CHARS_PER_LINE_ACTION) : 1
     }
 
-    // Spacing between elements (except after last)
-    // Uses elementType (works for both screenplay_element and absatz via format_name fallback)
+    // Spacing zum nächsten Block (außer nach dem letzten)
     if (i < nodes.length - 1) {
       const nextNode = nodes[i + 1]
       const nextType: string =
         nextNode?.attrs?.element_type ??
         (nextNode?.attrs?.format_name as string | undefined)?.toLowerCase() ??
         ''
-      if (elementType === 'character' && (nextType === 'dialogue' || nextType === 'parenthetical')) {
-        // no spacing
-      } else if (elementType === 'parenthetical' && nextType === 'dialogue') {
-        // no spacing
-      } else if (elementType === 'dialogue' && nextType === 'character') {
-        totalLines += 1
-      } else {
-        totalLines += 1
-      }
+      const noSpacing =
+        (elementType === 'character' && (nextType === 'dialogue' || nextType === 'parenthetical')) ||
+        (elementType === 'parenthetical' && nextType === 'dialogue')
+      if (!noSpacing) lines += 1
     }
+    result.push(lines)
   }
+  return result
+}
 
-  return totalLines
+// Counts raw logical lines from content nodes — shared by calcPageLength and calcContentLinesRaw.
+function countLines(content: any): number {
+  return calcContentLinesPerBlock(content).reduce((a, b) => a + b, 0)
 }
 
 export function calcPageLength(content: any, seitenformat: 'a4' | 'letter' = 'a4'): number {

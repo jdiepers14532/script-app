@@ -26,15 +26,19 @@ export function findSceneWrappers(doc: Document): Map<string, Element> {
   return map
 }
 
-// [data-block-index]-Blöcke eines Szenen-Wrappers → SzeneBlock[] (+ Element-Map für Range-Aufbau).
-function blocksOf(wrapper: Element): { blocks: SzeneBlock[]; elems: Map<number, Element> } {
+// Alle [data-block-index]-Blöcke EINER Szene → SzeneBlock[] (+ Element-Map für Range-Aufbau).
+// Eine Szene kann im Lesemodus über mehrere A4-Blätter (.a4-page) verteilt sein — alle tragen
+// dieselbe data-scene-identity-id; deshalb über ALLE Wrapper-Teile sammeln, nicht nur den ersten.
+function collectSceneBlocks(doc: Document, sceneIdentityId: string): { blocks: SzeneBlock[]; elems: Map<number, Element> } {
   const blocks: SzeneBlock[] = []
   const elems = new Map<number, Element>()
-  wrapper.querySelectorAll('[data-block-index]').forEach(el => {
-    const bi = parseInt(el.getAttribute('data-block-index') || '', 10)
-    if (Number.isNaN(bi) || elems.has(bi)) return
-    elems.set(bi, el)
-    blocks.push({ text: el.textContent ?? '', block_index: bi, node_id: el.getAttribute('data-node-id') || null })
+  doc.querySelectorAll(`[data-scene-identity-id="${sceneIdentityId}"]`).forEach(wrapper => {
+    wrapper.querySelectorAll('[data-block-index]').forEach(el => {
+      const bi = parseInt(el.getAttribute('data-block-index') || '', 10)
+      if (Number.isNaN(bi) || elems.has(bi)) return
+      elems.set(bi, el)
+      blocks.push({ text: el.textContent ?? '', block_index: bi, node_id: el.getAttribute('data-node-id') || null })
+    })
   })
   blocks.sort((a, b) => a.block_index - b.block_index)
   return { blocks, elems }
@@ -128,9 +132,8 @@ export interface DomHighlightResult {
 export function highlightAnker(doc: Document, anker: DomAnker): DomHighlightResult {
   const base = { anmerkung_id: anker.anmerkung_id }
   if (!anker.scene_identity_id || !anker.selektor) return { ...base, status: 'verwaist', el: null }
-  const wrapper = findSceneWrappers(doc).get(anker.scene_identity_id)
-  if (!wrapper) return { ...base, status: 'verwaist', el: null }
-  const { blocks, elems } = blocksOf(wrapper)
+  const { blocks, elems } = collectSceneBlocks(doc, anker.scene_identity_id)
+  if (!blocks.length) return { ...base, status: 'verwaist', el: null }
   const r = resolveInScene(blocks, anker.selektor, anker.node_id)
   if (r.anker_status === 'verwaist' || r.block_index == null || !r.position) {
     return { ...base, status: r.anker_status, el: null }
