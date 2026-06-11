@@ -350,7 +350,7 @@ export default function VerteilerTab({ produktionId }: { produktionId: string })
         {assignedProfil && (
           <div style={{ marginTop: 12, padding: 14, background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: 8 }}>
             {[
-              [assignedProfil.wz_zwc_aktiv, 'ZWC-Wasserzeichen (forensisch, je Empfänger)'],
+              [true, 'ZWC-Wasserzeichen (forensisch, je Empfänger) — immer aktiv'],
               [assignedProfil.wz_sichtbar_aktiv, `Sichtbares Wasserzeichen (${assignedProfil.wz_sichtbar_position})`],
               [assignedProfil.struktur_quelle === 'aktueller_export', 'Dokumentenstruktur aus aktuellem PDF-Export'],
               [assignedProfil.lesezeichen_aktiv, `PDF-Lesezeichen (${assignedProfil.lesezeichen_ebene})`],
@@ -553,7 +553,13 @@ function ProfilEditModal({ profil, produktionId, werkstufeTyp, onClose, onSaved 
           />
 
           <div style={{ ...h2Style, marginTop: 18 }}>Wasserzeichen</div>
-          {toggle('wz_zwc_aktiv', 'ZWC-Wasserzeichen (forensisch, je Empfänger)')}
+          {/* ZWC ist forensisch & sicherheitskritisch → immer aktiv, nicht abschaltbar */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', color: 'var(--text-primary)' }}>
+            <span style={{ width: 20, height: 20, borderRadius: 4, background: '#00C853', color: '#fff', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>✓</span>
+            <span>ZWC-Wasserzeichen (forensisch, je Empfänger)</span>
+            <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)', display: 'inline-flex', alignItems: 'center', gap: 3 }}>🔒 immer aktiv</span>
+          </div>
+          <div style={hint}>Der forensische Fingerabdruck wird pro Empfänger unsichtbar eingebettet und kann aus Sicherheitsgründen nicht deaktiviert werden.</div>
           {toggle('wz_sichtbar_aktiv', 'Sichtbares Wasserzeichen (auf jeder Seite)')}
           {row('Position', <select style={inputStyle} value={p.wz_sichtbar_position} onChange={e => set('wz_sichtbar_position', e.target.value)}>
             {['kopf', 'fuss', 'kopf_fuss', 'diagonal', 'kopf_fuss_diagonal'].map(o => <option key={o} value={o}>{o}</option>)}

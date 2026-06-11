@@ -92,13 +92,6 @@ async function stampVisibleWatermark(
   return Buffer.from(await doc.save())
 }
 
-/** Entfernt das ZWC-Keywords-Feld (nur wenn Profil ZWC ausdrücklich deaktiviert). */
-async function stripZwcKeywords(bytes: Uint8Array): Promise<Buffer> {
-  const doc = await PDFDocument.load(bytes)
-  doc.setKeywords([])
-  return Buffer.from(await doc.save())
-}
-
 export async function generateVerteilerPdf(ctx: VerteilerPdfCtx): Promise<Buffer> {
   const profil = ctx.profil || {}
 
@@ -122,10 +115,10 @@ export async function generateVerteilerPdf(ctx: VerteilerPdfCtx): Promise<Buffer
     { werkstufId: ctx.werkstufeId, userId: ctx.correlationId, userName: ctx.name || ctx.email, options },
     () => {}
   )
+  // ZWC (forensischer Fingerabdruck je Empfänger) ist sicherheitskritisch und
+  // IMMER eingebettet — nicht abschaltbar. assemblePdf bettet es über userId ein;
+  // hier wird es bewusst NICHT mehr entfernt.
   let bytes: Buffer = res.buffer
-
-  // ZWC-Toggle aus Profil (assemblePdf bettet immer ein → ggf. wieder entfernen)
-  if (profil.wz_zwc_aktiv === false) bytes = await stripZwcKeywords(bytes)
 
   // Sichtbares Wasserzeichen laut Profil — auf JEDER Seite
   if (profil.wz_sichtbar_aktiv !== false) {

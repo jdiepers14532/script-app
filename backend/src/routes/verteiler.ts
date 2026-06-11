@@ -388,7 +388,8 @@ pdfExportProfilRouter.get('/:id', async (req, res) => {
 // PUT /api/pdf-export-profil/:id — nur das Aussehen (Sides/Revision schneiden zur Generierzeit)
 const PROFIL_FELDER = [
   'name', 'ist_standard',
-  'wz_zwc_aktiv', 'wz_sichtbar_aktiv', 'wz_sichtbar_position', 'wz_sichtbar_inhalt',
+  // wz_zwc_aktiv bewusst NICHT änderbar: forensischer ZWC (je Empfänger) ist immer aktiv.
+  'wz_sichtbar_aktiv', 'wz_sichtbar_position', 'wz_sichtbar_inhalt',
   'wz_sichtbar_opacity', 'wz_sichtbar_groesse',
   'struktur_quelle', 'kopf_fuss_vorlage_id', 'titelblatt',
   'szenen_nummerierung', 'seiten_nummerierung',
