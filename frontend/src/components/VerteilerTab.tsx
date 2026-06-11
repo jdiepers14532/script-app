@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { api } from '../api/client'
 import Tooltip from './Tooltip'
+import { PdfLayoutConfig, type PdfLayoutValue } from '../sw-ui'
 
 // DK-Settings „Verteiler" — Konfigurationsmaske gegen die Verteiler-Endpoints (Schritt 2).
 // Zweispaltig (Liste + Detailformular), Tablet/Touch-tauglich. Veröffentlichen = Schritt 5.
@@ -400,7 +401,9 @@ export default function VerteilerTab({ produktionId }: { produktionId: string })
         {showList && ListPanel}
         {showDetail && (detail ? DetailPanel : <div style={{ ...card, flex: 1, padding: 40, color: 'var(--text-secondary)', textAlign: 'center' }}>Wähle links einen Verteiler oder lege einen neuen an.</div>)}
       </div>
-      {profilEdit && <ProfilEditModal profil={profilEdit} onClose={() => setProfilEdit(null)} onSaved={async () => { const p = await api.getPdfProfile(produktionId); setProfile(p || []); setProfilEdit(null) }} />}
+      {profilEdit && <ProfilEditModal profil={profilEdit} produktionId={produktionId} werkstufeTyp={form.werkstufe_typ}
+        onClose={() => setProfilEdit(null)}
+        onSaved={async () => { const p = await api.getPdfProfile(produktionId); setProfile(p || []); setProfilEdit(null) }} />}
       {freieEmailOpen && <FreieEmailModal onConfirm={confirmFreieEmail} onClose={() => setFreieEmailOpen(false)} />}
       {kontaktSuche && <KontaktSucheModal produktionId={produktionId} mode={kontaktSuche.mode} onPick={onKontaktPick} onClose={() => setKontaktSuche(null)} />}
       {rollenPicker && (
@@ -416,28 +419,108 @@ const th: React.CSSProperties = { textAlign: 'left', padding: '10px 8px', border
 const td: React.CSSProperties = { textAlign: 'left', padding: '10px 8px', borderBottom: '1px solid var(--border)', verticalAlign: 'middle' }
 const noteBox: React.CSSProperties = { display: 'flex', gap: 8, padding: '10px 12px', background: '#FFF7E0', border: '1px solid #F2D98A', borderRadius: 8, fontSize: 12, color: '#7a5d00', marginTop: 10 }
 
+// ── Mapping pdf_export_profil-Row ↔ PdfLayoutValue (geteilte Komponente) ───────
+const STRUKTUR_TYPE_LABEL: Record<string, string> = {
+  titelseite: 'Titelseite', statistik: 'Statistik', onliner: 'Onliner',
+  synopse: 'Synopsen', fsk: 'FSK & Inhaltskennzeichnung',
+}
+function profilToLayout(p: any): PdfLayoutValue {
+  const sj = (p.struktur_json && typeof p.struktur_json === 'object') ? p.struktur_json : {}
+  const mk = (arr: any[], zone: 'pre' | 'post') => (arr || []).map((it: any, i: number) => ({
+    key: `${zone}-${it.type}-${i}`, type: it.type, label: STRUKTUR_TYPE_LABEL[it.type] || it.type,
+    enabled: it.enabled !== false, zone, configurable: false,
+  }))
+  return {
+    items: [...mk(sj.preItems, 'pre'), ...mk(sj.postItems, 'post')],
+    szenenAktiv: sj.szenenAktiv !== false,
+    bookmarks: p.lesezeichen_aktiv !== false,
+    orientation: p.pdf_orientation === 'landscape' ? 'landscape' : 'portrait',
+    kzFzModus: (p.kz_fz_modus || 'standard'),
+    fzText: p.fz_text || '',
+    lesezeichenEbene: p.lesezeichen_ebene || 'szene',
+    lesezeichenLabel: p.lesezeichen_label || '',
+    titelblatt: !!p.titelblatt,
+    szenenNummerierung: !!p.szenen_nummerierung,
+    seitenNummerierung: !!p.seiten_nummerierung,
+  }
+}
+function applyLayout(p: any, v: PdfLayoutValue): any {
+  const slot = (it: any) => ({ type: it.type, enabled: it.enabled })
+  return {
+    ...p,
+    struktur_json: {
+      preItems: v.items.filter(i => i.zone === 'pre').map(slot),
+      postItems: v.items.filter(i => i.zone === 'post').map(slot),
+      szenenAktiv: v.szenenAktiv,
+    },
+    struktur_quelle: 'eigenes',   // Profil trägt jetzt seine eigene Struktur
+    lesezeichen_aktiv: v.bookmarks,
+    pdf_orientation: v.orientation,
+    kz_fz_modus: v.kzFzModus,
+    fz_text: v.fzText,
+    lesezeichen_ebene: v.lesezeichenEbene,
+    lesezeichen_label: v.lesezeichenLabel,
+    titelblatt: v.items.some(i => i.type === 'titelseite' && i.enabled),
+    szenen_nummerierung: v.szenenNummerierung,
+    seiten_nummerierung: v.seitenNummerierung,
+  }
+}
+
 // ── PDF-Profil-Editor (Aussehen; schreibt pdf_export_profil) ──────────────────
-function ProfilEditModal({ profil, onClose, onSaved }: { profil: any; onClose: () => void; onSaved: () => void }) {
+function ProfilEditModal({ profil, produktionId, werkstufeTyp, onClose, onSaved }: {
+  profil: any; produktionId: string; werkstufeTyp?: string | null; onClose: () => void; onSaved: () => void
+}) {
   const [p, setP] = useState<any>({ ...profil })
   const [saving, setSaving] = useState(false)
+  const [previewing, setPreviewing] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [info, setInfo] = useState<string | null>(null)
   const set = (k: string, v: any) => setP((x: any) => ({ ...x, [k]: v }))
+
+  function persist() {
+    return api.updatePdfProfil(p.id, {
+      name: p.name, ist_standard: p.ist_standard,
+      wz_zwc_aktiv: p.wz_zwc_aktiv, wz_sichtbar_aktiv: p.wz_sichtbar_aktiv,
+      wz_sichtbar_position: p.wz_sichtbar_position, wz_sichtbar_inhalt: p.wz_sichtbar_inhalt,
+      wz_sichtbar_opacity: p.wz_sichtbar_opacity, wz_sichtbar_groesse: p.wz_sichtbar_groesse,
+      struktur_quelle: p.struktur_quelle, titelblatt: p.titelblatt,
+      szenen_nummerierung: p.szenen_nummerierung, seiten_nummerierung: p.seiten_nummerierung,
+      lesezeichen_aktiv: p.lesezeichen_aktiv, lesezeichen_ebene: p.lesezeichen_ebene, lesezeichen_label: p.lesezeichen_label,
+      revisions_stil: p.revisions_stil,
+      struktur_json: p.struktur_json, pdf_orientation: p.pdf_orientation, kz_fz_modus: p.kz_fz_modus, fz_text: p.fz_text,
+    })
+  }
 
   async function save() {
     setSaving(true); setErr(null)
+    try { await persist(); onSaved() }
+    catch (e: any) { setErr(String(e?.message || e)); setSaving(false) }
+  }
+
+  // Live-Vorschau über den echten Renderer (gegen die Trigger-Werkstufe).
+  // Fenster SYNCHRON öffnen (User-Gesture) — sonst Popup-Blocker nach await.
+  async function preview() {
+    setErr(null); setInfo(null)
+    const win = window.open('', '_blank')
+    if (win) win.document.write('<html><body style="margin:0;background:#555;height:100vh;display:flex;align-items:center;justify-content:center;color:#fff;font-family:sans-serif;font-size:14px">PDF-Vorschau wird generiert…</body></html>')
+    setPreviewing(true)
     try {
-      await api.updatePdfProfil(p.id, {
-        name: p.name, ist_standard: p.ist_standard,
-        wz_zwc_aktiv: p.wz_zwc_aktiv, wz_sichtbar_aktiv: p.wz_sichtbar_aktiv,
-        wz_sichtbar_position: p.wz_sichtbar_position, wz_sichtbar_inhalt: p.wz_sichtbar_inhalt,
-        wz_sichtbar_opacity: p.wz_sichtbar_opacity, wz_sichtbar_groesse: p.wz_sichtbar_groesse,
-        struktur_quelle: p.struktur_quelle, titelblatt: p.titelblatt,
-        szenen_nummerierung: p.szenen_nummerierung, seiten_nummerierung: p.seiten_nummerierung,
-        lesezeichen_aktiv: p.lesezeichen_aktiv, lesezeichen_ebene: p.lesezeichen_ebene, lesezeichen_label: p.lesezeichen_label,
-        revisions_stil: p.revisions_stil,
+      await persist()  // Vorschau spiegelt den gespeicherten Stand
+      const res = await fetch(`/api/pdf-export-profil/${p.id}/preview`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, credentials: 'include',
+        body: JSON.stringify({ produktion_id: produktionId, werkstufe_typ: werkstufeTyp || null }),
       })
-      onSaved()
-    } catch (e: any) { setErr(String(e?.message || e)); setSaving(false) }
+      if (!res.ok) { const e = await res.json().catch(() => ({ error: 'Vorschau fehlgeschlagen' })); throw new Error(e.error || 'Vorschau fehlgeschlagen') }
+      const skipped = res.headers.get('X-Preview-Skipped')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      if (win) win.location.href = url; else window.open(url, '_blank')
+      setTimeout(() => URL.revokeObjectURL(url), 120000)
+      if (skipped) setInfo('In der Vorschau noch nicht enthalten: ' + decodeURIComponent(skipped))
+    } catch (e: any) {
+      if (win) win.close()
+      setErr(String(e?.message || e))
+    } finally { setPreviewing(false) }
   }
 
   const row = (lbl: string, node: React.ReactNode) => (
@@ -458,9 +541,18 @@ function ProfilEditModal({ profil, onClose, onSaved }: { profil: any; onClose: (
         </div>
         <div style={{ padding: 20, maxHeight: '70vh', overflowY: 'auto' }}>
           {err && <div style={{ marginBottom: 12, color: '#FF3B30', fontSize: 13 }}>{err}</div>}
+          {info && <div style={{ marginBottom: 12, padding: '8px 10px', background: '#FFF7E0', border: '1px solid #F2D98A', borderRadius: 8, color: '#7a5d00', fontSize: 12 }}>{info}</div>}
           {row('Name', <input style={inputStyle} value={p.name || ''} onChange={e => set('name', e.target.value)} />)}
           {toggle('ist_standard', 'Standard-Profil dieser Produktion')}
-          <div style={{ ...h2Style, marginTop: 14 }}>Wasserzeichen</div>
+
+          <div style={{ ...h2Style, marginTop: 14 }}>Struktur & Layout</div>
+          <PdfLayoutConfig
+            value={profilToLayout(p)}
+            onChange={v => setP(applyLayout(p, v))}
+            show={{ structure: true, bookmarks: true, bookmarksDetail: true, pageLayout: true, headerFooter: true, numbering: true }}
+          />
+
+          <div style={{ ...h2Style, marginTop: 18 }}>Wasserzeichen</div>
           {toggle('wz_zwc_aktiv', 'ZWC-Wasserzeichen (forensisch, je Empfänger)')}
           {toggle('wz_sichtbar_aktiv', 'Sichtbares Wasserzeichen (auf jeder Seite)')}
           {row('Position', <select style={inputStyle} value={p.wz_sichtbar_position} onChange={e => set('wz_sichtbar_position', e.target.value)}>
@@ -474,19 +566,16 @@ function ProfilEditModal({ profil, onClose, onSaved }: { profil: any; onClose: (
             <div style={{ flex: 1 }}>{row('Opazität (%)', <input type="number" min={0} max={100} style={inputStyle} value={p.wz_sichtbar_opacity ?? 20} onChange={e => set('wz_sichtbar_opacity', Number(e.target.value))} />)}</div>
             <div style={{ flex: 1 }}>{row('Größe', <select style={inputStyle} value={p.wz_sichtbar_groesse} onChange={e => set('wz_sichtbar_groesse', e.target.value)}>{['klein', 'mittel', 'gross'].map(o => <option key={o} value={o}>{o}</option>)}</select>)}</div>
           </div>
-          <div style={{ ...h2Style, marginTop: 14 }}>Struktur & Lesezeichen</div>
-          {row('Struktur-Quelle', <select style={inputStyle} value={p.struktur_quelle} onChange={e => set('struktur_quelle', e.target.value)}>{['aktueller_export', 'eigenes'].map(o => <option key={o} value={o}>{o}</option>)}</select>)}
-          {toggle('titelblatt', 'Titelblatt')}
-          {toggle('szenen_nummerierung', 'Szenen-Nummerierung')}
-          {toggle('seiten_nummerierung', 'Seiten-Nummerierung')}
-          {toggle('lesezeichen_aktiv', 'PDF-Lesezeichen (Outline)')}
-          {row('Lesezeichen-Ebene', <select style={inputStyle} value={p.lesezeichen_ebene} onChange={e => set('lesezeichen_ebene', e.target.value)}>{['szene', 'akt_szene', 'strang_szene'].map(o => <option key={o} value={o}>{o}</option>)}</select>)}
-          {row('Lesezeichen-Label', <input style={inputStyle} value={p.lesezeichen_label || ''} onChange={e => set('lesezeichen_label', e.target.value)} />)}
+
+          <div style={{ ...h2Style, marginTop: 14 }}>Revision</div>
           {row('Revisions-Darstellung', <select style={inputStyle} value={p.revisions_stil} onChange={e => set('revisions_stil', e.target.value)}>{['asterisk', 'farbseite', 'beides'].map(o => <option key={o} value={o}>{o}</option>)}</select>)}
         </div>
-        <div style={{ padding: '16px 20px', display: 'flex', justifyContent: 'flex-end', gap: 10, background: 'var(--bg-surface)', borderRadius: '0 0 12px 12px' }}>
-          <button style={btn} onClick={onClose}>Abbrechen</button>
-          <button style={btnPrimary} onClick={save} disabled={saving}>{saving ? 'Speichert…' : 'Speichern'}</button>
+        <div style={{ padding: '16px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, background: 'var(--bg-surface)', borderRadius: '0 0 12px 12px' }}>
+          <button style={btn} onClick={preview} disabled={previewing || saving}>{previewing ? 'Vorschau…' : '👁 Vorschau'}</button>
+          <div style={{ display: 'flex', gap: 10 }}>
+            <button style={btn} onClick={onClose}>Abbrechen</button>
+            <button style={btnPrimary} onClick={save} disabled={saving}>{saving ? 'Speichert…' : 'Speichern'}</button>
+          </div>
         </div>
       </div>
     </div>

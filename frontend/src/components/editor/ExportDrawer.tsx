@@ -198,6 +198,13 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
   const [bloeckeForStat, setBloeckeForStat]         = useState<any[]>([])
   const [statSections]                              = useState<StatModalSection[]>(DEFAULT_SECTIONS)
 
+  // PDF-Export-Profil (Phase 4): Brücke zum Verteiler-Profil (Single Source of Truth).
+  // Explizit: „Aus Profil übernehmen" lädt Struktur/Layout in den Drawer,
+  // „In Profil speichern" schreibt die Profil-relevante Teilmenge zurück.
+  const [profileList, setProfileList]               = useState<any[]>([])
+  const [selectedProfilId, setSelectedProfilId]     = useState<string>('')
+  const [profilMsg, setProfilMsg]                   = useState<string | null>(null)
+
   // DnD
   const dragItemRef      = useRef<{ id: string; zone: 'pre' | 'post' } | null>(null)
   const [dragOverZone, setDragOverZone] = useState<'pre' | 'post' | null>(null)
@@ -316,6 +323,15 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
       .then((data: any) => { if (data?.datumsformat === 'en') setDatumsformat('en') })
       .catch(() => {})
   }, [isOpen, selectedWerk?.id])
+
+  // PDF-Export-Profile der Produktion laden (Phase 4)
+  useEffect(() => {
+    if (!isOpen || !produktionId) return
+    setProfilMsg(null)
+    api.getPdfProfile(produktionId)
+      .then((p: any[]) => { setProfileList(p || []); setSelectedProfilId(prev => prev || (p?.[0]?.id ?? '')) })
+      .catch(() => setProfileList([]))
+  }, [isOpen, produktionId])
 
   // Polling beim Schließen NICHT stoppen — Hintergrund-Export läuft weiter
 
@@ -456,6 +472,95 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
       }
       return next
     })
+  }
+
+  // ── PDF-Export-Profil ↔ Drawer (Phase 4) ─────────────────────────────────────
+
+  // Statistik/Onliner/Synopse-Item-Config für die aktuelle Folge bauen (wie der
+  // Auto-Pfad beim Öffnen). Block-Modus ist nur per StatistikModal konfigurierbar
+  // → hier enabled ohne Config (User konfiguriert dann manuell), analog Bestand.
+  const buildStatConfigFor = useCallback((
+    type: 'statistik' | 'onliner' | 'synopse', enabled: boolean, mode?: 'folge' | 'block'
+  ): Partial<ExportItem> => {
+    if (!enabled) return { enabled: false, statistikConfig: undefined }
+    const folgeId = selectedWerk?.folge_id
+    if (folgeId && (mode === 'folge' || !mode)) {
+      const prefix = type === 'onliner' ? 'Onliner' : type === 'synopse' ? 'Synopsen' : 'Statistik'
+      return {
+        enabled: true, label: `${prefix} Folge ${folgeNummer}`,
+        statistikConfig: {
+          folge_ids: [folgeId], folge_nummer: folgeNummer ?? undefined as any, mode: 'folge',
+          sections: DEFAULT_SECTIONS.map((s: StatModalSection) => s.id), includedSceneNumbers: null,
+        },
+      }
+    }
+    return { enabled: true }
+  }, [selectedWerk?.folge_id, folgeNummer])
+
+  // Profil → Drawer: Layout + Enabled/Mode der TYP-Elemente übernehmen.
+  // Konkrete Notiz-Werkstufen/-Szenen bleiben unberührt (folge-spezifisch).
+  function applyProfilToDrawer(profil: any) {
+    if (!profil) return
+    setPdfOrientation(profil.pdf_orientation === 'landscape' ? 'landscape' : 'portrait')
+    setKzFzModus(['standard', 'kz', 'fz', 'keine'].includes(profil.kz_fz_modus) ? profil.kz_fz_modus : 'standard')
+    setFzText(profil.fz_text || '')
+    setPdfBookmarks(profil.lesezeichen_aktiv !== false)
+    const sj: any = (profil.struktur_json && typeof profil.struktur_json === 'object') ? profil.struktur_json : {}
+    setSzenenAktiv(sj.szenenAktiv !== false)
+    const slotMap = new Map<string, { enabled: boolean; mode?: 'folge' | 'block' }>()
+    for (const s of [...(sj.preItems || []), ...(sj.postItems || [])]) {
+      if (s && s.type) slotMap.set(s.type, { enabled: s.enabled !== false, mode: s.mode })
+    }
+    const applyToList = (list: ExportItem[]) => list.map(it => {
+      if (it.type === 'notiz' && it.vorlageId) {           // Titelseite
+        const slot = slotMap.get('titelseite')
+        return slot ? { ...it, enabled: slot.enabled } : it
+      }
+      if (it.type === 'statistik' || it.type === 'onliner' || it.type === 'synopse') {
+        const slot = slotMap.get(it.type)
+        return slot ? { ...it, ...buildStatConfigFor(it.type, slot.enabled, slot.mode) } : it
+      }
+      if (it.type === 'fsk') {
+        const slot = slotMap.get('fsk')
+        return slot ? { ...it, enabled: slot.enabled } : it
+      }
+      return it                                            // Notiz-Werkstufen/-Szenen: unverändert
+    })
+    setPreItems(prev => applyToList(prev))
+    setPostItems(prev => applyToList(prev))
+    setProfilMsg('Aus Profil übernommen')
+  }
+
+  // Drawer → Profil: Profil-relevante Teilmenge (Struktur-TYPEN + Layout) zurückschreiben.
+  async function saveDrawerToProfil() {
+    if (!selectedProfilId) return
+    const toSlots = (list: ExportItem[]) => {
+      const slots: any[] = []
+      let titelseiteDone = false
+      for (const it of list) {
+        if (it.type === 'notiz' && it.vorlageId) {
+          if (!titelseiteDone) { slots.push({ type: 'titelseite', enabled: it.enabled }); titelseiteDone = true }
+        } else if (it.type === 'statistik' || it.type === 'onliner' || it.type === 'synopse') {
+          slots.push({ type: it.type, enabled: it.enabled, mode: it.statistikConfig?.mode || 'folge' })
+        } else if (it.type === 'fsk') {
+          slots.push({ type: 'fsk', enabled: it.enabled })
+        }
+        // Notiz-Werkstufen/-Szenen: NICHT ins Profil (folge-spezifisch)
+      }
+      return slots
+    }
+    const struktur_json = { preItems: toSlots(preItems), szenenAktiv, postItems: toSlots(postItems) }
+    setProfilMsg('Speichere …')
+    try {
+      await api.updatePdfProfil(selectedProfilId, {
+        struktur_json, pdf_orientation: pdfOrientation, kz_fz_modus: kzFzModus,
+        fz_text: fzText, lesezeichen_aktiv: pdfBookmarks, struktur_quelle: 'eigenes',
+      })
+      setProfilMsg('In Profil gespeichert ✓')
+      api.getPdfProfile(produktionId).then((p: any[]) => setProfileList(p || [])).catch(() => {})
+    } catch {
+      setProfilMsg('Speichern fehlgeschlagen')
+    }
   }
 
   // ── Export starten ──────────────────────────────────────────────────────────
@@ -821,6 +926,33 @@ export default function ExportDrawer({ isOpen, onClose, selectedWerk, werkstufen
             <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0 }}>Keine Werkstufe ausgewählt.</p>
           ) : (
             <>
+          {/* ── PDF-Export-Profil-Brücke (Phase 4) — nur PDF ── */}
+          {format === 'pdf' && profileList.length > 0 && (
+            <div style={{
+              border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px',
+              marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap',
+            }}>
+              <span style={{ ...SEC, marginBottom: 0 }}>Profil</span>
+              <select
+                value={selectedProfilId}
+                onChange={e => { setSelectedProfilId(e.target.value); setProfilMsg(null) }}
+                style={{ fontSize: 12, padding: '3px 6px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-surface)', color: 'var(--text-primary)', fontFamily: 'inherit' }}
+              >
+                {profileList.map(p => <option key={p.id} value={p.id}>{p.name || 'Profil'}</option>)}
+              </select>
+              <button
+                onClick={() => applyProfilToDrawer(profileList.find(p => p.id === selectedProfilId))}
+                disabled={!selectedProfilId}
+                style={{ fontSize: 11, padding: '3px 9px', borderRadius: 6, border: '1px solid var(--border)', background: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+              ><BookOpen size={12} /> Aus Profil übernehmen</button>
+              <button
+                onClick={saveDrawerToProfil}
+                disabled={!selectedProfilId}
+                style={{ fontSize: 11, padding: '3px 9px', borderRadius: 6, border: '1px solid var(--border)', background: 'none', cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+              ><Save size={12} /> In Profil speichern</button>
+              {profilMsg && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{profilMsg}</span>}
+            </div>
+          )}
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
 
               {/* ── Linke Spalte: Dokumentstruktur ── */}

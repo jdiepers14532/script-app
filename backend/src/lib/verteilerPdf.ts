@@ -13,6 +13,7 @@
  */
 import { PDFDocument, StandardFonts, rgb, degrees } from 'pdf-lib'
 import { assemblePdf } from '../utils/pdfAssembler'
+import { resolveProfilExportOptions } from './pdfProfilResolver'
 import { pool } from '../db'
 
 export interface VerteilerPdfCtx {
@@ -101,9 +102,15 @@ async function stripZwcKeywords(bytes: Uint8Array): Promise<Buffer> {
 export async function generateVerteilerPdf(ctx: VerteilerPdfCtx): Promise<Buffer> {
   const profil = ctx.profil || {}
 
-  const options: any = {
-    hauptinhaltAktiv: true,
-    pdfBookmarks: profil.lesezeichen_aktiv ?? true,
+  // Profil-Struktur (Titelseite/Statistik/Onliner/Synopse/FSK + Layout) über den
+  // GETEILTEN Resolver — exakt dasselbe Ergebnis wie die Live-Vorschau im Profil-Editor.
+  // Ohne Profil: minimaler Default (nur Hauptinhalt + Lesezeichen).
+  let options: any
+  if (ctx.profil) {
+    const resolved = await resolveProfilExportOptions(ctx.profil, ctx.werkstufeId)
+    options = resolved.options
+  } else {
+    options = { hauptinhaltAktiv: true, pdfBookmarks: true }
   }
   // Sides-Filter: nur Szenen der Snapshot-Figuren (über bestehende szenenAuswahl)
   if (ctx.sidesFiguren && ctx.sidesFiguren.length) {

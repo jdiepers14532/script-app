@@ -13,6 +13,8 @@
 import { Router, Request, Response, NextFunction } from 'express'
 import { pool, query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
+import { assemblePdf } from '../utils/pdfAssembler'
+import { resolveProfilExportOptions } from '../lib/pdfProfilResolver'
 import {
   generateToken, portalLink, tokenAblauf,
   resolveKontaktEmail, resolveBesetzung, deriveAnzeigeStatus,
@@ -392,6 +394,8 @@ const PROFIL_FELDER = [
   'szenen_nummerierung', 'seiten_nummerierung',
   'lesezeichen_aktiv', 'lesezeichen_ebene', 'lesezeichen_label',
   'revisions_stil',
+  // v209: Struktur/Layout als Profil-Vorlage
+  'struktur_json', 'pdf_orientation', 'kz_fz_modus', 'fz_text',
 ] as const
 pdfExportProfilRouter.put('/:id', async (req, res) => {
   const client = await pool.connect()
@@ -437,6 +441,45 @@ pdfExportProfilRouter.delete('/:id', async (req, res) => {
     res.status(204).send()
   } catch (err) {
     res.status(500).json({ error: String(err) })
+  }
+})
+
+// Resolver „PDF-Profil → assemblePdf-Optionen" liegt jetzt geteilt in
+// ../lib/pdfProfilResolver (Phase 5) — genutzt von Vorschau UND echtem Versand.
+
+// POST /api/pdf-export-profil/:id/preview — Live-PDF-Vorschau gegen die Trigger-Werkstufe.
+// Body: { produktion_id, werkstufe_typ? } — neueste Werkstufe dieses Typs (Fallback:
+// neueste der Produktion); rendert das Profil über den echten Renderer (assemblePdf).
+pdfExportProfilRouter.post('/:id/preview', async (req, res) => {
+  const { produktion_id, werkstufe_typ } = req.body || {}
+  if (!produktion_id) return res.status(400).json({ error: 'produktion_id erforderlich' })
+  try {
+    const profil = await queryOne(`SELECT * FROM pdf_export_profil WHERE id = $1`, [req.params.id])
+    if (!profil) return res.status(404).json({ error: 'PDF-Profil nicht gefunden' })
+
+    const wsRows = await query(
+      `SELECT w.id FROM werkstufen w JOIN folgen f ON f.id = w.folge_id
+       WHERE f.produktion_id = $1
+       ORDER BY ($2::text IS NOT NULL AND w.label = $2) DESC, w.version_nummer DESC NULLS LAST, w.id DESC
+       LIMIT 1`,
+      [produktion_id, werkstufe_typ ?? null]
+    )
+    const werkstufId = wsRows[0]?.id
+    if (!werkstufId) return res.status(404).json({ error: 'Keine Werkstufe in dieser Produktion für die Vorschau gefunden' })
+
+    // Geteilter Resolver — identisch zum echten Versand (generateVerteilerPdf).
+    const { options, skipped } = await resolveProfilExportOptions(profil, werkstufId)
+
+    const user = req.user!
+    const result = await assemblePdf({ werkstufId, userId: user.user_id, userName: user.name, options }, () => {})
+
+    if (skipped.length) res.setHeader('X-Preview-Skipped', encodeURIComponent(skipped.join(', ')))
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', 'inline')
+    res.setHeader('Cache-Control', 'no-store')
+    res.send(result.buffer)
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message ?? 'Profil-Vorschau fehlgeschlagen' })
   }
 })
 

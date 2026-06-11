@@ -553,6 +553,8 @@ async function runMigrations() {
     'v207_verteiler_kontakt_id_text.sql',
     // Verteiler 4b-2: per-Mitglied Sides-Rollenauswahl (sides_character_ids)
     'v208_verteiler_sides_character_ids.sql',
+    // PDF-Profil: Struktur-/Layout-Felder (Profil als Single Source of Truth)
+    'v209_pdf_profil_struktur_layout.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)
