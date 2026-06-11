@@ -64,6 +64,7 @@ export function buildShortcutGroups(
         { keys: 'Esc', desc: 'Fokus-Modus / Dialog verlassen' },
         { keys: label('viewSettings'), desc: 'Ansichts-Einstellungen' },
         { keys: label('toggleLeseModus'), desc: 'Bearbeiten ↔ Lesen / Anmerken' },
+        { keys: label('toggleAnnotationPanel'), desc: 'Anmerkungs-Panel ein/aus' },
         { keys: `${mod}+H`, desc: 'Suchen & Ersetzen' },
       ],
     },

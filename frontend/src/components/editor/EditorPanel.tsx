@@ -24,7 +24,7 @@ import PlatzhalterSzenenDialog from '../PlatzhalterSzenenDialog'
 import ExportDrawer from './ExportDrawer'
 import UeberschreibWarnungModal from '../UeberschreibWarnungModal'
 import { AnnotationProvider } from '../../contexts/AnnotationContext'
-import { AnnotationPanel } from '../anmerkungen/AnnotationPanel'
+import { AnnotationDock } from '../anmerkungen/AnnotationDock'
 
 interface Props {
   produktionId: string
@@ -1274,11 +1274,7 @@ export default function EditorPanel({
           </Suspense>
         )}
         </div>
-        {showAnnotationPanel && (
-          <div style={{ width: 320, flexShrink: 0, overflow: 'hidden' }}>
-            <AnnotationPanel />
-          </div>
-        )}
+        {showAnnotationPanel && <AnnotationDock />}
       </div>
 
       {/* Überschreibschutz-Warnung */}

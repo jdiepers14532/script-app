@@ -126,6 +126,8 @@ export const DEFAULT_TWEAKS: TweakState = {
   cheatSheetView: 'liste',
   leseModus: false,
   anmerkenModus: false,
+  showAnnotationPanel: true,
+  annotationPanelWidth: 320,
 }
 
 function resolvePalette(tweaks: TweakState, mode: 'light' | 'dark'): BgPalette {
@@ -678,6 +680,8 @@ export default function AppShell({
           cheatSheetView: (['liste', 'grafik'] as const).includes(s.cheatSheetView) ? s.cheatSheetView : 'liste',
           // anmerkenModus persistent (letzter Zustand); leseModus bewusst NICHT laden (startet in Bearbeiten)
           anmerkenModus: typeof s.anmerkenModus === 'boolean' ? s.anmerkenModus : false,
+          showAnnotationPanel: typeof s.showAnnotationPanel === 'boolean' ? s.showAnnotationPanel : true,
+          annotationPanelWidth: typeof s.annotationPanelWidth === 'number' ? s.annotationPanelWidth : 320,
         }))
       }
     }).catch(() => {}).finally(() => {
@@ -725,6 +729,9 @@ export default function AppShell({
       } else if (matchesShortcut('toggleLeseModus', e)) {
         e.preventDefault()
         setTweaks(t => ({ ...t, leseModus: !t.leseModus }))  // Bearbeiten ↔ Lesen/Anmerken
+      } else if (matchesShortcut('toggleAnnotationPanel', e)) {
+        e.preventDefault()
+        setTweaks(t => ({ ...t, showAnnotationPanel: !t.showAnnotationPanel }))  // Anmerkungs-Panel ein/aus
       }
     }
     window.addEventListener('keydown', handler)
@@ -1296,6 +1303,7 @@ export default function AppShell({
                   { id: 'act-goto',       group: 'Aktion',  label: 'Gehe zu Szene …',     hint: sc('gotoSzene'),              keywords: 'springen szene nummer', run: () => window.dispatchEvent(new CustomEvent('sw-cmd-goto-szene')) },
                   { id: 'act-ansicht',    group: 'Aktion',  label: 'Ansichts-Einstellungen', hint: sc('viewSettings'),        keywords: 'theme darstellung schrift', run: () => setAnsichtsModalOpen(true) },
                   { id: 'act-lesen',      group: 'Aktion',  label: 'Lese-/Anmerkungs-Modus umschalten', hint: sc('toggleLeseModus'), keywords: 'lesen anmerken bearbeiten vorschau a4', run: () => setTweaks(t => ({ ...t, leseModus: !t.leseModus })) },
+                  { id: 'act-anmerkpanel', group: 'Aktion', label: 'Anmerkungs-Panel ein/aus', hint: sc('toggleAnnotationPanel'), keywords: 'anmerkungen panel ausblenden einblenden', run: () => setTweaks(t => ({ ...t, showAnnotationPanel: !t.showAnnotationPanel })) },
                   { id: 'act-focus',      group: 'Aktion',  label: 'Fokus-Modus',         hint: sc('focusMode'),              keywords: 'konzentriert vollbild', run: () => toggle() },
                   { id: 'act-cheatsheet', group: 'Aktion',  label: 'Tastenkürzel-Übersicht', hint: '?',                       keywords: 'shortcuts hilfe', run: () => setCheatSheetOpen(true) },
                   { id: 'ber-script',  group: 'Bereich', label: 'Bereich Script',  hint: sc('bereichScript'), run: () => navigate('/') },

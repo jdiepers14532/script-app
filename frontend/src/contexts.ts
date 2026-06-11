@@ -167,6 +167,10 @@ export interface TweakState {
   leseModus: boolean
   /** Anmerken-Modus (Highlights + Selektion→Anmerken) — letzter Zustand pro User gemerkt */
   anmerkenModus: boolean
+  /** Anmerkungs-Panel sichtbar (an/aus) — Toggle per Button + Alt+I */
+  showAnnotationPanel: boolean
+  /** Breite des Anmerkungs-Panels in px (per Drag an der Trennlinie veränderbar) */
+  annotationPanelWidth: number
 }
 interface TweaksContextType {
   tweaks: TweakState
