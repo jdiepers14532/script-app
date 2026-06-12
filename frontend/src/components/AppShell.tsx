@@ -1766,10 +1766,23 @@ export default function AppShell({
                 notifications.map(n => (
                   <div
                     key={n.id}
+                    onClick={async () => {
+                      // Deeplink (z. B. anmerkung.getaggt): gelesen markieren + zur Stelle springen.
+                      const deeplink = n.payload?.deeplink
+                      if (!deeplink) return
+                      await api.markNotificationRead(n.id).catch(() => {})
+                      if (n.payload?.anmerkung_id) {
+                        // One-Shot-Schlüssel: AnnotationContext aktiviert die Karte nach dem Laden.
+                        try { sessionStorage.setItem('sw-deeplink-anmerkung', String(n.payload.anmerkung_id)) } catch {}
+                      }
+                      // Voll-Navigation: ScriptPage parst Deeplink-Params nur beim Mount.
+                      window.location.assign(deeplink)
+                    }}
                     style={{
                       padding: '11px 16px', borderBottom: '1px solid var(--border-subtle)',
                       background: n.gelesen ? 'transparent' : 'rgba(0,122,255,0.04)',
                       display: 'flex', gap: 10, alignItems: 'flex-start',
+                      cursor: n.payload?.deeplink ? 'pointer' : 'default',
                     }}
                   >
                     {/* Unread dot */}
@@ -1782,7 +1795,8 @@ export default function AppShell({
                       </div>
                     </div>
                     <button
-                      onClick={async () => {
+                      onClick={async (e) => {
+                        e.stopPropagation()
                         await api.deleteNotification(n.id).catch(() => {})
                         const updated = notifications.filter(x => x.id !== n.id)
                         setNotifications(updated)

@@ -5,6 +5,7 @@ import {
   AnkerRow, ResolveResult, resolveContentAnker, resolveKopffeld, KOPFFELD_WHITELIST,
 } from '../utils/reanchor'
 import { istAutorUser, getScriptUsers } from '../utils/scriptUsers'
+import { createNotification } from './notifications'
 
 const TIER1_ROLES = ['superadmin', 'geschaeftsfuehrung', 'herstellungsleitung']
 const STATUS_WERTE = ['offen', 'in_arbeit', 'uebernommen', 'abgelehnt']
@@ -436,9 +437,25 @@ anmerkungenRouter.post('/:id/kommentare', async (req, res) => {
   }
 })
 
-// ── POST /api/anmerkungen/:id/tags — Person-Tagging ────────────────────────────
-// Pro getaggtem User Sichtbarkeits-Gate (kein Leak). Event-/Inbox-Emission folgt in Handoff 5
-// (braucht v197 benachrichtigung) — hier nur die anmerkung_tag-Zeilen.
+// Body (JSONB {text} oder Tiptap-JSON) → Klartext-Auszug für Benachrichtigungen.
+function bodyAuszug(body: any, maxLen = 140): string {
+  let text = ''
+  if (typeof body === 'string') text = body
+  else if (typeof body?.text === 'string') text = body.text
+  else {
+    const parts: string[] = []
+    const walk = (n: any) => { if (typeof n?.text === 'string') parts.push(n.text); (n?.content ?? []).forEach(walk) }
+    walk(body)
+    text = parts.join(' ')
+  }
+  text = text.trim()
+  return text.length > maxLen ? text.slice(0, maxLen - 1) + '…' : text
+}
+
+// ── POST /api/anmerkungen/:id/tags — Person-Tagging + Event-Emission (Handoff 5, Phase 8) ──
+// Pro getaggtem User Sichtbarkeits-Gate (kein Leak). Für jeden NEU getaggten, sichtbaren User
+// eine In-App-Benachrichtigung (script_notifications); payload trägt den stabilen Event-Vertrag
+// (B2) — später konsumiert ihn zusätzlich der zentrale Notification-Dienst, unverändert.
 anmerkungenRouter.post('/:id/tags', async (req, res) => {
   const { user_ids } = req.body
   const user = req.user!
@@ -447,11 +464,34 @@ anmerkungenRouter.post('/:id/tags', async (req, res) => {
   }
   try {
     const row = await queryOne(
-      `SELECT a.werkstufe_id
+      `SELECT an.id, an.quelle, an.body, a.werkstufe_id, a.scene_identity_id
        FROM anmerkung an JOIN anker a ON a.id = an.anker_id WHERE an.id = $1`,
       [req.params.id]
     )
     if (!row) return res.status(404).json({ error: 'Anmerkung nicht gefunden' })
+
+    // Kontext für Event + Deeplink (einmal pro Request, nicht pro User).
+    let kontext: { produktion_id: string; folge_id: number } | null = null
+    let deeplink = '/'
+    let szeneLabel = ''
+    if (row.werkstufe_id) {
+      kontext = await getWerkstufeKontext(row.werkstufe_id)
+      if (row.scene_identity_id) {
+        const szene = await queryOne(
+          `SELECT id, scene_nummer, scene_nummer_suffix FROM dokument_szenen
+           WHERE werkstufe_id = $1 AND scene_identity_id = $2 AND geloescht = false`,
+          [row.werkstufe_id, row.scene_identity_id]
+        )
+        if (szene) {
+          // Bestehender Szenen-Deeplink (?szene=<dokument_szene_uuid>, ScriptPage löst auf);
+          // &anmerkung= aktiviert die Karte im Panel (AnnotationContext).
+          deeplink = `/?szene=${szene.id}&anmerkung=${row.id}`
+          szeneLabel = `Szene ${szene.scene_nummer ?? '?'}${szene.scene_nummer_suffix ?? ''}`
+        }
+      }
+    }
+    const taggerName = (await getScriptUsers().catch(() => []))
+      .find(u => u.id === user.user_id)?.name ?? 'Jemand'
 
     const getaggt: string[] = []
     const uebersprungen: string[] = []
@@ -463,14 +503,36 @@ anmerkungenRouter.post('/:id/tags', async (req, res) => {
         const sichtbar = await darfWerkstufeSehen(row.werkstufe_id, targetId, autorTarget)
         if (!sichtbar) { uebersprungen.push(targetId); continue }
       }
-      await query(
+      const inserted = await query(
         `INSERT INTO anmerkung_tag (anmerkung_id, getaggter_user_id, erstellt_von)
          VALUES ($1, $2, $3)
-         ON CONFLICT (anmerkung_id, getaggter_user_id) DO NOTHING`,
+         ON CONFLICT (anmerkung_id, getaggter_user_id) DO NOTHING
+         RETURNING id`,
         [req.params.id, targetId, user.user_id]
       )
       getaggt.push(targetId)
-      // Handoff 5: hier Event emittieren + benachrichtigung-Zeile (v197) anlegen.
+
+      // Nur bei NEUEM Tag benachrichtigen (Re-Tagging spammt nicht), nie sich selbst.
+      if (inserted.length === 0 || targetId === user.user_id) continue
+      await createNotification({
+        user_id: targetId,
+        typ: 'anmerkung.getaggt',
+        titel: `${taggerName} hat dich in einer Anmerkung getaggt`,
+        nachricht: `${szeneLabel ? szeneLabel + ': ' : ''}${bodyAuszug(row.body)}`,
+        payload: {
+          // Event-Vertrag (Handoff 5 §B2) — stabile Hülle, erweiterbar.
+          typ: 'anmerkung.getaggt',
+          app: 'script',
+          produktion_id: kontext?.produktion_id ?? null,
+          folge_id: kontext?.folge_id ?? null,
+          anmerkung_id: row.id,
+          anker: { werkstufe_id: row.werkstufe_id, scene_identity_id: row.scene_identity_id },
+          von_user_id: user.user_id,
+          an_user_ids: [targetId],
+          deeplink,
+          erstellt_am: new Date().toISOString(),
+        },
+      })
     }
     res.status(201).json({ getaggt, uebersprungen })
   } catch (err) {

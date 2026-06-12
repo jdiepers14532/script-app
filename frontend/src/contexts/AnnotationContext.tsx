@@ -126,6 +126,19 @@ export function AnnotationProvider({
   // Szenenwechsel: aktive Karte zurücksetzen
   useEffect(() => { setActiveAnmerkungId(null) }, [sceneIdentityId, werkstufeId])
 
+  // Inbox-Deeplink (Phase 8): AppShell legt vor der Navigation eine One-Shot-Anmerkungs-ID in
+  // sessionStorage — sobald die Items geladen sind und die Karte dabei ist, aktivieren + räumen.
+  useEffect(() => {
+    if (items.length === 0) return
+    try {
+      const target = sessionStorage.getItem('sw-deeplink-anmerkung')
+      if (target && items.some(it => it.anmerkung.id === target)) {
+        sessionStorage.removeItem('sw-deeplink-anmerkung')
+        setActiveAnmerkungId(target)
+      }
+    } catch { /* sessionStorage nicht verfügbar — kein Deeplink-Highlight */ }
+  }, [items])
+
   // Cross-Komponenten-Sync: SceneEditor-Kopffeld-Anmerkungen leben außerhalb dieses Providers.
   // Ein window-Event hält Panel (hier) und Kopffeld-Badges in Sync (Mutationen feuern es).
   useEffect(() => {
