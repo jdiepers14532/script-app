@@ -78,6 +78,7 @@ import { planungKiRouter } from './routes/planung-ki'
 import { importJobsRouter } from './routes/import-jobs'
 import { beziehungstypenRouter, beziehungenRouter } from './routes/beziehungen'
 import { anmerkungenRouter, ankerRouter } from './routes/anmerkungen'
+import { transkriptionenRouter } from './routes/transkriptionen'
 import { lesemodusRouter } from './routes/lesemodus'
 import {
   verteilerRouter, pdfExportProfilRouter, distributionenRouter, veroeffentlichenRouter,
@@ -263,6 +264,7 @@ app.use('/api/beziehungen', beziehungenRouter)
 // Anmerkungen-Hub (v196): Anker-Fundament + Anmerkungs-Service
 app.use('/api/anmerkungen', anmerkungenRouter)
 app.use('/api/anker', ankerRouter)
+app.use('/api/transkriptionen', transkriptionenRouter)
 app.use('/api/lesemodus', lesemodusRouter)
 app.use('/api/notifications', notificationsRouter)
 app.use('/api/admin', dokAdminRouter)
@@ -557,6 +559,8 @@ async function runMigrations() {
     'v209_pdf_profil_struktur_layout.sql',
     // Stimmungs-Kürzel immer Großbuchstaben (Altbestände hochziehen)
     'v210_stimmung_kuerzel_uppercase.sql',
+    // Anmerkungen-Hub Phase 7 / A2: Transkript→KI→Entwürfe (anmerkung_entwurf) + ki_settings-Seed
+    'v211_transkript_entwuerfe.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

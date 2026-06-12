@@ -3,8 +3,9 @@
 // "prüfen"-Hinweis, Thread, Aktionen (zur Stelle, Übernehmen/Ablehnen [nur canResolve],
 // kommentieren, taggen). Brücke über activeAnmerkungId aus dem AnnotationContext.
 import { useState, useEffect, useCallback } from 'react'
-import { Check, X, MessageSquare, AtSign, MapPin, AlertTriangle, Eye, CheckCheck } from 'lucide-react'
+import { Check, X, MessageSquare, AtSign, MapPin, AlertTriangle, Eye, CheckCheck, Sparkles } from 'lucide-react'
 import { useAnnotations, type AnmerkungItem } from '../../contexts/AnnotationContext'
+import { TranskriptSichtung } from './TranskriptSichtung'
 
 const QUELLE_LABEL: Record<string, string> = {
   produktion: 'Produktion', redaktion: 'Redaktion', sender: 'Sender', kunde: 'Kunde',
@@ -45,6 +46,7 @@ export function AnnotationPanel() {
   const { items, loading, activeAnmerkungId, setActiveAnmerkungId } = a
   const [erledigtEinblenden, setErledigtEinblenden] = useState(false)
   const [userMap, setUserMap] = useState<Record<string, string>>({})
+  const [transkriptOpen, setTranskriptOpen] = useState(false)
 
   // Namen der Gelesen-Bestätiger (user_id → name) einmal laden.
   useEffect(() => {
@@ -66,6 +68,20 @@ export function AnnotationPanel() {
         <MessageSquare size={14} />
         <span style={{ fontSize: 13, fontWeight: 600 }}>Anmerkungen</span>
         <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{sichtbar.length}</span>
+        {a.werkstufeId && (
+          <button
+            onClick={() => setTranskriptOpen(true)}
+            title={'Besprechungs-Transkript auswerten\nKI erzeugt Anmerkungs-Entwürfe zur Sichtung'}
+            style={{
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+              minHeight: 28, minWidth: 28, padding: '4px 6px', borderRadius: 999, cursor: 'pointer',
+              fontFamily: 'inherit', border: '1px solid var(--border)', background: 'transparent',
+              color: 'var(--text-muted)',
+            }}
+          >
+            <Sparkles size={13} />
+          </button>
+        )}
         <button
           onClick={() => a.setAnmerkenModus(!a.anmerkenModus)}
           title={a.anmerkenModus ? 'Anmerken-Modus aktiv — Klick zum Ausschalten (stört das Schreiben nicht)' : 'Anmerken-Modus einschalten — Text markieren → Anmerken'}
@@ -114,6 +130,9 @@ export function AnnotationPanel() {
           />
         ))}
       </div>
+      {transkriptOpen && a.werkstufeId && (
+        <TranskriptSichtung werkstufeId={a.werkstufeId} onClose={() => setTranskriptOpen(false)} />
+      )}
     </div>
   )
 }

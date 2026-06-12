@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import {
   Shield, Eye, EyeOff, AlertTriangle,
   FileText, Layers, Search, CheckCircle, Upload, Zap, ChevronDown, ChevronRight, RotateCcw,
+  MessageSquare,
 } from 'lucide-react'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -135,6 +136,13 @@ const FUNKTION_META: Record<string, {
     verwendung: 'Wird im Drehbuch-Check-Batch und manuell pro Szene ausgeführt (Check-Engine, nicht der alte Oneliner-Qualitäts-Check). KI-Kosten pro Szene.',
     placeholders: ['{{motiv}}', '{{int_ext}}', '{{tageszeit}}', '{{rollen}}', '{{oneliner}}', '{{text_auszug}}'],
     Icon: CheckCircle,
+  },
+  transkript_auswertung: {
+    label: 'Transkript-Auswertung (Anmerkungs-Entwürfe)',
+    description: 'Wertet das Transkript einer Storyline-/Drehbuchbesprechung in kategorisierte Anmerkungs-Entwürfe aus.',
+    verwendung: 'Im Anmerkungen-Panel über das ✦-Symbol — Transkript einfügen, KI schlägt Anmerkungen mit Szenen-Zuordnung vor. Entwürfe werden NIE automatisch übernommen, sondern einzeln gesichtet (Übernehmen/Verwerfen).',
+    placeholders: ['{{szenen_liste}}', '{{transcript}}'],
+    Icon: MessageSquare,
   },
   spielzeit_uhrzeit: {
     label: 'Spielzeit/Uhrzeit-Schätzung',

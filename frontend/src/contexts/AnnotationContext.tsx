@@ -40,6 +40,7 @@ interface AnnotationCtx {
   items: AnmerkungItem[]
   loading: boolean
   me: Me | null
+  werkstufeId: string | null
   istAutor: boolean
   canResolve: boolean       // istAutor && Werkstufe editierbar
   anmerkenModus: boolean    // AN = Editor-Highlights + "Anmerken"-Popup bei Selektion; AUS = reines Schreiben
@@ -225,7 +226,7 @@ export function AnnotationProvider({
   }, [])
 
   const value: AnnotationCtx = {
-    items, loading, me, istAutor, canResolve,
+    items, loading, me, werkstufeId, istAutor, canResolve,
     anmerkenModus, setAnmerkenModus,
     activeAnmerkungId, setActiveAnmerkungId, decoAnker, kopffeldItems,
     reload, createContent, createKopffeld, patchStatus, toggleGelesen, addKommentar, getKommentare, addTags, getTaggbareUser,
