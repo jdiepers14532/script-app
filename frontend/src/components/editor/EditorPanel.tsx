@@ -12,8 +12,9 @@ import { useTweaks } from '../../contexts'
 import type { AbsatzFormat } from '../../tiptap/AbsatzExtension'
 import { useOfflineQueueContext, DokumentVorlagenEditor, useTerminologie } from '../../sw-ui'
 import { mergeVorlageWithContent } from '../../utils/mergeVorlage'
-import { Clock, GitCompare, X } from 'lucide-react'
+import { Clock, GitCompare, Sparkles, X } from 'lucide-react'
 import DiffView from './DiffView'
+import DiffSummaryModal from './DiffSummaryModal'
 import Tooltip from '../Tooltip'
 import MagicFunktionenModal from './MagicFunktionenModal'
 import BatchCheckModal from '../BatchCheckModal'
@@ -644,6 +645,7 @@ export default function EditorPanel({
   const [diffLoading, setDiffLoading] = useState(false)
   const [diffDetailData, setDiffDetailData] = useState<any | null>(null)
   const [diffDetailLoading, setDiffDetailLoading] = useState(false)
+  const [showDiffSummary, setShowDiffSummary] = useState(false)
 
   useEffect(() => {
     const szId = currentSzene?.id ?? selectedSzeneId
@@ -854,9 +856,21 @@ export default function EditorPanel({
               </span>
             )}
             <button
+              onClick={() => setShowDiffSummary(true)}
+              disabled={diffLoading}
+              style={{
+                marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4,
+                padding: '2px 6px', borderRadius: 4, fontSize: 10, border: '1px solid rgba(0,122,255,0.3)',
+                background: 'transparent', color: '#007AFF', cursor: 'pointer', fontFamily: 'inherit',
+              }}
+            >
+              <Sparkles size={10} />
+              KI-Zusammenfassung
+            </button>
+            <button
               onClick={() => { setDiffWerkId(null); setDiffResult(null); setDiffDetailData(null); setChangedBlocks(new Set()); setRevisionColor(null) }}
               style={{
-                marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 3,
+                display: 'flex', alignItems: 'center', gap: 3,
                 padding: '2px 6px', borderRadius: 4, fontSize: 10, border: '1px solid rgba(0,122,255,0.3)',
                 background: 'transparent', color: '#007AFF', cursor: 'pointer', fontFamily: 'inherit',
               }}
@@ -1278,6 +1292,23 @@ export default function EditorPanel({
         </div>
         {showAnnotationPanel && <AnnotationDock />}
       </div>
+
+      {/* KI-Zusammenfassung des Fassungsvergleichs (Diff-Modus) */}
+      {showDiffSummary && diffWerkId && selectedWerkId && (() => {
+        const cw = werkstufen.find(w => w.id === diffWerkId)
+        const wsLabel = (w: any | null | undefined, fallback: string) => !w ? fallback
+          : w.ist_revisionsstufe ? `Revisionsstufe ${w.revisionsstufen_nr}`
+          : `${w.typ} V${w.version_nummer}${w.label ? ` (${w.label})` : ''}`
+        return (
+          <DiffSummaryModal
+            baseWerkstufeId={diffWerkId}
+            otherWerkstufeId={selectedWerkId}
+            baseLabel={wsLabel(cw, 'Vergleichsfassung')}
+            otherLabel={wsLabel(selectedWerk, 'Aktuelle Fassung')}
+            onClose={() => setShowDiffSummary(false)}
+          />
+        )
+      })()}
 
       {/* Überschreibschutz-Warnung */}
       {ueberschreibWarnungOpen && selectedWerk && (

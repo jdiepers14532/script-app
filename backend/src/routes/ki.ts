@@ -448,6 +448,127 @@ router.post('/scene-summary', async (req, res) => {
   }
 })
 
+// POST /api/ki/diff-summary — dramaturgische Zusammenfassung eines Fassungsvergleichs.
+// Body: { base_werkstufe_id (Original/ältere Fassung), other_werkstufe_id (aktuelle/neuere) }
+// Sammelt nur die geänderten/neuen/gestrichenen Szenen (Plaintext alt+neu) und lässt die KI
+// zusammenfassen, was sich erzählerisch und in der Figurenführung geändert hat.
+router.post('/diff-summary', async (req, res) => {
+  try {
+    const { base_werkstufe_id, other_werkstufe_id } = req.body ?? {}
+    if (!base_werkstufe_id || !other_werkstufe_id) {
+      return res.status(400).json({ error: 'base_werkstufe_id und other_werkstufe_id erforderlich' })
+    }
+
+    const setting = await getKiSetting('diff_summary')
+    if (!setting?.enabled) return res.json({ summary: null, disabled: true })
+
+    const [baseWs, otherWs] = await Promise.all([
+      queryOne(
+        `SELECT w.id, w.typ, w.version_nummer, w.label, w.ist_revisionsstufe, w.revisionsstufen_nr,
+                w.folge_id, f.folge_nummer
+         FROM werkstufen w JOIN folgen f ON f.id = w.folge_id WHERE w.id = $1`,
+        [base_werkstufe_id]
+      ),
+      queryOne(
+        `SELECT w.id, w.typ, w.version_nummer, w.label, w.ist_revisionsstufe, w.revisionsstufen_nr,
+                w.folge_id, f.folge_nummer
+         FROM werkstufen w JOIN folgen f ON f.id = w.folge_id WHERE w.id = $1`,
+        [other_werkstufe_id]
+      ),
+    ])
+    if (!baseWs || !otherWs) return res.status(404).json({ error: 'Werkstufe nicht gefunden' })
+    if (String(baseWs.folge_id) !== String(otherWs.folge_id)) {
+      return res.status(400).json({ error: 'Werkstufen gehören zu unterschiedlichen Folgen' })
+    }
+
+    const { extractText } = await import('../utils/tiptapText')
+    const loadSzenen = (werkId: string) => query(
+      `SELECT scene_identity_id, scene_nummer, scene_nummer_suffix, ort_name, zusammenfassung,
+              content, sort_order, format
+       FROM dokument_szenen
+       WHERE werkstufe_id = $1 AND geloescht = FALSE
+       ORDER BY sort_order`,
+      [werkId]
+    )
+    const [baseSzenen, otherSzenen] = await Promise.all([loadSzenen(base_werkstufe_id), loadSzenen(other_werkstufe_id)])
+
+    const SZENE_CAP = 4000   // Zeichen je Textseite einer Szene
+    const TOTAL_CAP = 60000  // Zeichen gesamt für den Änderungs-Block
+
+    const szLabel = (s: any) => {
+      const nr = s.scene_nummer != null ? `${s.scene_nummer}${s.scene_nummer_suffix ?? ''}` : '?'
+      return `SZENE ${nr}${s.ort_name ? ` (${s.ort_name})` : ''}`
+    }
+    const cap = (t: string) => t.length > SZENE_CAP ? `${t.slice(0, SZENE_CAP)}\n[gekürzt]` : t
+
+    const baseMap = new Map<string, any>(baseSzenen.filter((s: any) => s.scene_identity_id).map((s: any) => [s.scene_identity_id, s]))
+    const parts: string[] = []
+    let changedCount = 0, addedCount = 0, removedCount = 0
+
+    for (const s of otherSzenen) {
+      const base = s.scene_identity_id ? baseMap.get(s.scene_identity_id) : undefined
+      const neuText = (extractText(s.content) || '').trim()
+      if (!base) {
+        addedCount++
+        parts.push(`NEUE ${szLabel(s)}:\n${cap(neuText) || '(ohne Text)'}`)
+        continue
+      }
+      baseMap.delete(s.scene_identity_id)
+      const altText = (extractText(base.content) || '').trim()
+      const kopfDiffs: string[] = []
+      if ((base.ort_name ?? '') !== (s.ort_name ?? '')) kopfDiffs.push(`Motiv: "${base.ort_name ?? ''}" → "${s.ort_name ?? ''}"`)
+      if ((base.zusammenfassung ?? '') !== (s.zusammenfassung ?? '')) kopfDiffs.push(`Oneliner: "${base.zusammenfassung ?? ''}" → "${s.zusammenfassung ?? ''}"`)
+      if (altText === neuText && kopfDiffs.length === 0) continue
+      changedCount++
+      const kopf = kopfDiffs.length ? `\n[${kopfDiffs.join(' · ')}]` : ''
+      if (altText === neuText) {
+        parts.push(`GEÄNDERTE ${szLabel(s)}:${kopf}\n(Text unverändert)`)
+      } else {
+        parts.push(`GEÄNDERTE ${szLabel(s)}:${kopf}\nALT:\n${cap(altText)}\nNEU:\n${cap(neuText)}`)
+      }
+    }
+    // Übrig in baseMap = in der neuen Fassung gestrichen
+    for (const s of baseMap.values()) {
+      removedCount++
+      const altText = (extractText(s.content) || '').trim()
+      parts.push(`GESTRICHENE ${szLabel(s)}:\n${cap(altText) || '(ohne Text)'}`)
+    }
+
+    if (parts.length === 0) {
+      return res.json({ summary: 'Keine inhaltlichen Unterschiede zwischen den beiden Fassungen gefunden.', changed: 0, added: 0, removed: 0, provider: 'none' })
+    }
+
+    let aenderungen = ''
+    let truncated = false
+    for (const p of parts) {
+      if (aenderungen.length + p.length > TOTAL_CAP) { truncated = true; break }
+      aenderungen += (aenderungen ? '\n\n---\n\n' : '') + p
+    }
+    if (truncated) aenderungen += '\n\n[Weitere Änderungen aus Platzgründen gekürzt.]'
+
+    const wsLabel = (ws: any) => ws.ist_revisionsstufe
+      ? `Revisionsstufe ${ws.revisionsstufen_nr}`
+      : `${ws.typ} V${ws.version_nummer}${ws.label ? ` (${ws.label})` : ''}`
+
+    const prompt = applyPromptTemplate(effectivePrompt(setting), {
+      folge_nummer: String(otherWs.folge_nummer ?? ''),
+      base_label:   wsLabel(baseWs),
+      other_label:  wsLabel(otherWs),
+      aenderungen,
+    })
+
+    const summary = await callProvider(setting, [{ role: 'user', content: prompt }], 2000)
+    await recordUsage(setting.provider, setting.model_name || '', Math.ceil(prompt.length / 4), Math.ceil(summary.length / 4))
+    res.json({
+      summary: summary.trim(),
+      changed: changedCount, added: addedCount, removed: removedCount, truncated,
+      provider: setting.provider, model: setting.model_name,
+    })
+  } catch (err: any) {
+    res.status(500).json({ error: String(err?.message ?? err) })
+  }
+})
+
 // POST /api/ki/entity-detect
 router.post('/entity-detect', async (req, res) => {
   try {

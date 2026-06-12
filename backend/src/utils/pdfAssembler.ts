@@ -26,6 +26,7 @@ import {
 } from './exportAssembler'
 import { encodeWatermark, buildPayload } from './watermark'
 import { calcContentLinesPerBlock } from './calcPageLength'
+import { transformRedlineScenes } from './redlineDiff'
 import { renderStatistikHtml, renderOnlinerHtml, StatistikFormatConfig, OnlinerFormatConfig, StatistikExportConfig } from './statistikHtmlRenderer'
 
 // ── Warm-Browser-Pool ─────────────────────────────────────────────────────────
@@ -391,7 +392,10 @@ function renderAbsatzNode(
   // node_id = optionaler Hinweis; block_index = 0-basierter Top-Level-Index der Szene (Fast-Path).
   const nid    = node.attrs?.node_id ? ` data-node-id="${esc(String(node.attrs.node_id))}"` : ''
   const bid    = blockIndex != null ? ` data-block-index="${blockIndex}"` : ''
-  const inner  = renderInline(node.content ?? [], ctx)
+  // Redline-Vergleich (Lesemodus): __diff_word_html = vorgerenderter Wort-Diff (redlineDiff.ts)
+  const inner  = typeof node.attrs?.__diff_word_html === 'string'
+    ? node.attrs.__diff_word_html
+    : renderInline(node.content ?? [], ctx)
 
   // Page-break Regeln für CHAR / DIA / PAR
   let breakCss = ''
@@ -399,7 +403,16 @@ function renderAbsatzNode(
   if (fmt?.kuerzel === 'DIA')   breakCss = 'page-break-inside:avoid;'
   if (fmt?.kuerzel === 'PAR')   breakCss = 'page-break-inside:avoid;page-break-after:avoid;'
 
-  const fullCss = breakCss ? `${css};${breakCss}` : css
+  // Redline-Vergleich: Block-Status-Styling (analog DiffView)
+  let diffCss = ''
+  switch (node.attrs?.__diff) {
+    case 'deleted': diffCss = ';background:rgba(255,59,48,0.07);border-left:3pt solid #FF3B30;padding-left:4pt;text-decoration:line-through;color:#bb2200'; break
+    case 'added':   diffCss = ';background:rgba(0,200,83,0.07);border-left:3pt solid #00C853;padding-left:4pt'; break
+    case 'changed': diffCss = ';background:rgba(255,204,0,0.06);border-left:3pt solid #FFCC00;padding-left:4pt'; break
+    case 'moved':   diffCss = ';border-left:3pt solid #FF9500;padding-left:4pt'; break
+  }
+
+  const fullCss = (breakCss ? `${css};${breakCss}` : css) + diffCss
 
   return `<p style="${fullCss}"${kz}${nid}${bid}>${inner || '&nbsp;'}</p>`
 }
@@ -424,7 +437,14 @@ function renderDoc(
     nodes = [docObj]
   }
   // block_index = 0-basierter Top-Level-Index der Szene (matched Editor $from.index(0) + DOM data-block-index)
-  return nodes.map((n, i) => renderAbsatzNode(n, fmtById, fmtByName, ctx, i)).join('\n')
+  return nodes.map((n, i) => renderAbsatzNode(n, fmtById, fmtByName, ctx, effectiveBlockIndex(n, i))).join('\n')
+}
+
+/** Redline-Vergleich: eingeschobene Streichungen verschieben die Positionen — echter
+ *  data-block-index kommt dann aus attrs.__diff_bi; gestrichene Nodes bekommen keinen. */
+function effectiveBlockIndex(node: any, fallback: number): number | undefined {
+  if (node?.attrs?.__diff === 'deleted') return undefined
+  return node?.attrs?.__diff_bi ?? fallback
 }
 
 // ── Szenenrendering ────────────────────────────────────────────────────────────
@@ -737,6 +757,13 @@ function renderMainScenes(
         headHtml = `<div style="${pbStyle}height:0;overflow:hidden"></div>`
       }
     }
+    // Redline-Vergleich: ganze Szene neu/gestrichen → Szenenkopf entsprechend markieren
+    const sceneDiff = (scene as any).__diff_scene as string | undefined
+    if (sceneDiff === 'deleted') {
+      headHtml = `<div style="background:rgba(255,59,48,0.07);border-left:3pt solid #FF3B30;padding-left:4pt;text-decoration:line-through;color:#bb2200">${headHtml}</div>`
+    } else if (sceneDiff === 'added') {
+      headHtml = `<div style="background:rgba(0,200,83,0.07);border-left:3pt solid #00C853;padding-left:4pt">${headHtml}</div>`
+    }
     const bodyHtml = scene.content ? renderDoc(scene.content, fmtById, fmtByName, ctx) : ''
     const inner = `${headHtml}\n${bodyHtml}`
     // Szenen-Abschnitt fürs DOM-Anchoring (Handoff 3 §2): data-scene-identity-id.
@@ -764,7 +791,7 @@ function renderMainScenes(
         if (pages[pages.length - 1].length > 0 && acc + bl > linesPerPage) {
           pages.push([]); acc = 0
         }
-        pages[pages.length - 1].push(renderAbsatzNode(nodesArr[bi], fmtById, fmtByName, ctx, bi))
+        pages[pages.length - 1].push(renderAbsatzNode(nodesArr[bi], fmtById, fmtByName, ctx, effectiveBlockIndex(nodesArr[bi], bi)))
         acc += bl
       }
       return pages.map((blocks, pi) =>
@@ -1737,6 +1764,44 @@ async function assembleHtml(
 
     const isNotizDoc = w.typ === 'notiz'
     const hauptinhaltAktiv = options.hauptinhaltAktiv !== false  // default: true
+
+    // ── 8b. Redline-Vergleich (nur Lesemodus): Szenen gegen Vergleichs-Werkstufe diffen ──
+    // compareWerkstufId = Original (ältere Fassung); die gelesene Werkstufe = überarbeitet.
+    // Sichtbarkeit der Vergleichs-Werkstufe prüft die Route; hier nur Folgen-Gleichheit.
+    if (readMode && options.compareWerkstufId && !isNotizDoc) {
+      const cmpRes = await client.query<{ folge_id: string }>(
+        `SELECT folge_id FROM werkstufen WHERE id = $1`, [options.compareWerkstufId]
+      )
+      if (cmpRes.rows.length && String(cmpRes.rows[0].folge_id) === String(w.folge_id)) {
+        const baseRes = await client.query<SceneRow>(
+          `SELECT ds.scene_nummer, ds.scene_nummer_suffix, ds.ort_name, ds.int_ext, ds.tageszeit, ds.spieltag,
+                  ds.stoppzeit_sek, ds.content, ds.zusammenfassung, ds.sort_order, ds.format, ds.sondertyp,
+                  ds.scene_identity_id, ds.spielzeit, dv.name AS vorlage_name
+           FROM dokument_szenen ds
+           LEFT JOIN dokument_vorlagen dv ON dv.id = ds.vorlage_id
+           WHERE ds.werkstufe_id = $1 AND ds.geloescht = false
+             AND (dv.ist_titelseite IS NOT TRUE)
+           ORDER BY ds.sort_order`,
+          [options.compareWerkstufId]
+        )
+        const baseCharRes = await client.query<{ scene_identity_id: string; rollen: string[] }>(
+          `SELECT sc.scene_identity_id,
+                  array_agg(DISTINCT c.name ORDER BY c.name) AS rollen
+           FROM scene_characters sc
+           JOIN characters c ON c.id = sc.character_id
+           LEFT JOIN character_kategorien ck ON ck.id = sc.kategorie_id
+           WHERE sc.werkstufe_id = $1 AND COALESCE(ck.typ, 'rolle') <> 'komparse'
+           GROUP BY sc.scene_identity_id`,
+          [options.compareWerkstufId]
+        )
+        const baseCharMap = new Map<string, string[]>(baseCharRes.rows.map(r => [r.scene_identity_id, r.rollen]))
+        const baseScenes = baseRes.rows.map(s => ({
+          ...s,
+          rollen: s.scene_identity_id ? (baseCharMap.get(s.scene_identity_id) ?? []) : [],
+        }))
+        mainScenes = transformRedlineScenes(mainScenes, baseScenes)
+      }
+    }
 
     let mainHtml = ''
     if (hauptinhaltAktiv) {

@@ -561,6 +561,8 @@ async function runMigrations() {
     'v210_stimmung_kuerzel_uppercase.sql',
     // Anmerkungen-Hub Phase 7 / A2: Transkript→KI→Entwürfe (anmerkung_entwurf) + ki_settings-Seed
     'v211_transkript_entwuerfe.sql',
+    // KI-Funktion diff_summary: dramaturgische Zusammenfassung eines Fassungsvergleichs
+    'v212_ki_diff_summary.sql',
   ]
 
   // Tracking-Tabelle anlegen (idempotent)

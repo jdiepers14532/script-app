@@ -11,12 +11,14 @@ export interface DokumentVorschauProps {
   werkstufId: string
   /** 'read' = Lese-Layout (A4-Blatt, KZ/FZ weg) — Default; undefined = klassische PDF-Vorschau. */
   mode?: 'read'
+  /** Redline-Vergleich (nur mode='read'): Original-Fassung, gegen die gedifft wird. */
+  compareWerkstufId?: string | null
   /** Wird nach jedem iframe-Load mit dem isolierten Dokument aufgerufen (Annotations-Layer-Andockung). */
   onIframeReady?: (doc: Document, win: Window, iframe: HTMLIFrameElement) => void
   height?: string | number
 }
 
-export default function DokumentVorschau({ werkstufId, mode = 'read', onIframeReady, height = '100%' }: DokumentVorschauProps) {
+export default function DokumentVorschau({ werkstufId, mode = 'read', compareWerkstufId = null, onIframeReady, height = '100%' }: DokumentVorschauProps) {
   const [html, setHtml] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -25,11 +27,11 @@ export default function DokumentVorschau({ werkstufId, mode = 'read', onIframeRe
   useEffect(() => {
     let cancelled = false
     setLoading(true); setError(null); setHtml(null)
-    api.getExportPreviewHtml(werkstufId, mode)
+    api.getExportPreviewHtml(werkstufId, mode, compareWerkstufId)
       .then(h => { if (!cancelled) { setHtml(h); setLoading(false) } })
       .catch(e => { if (!cancelled) { setError(String(e?.message ?? e)); setLoading(false) } })
     return () => { cancelled = true }
-  }, [werkstufId, mode])
+  }, [werkstufId, mode, compareWerkstufId])
 
   const handleLoad = useCallback(() => {
     const ifr = iframeRef.current

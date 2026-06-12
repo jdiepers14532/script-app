@@ -43,7 +43,7 @@ function requireWerkstufeSichtbar(getId: (req: Request) => string | undefined) {
       if (!(await darfWerkstufeSehen(req, id))) {
         return res.status(403).json({ error: 'Keine Sicht auf diese Werkstufe' })
       }
-      const cmp = (req.body?.options?.compareWerkstufId ?? req.body?.compareWerkstufId) as string | undefined
+      const cmp = (req.body?.options?.compareWerkstufId ?? req.body?.compareWerkstufId ?? req.query?.compareWerkstufId) as string | undefined
       if (cmp && !(await darfWerkstufeSehen(req, cmp))) {
         return res.status(403).json({ error: 'Keine Sicht auf die Vergleichs-Werkstufe' })
       }
@@ -215,6 +215,8 @@ function previewParamsFromQuery(req: any): PdfAssemblerInput {
     userName: user.name,
     options: {
       notizWerkstufIds: rawNz ? rawNz.split(',').filter(Boolean) : undefined,
+      // Redline-Vergleich im Lesemodus: Original-Werkstufe (Sichtbarkeit prüft die Middleware)
+      compareWerkstufId: (req.query.compareWerkstufId as string) || undefined,
     },
   }
 }

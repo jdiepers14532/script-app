@@ -120,8 +120,11 @@ export const api = {
   // A4-Vorschau einer Werkstufe als KOMPLETTES HTML (text/html, kein JSON). Enthält data-block-index /
   // data-scene-identity-id für den Anmerkungs-DOM-Anker. mode='read' → Browser-Lesemodus (A4-Blatt,
   // KZ/FZ weggelassen); ohne mode die klassische PDF-Vorschau.
-  getExportPreviewHtml: async (werkstufId: string, mode?: 'read'): Promise<string> => {
-    const url = `/api/export/preview?werkstufId=${encodeURIComponent(werkstufId)}${mode ? `&mode=${mode}` : ''}`
+  // compareWerkstufId (nur mode='read'): Redline-Vergleich — Original-Fassung, gegen die die
+  // gelesene Werkstufe gedifft wird (eingefügt grün, gestrichen rot durchgestrichen).
+  getExportPreviewHtml: async (werkstufId: string, mode?: 'read', compareWerkstufId?: string | null): Promise<string> => {
+    const cmp = compareWerkstufId ? `&compareWerkstufId=${encodeURIComponent(compareWerkstufId)}` : ''
+    const url = `/api/export/preview?werkstufId=${encodeURIComponent(werkstufId)}${mode ? `&mode=${mode}` : ''}${cmp}`
     const res = await fetch(url, { credentials: 'include', cache: 'no-store' })
     if (!res.ok) throw new Error(`Vorschau fehlgeschlagen (${res.status})`)
     return res.text()
@@ -224,6 +227,10 @@ export const api = {
   getKiProviders: () => request<any[]>('GET', '/admin/ki-providers'),
   updateKiProvider: (provider: string, data: any) => request<any>('PUT', `/admin/ki-providers/${provider}`, data),
   kiSceneSummary: (data: any) => request<any>('POST', '/ki/scene-summary', data),
+  // Dramaturgische Zusammenfassung eines Fassungsvergleichs (base = Original, other = aktuell)
+  kiDiffSummary: (base_werkstufe_id: string, other_werkstufe_id: string) =>
+    request<{ summary: string | null; disabled?: boolean; changed?: number; added?: number; removed?: number; truncated?: boolean; provider?: string }>(
+      'POST', '/ki/diff-summary', { base_werkstufe_id, other_werkstufe_id }),
   kiEntityDetect: (data: any) => request<any>('POST', '/ki/entity-detect', data),
   kiStyleCheck: (data: any) => request<any>('POST', '/ki/style-check', data),
   kiSynopsis: (data: any) => request<any>('POST', '/ki/synopsis', data),

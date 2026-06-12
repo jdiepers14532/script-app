@@ -32,14 +32,18 @@ interface CreateState {
   exact: string
 }
 
-function LeseAnsichtInner({ werkstufId, activeSceneIdentityId, onSceneVisible }: {
+function LeseAnsichtInner({ werkstufId, compareWerkstufId, activeSceneIdentityId, onSceneVisible }: {
   werkstufId: string
+  compareWerkstufId?: string | null
   activeSceneIdentityId?: string | null
   onSceneVisible?: (sceneIdentityId: string) => void
 }) {
   const a = useAnnotations()
   const aRef = useRef(a)
   useEffect(() => { aRef.current = a }, [a])
+  // Redline-Vergleich aktiv: Anmerkungs-Layer aus (Wort-Diff verändert die Textanker).
+  const compareRef = useRef(compareWerkstufId)
+  useEffect(() => { compareRef.current = compareWerkstufId }, [compareWerkstufId])
 
   const docRef = useRef<Document | null>(null)
   const iframeRef = useRef<HTMLIFrameElement | null>(null)
@@ -57,6 +61,7 @@ function LeseAnsichtInner({ werkstufId, activeSceneIdentityId, onSceneVisible }:
   // Alle aktiven content-Anker als Highlights ins iframe setzen.
   const renderHighlights = useCallback((doc: Document) => {
     clearHighlights(doc)
+    if (compareRef.current) return
     aRef.current.items
       .filter(it => it.anker.store === 'content'
         && (it.anmerkung.status === 'offen' || it.anmerkung.status === 'in_arbeit'))
@@ -119,6 +124,7 @@ function LeseAnsichtInner({ werkstufId, activeSceneIdentityId, onSceneVisible }:
 
     // Selektion → Anmerken-Popup (nur im Anmerken-Modus).
     doc.addEventListener('mouseup', () => {
+      if (compareRef.current) { setCreate(null); return }
       if (!aRef.current.anmerkenModus) { setCreate(null); return }
       const r = selektorFromDomSelection(doc)
       if (!r) { setCreate(null); return }
@@ -180,9 +186,9 @@ function LeseAnsichtInner({ werkstufId, activeSceneIdentityId, onSceneVisible }:
   return (
     <div style={{ display: 'flex', height: '100%', minHeight: 0 }}>
       <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
-        <DokumentVorschau werkstufId={werkstufId} onIframeReady={onIframeReady} />
+        <DokumentVorschau werkstufId={werkstufId} compareWerkstufId={compareWerkstufId} onIframeReady={onIframeReady} />
       </div>
-      <AnnotationDock />
+      {!compareWerkstufId && <AnnotationDock />}
 
       {create && createPortal(
         <>
@@ -218,15 +224,17 @@ function LeseAnsichtInner({ werkstufId, activeSceneIdentityId, onSceneVisible }:
   )
 }
 
-export default function LeseAnsicht({ werkstufId, canEdit = false, activeSceneIdentityId, onSceneVisible }: {
+export default function LeseAnsicht({ werkstufId, compareWerkstufId = null, canEdit = false, activeSceneIdentityId, onSceneVisible }: {
   werkstufId: string
+  /** Redline-Vergleich: Original-Fassung, gegen die gedifft wird (Anmerkungs-Layer dann aus). */
+  compareWerkstufId?: string | null
   canEdit?: boolean
   activeSceneIdentityId?: string | null
   onSceneVisible?: (sceneIdentityId: string) => void
 }) {
   return (
     <AnnotationProvider werkstufeId={werkstufId} sceneIdentityId={null} canEdit={canEdit}>
-      <LeseAnsichtInner werkstufId={werkstufId} activeSceneIdentityId={activeSceneIdentityId} onSceneVisible={onSceneVisible} />
+      <LeseAnsichtInner werkstufId={werkstufId} compareWerkstufId={compareWerkstufId} activeSceneIdentityId={activeSceneIdentityId} onSceneVisible={onSceneVisible} />
     </AnnotationProvider>
   )
 }
