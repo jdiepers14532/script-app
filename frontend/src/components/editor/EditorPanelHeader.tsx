@@ -815,13 +815,18 @@ export default function EditorPanelHeader({
             </div>
           ) : null}
 
-          {/* Diff button — nur wenn es Revisionsstufen gibt */}
+          {/* Diff button — Vergleich mit jeder anderen Werkstufe; eingefrorene sind stabile Referenzpunkte (Schneeflocke) */}
           {onDiffRequest && (() => {
-            const revStufen = werkstufen.filter(w => w.ist_revisionsstufe && w.id !== selectedWerk.id)
-            if (revStufen.length === 0) return null
+            const vergleichStufen = werkstufen
+              .filter(w => w.id !== selectedWerk.id)
+              .sort((a, b) =>
+                Number(b.ist_revisionsstufe) - Number(a.ist_revisionsstufe)
+                || (b.revisionsstufen_nr ?? 0) - (a.revisionsstufen_nr ?? 0)
+                || b.version_nummer - a.version_nummer)
+            if (vergleichStufen.length === 0) return null
             return (
               <div style={{ position: 'relative' }}>
-                <Tooltip text="Aktuelle Fassung mit einer Revisionsstufe vergleichen">
+                <Tooltip text="Aktuelle Fassung mit einer anderen Fassung vergleichen">
                   <button
                     onClick={() => setShowDiffMenu(v => !v)}
                     style={{
@@ -858,7 +863,7 @@ export default function EditorPanelHeader({
                       >
                         Vergleich beenden
                       </button>
-                      {revStufen.map(rs => (
+                      {vergleichStufen.map(rs => (
                         <button
                           key={rs.id}
                           onClick={() => { setShowDiffMenu(false); onDiffRequest(rs.id) }}
@@ -869,8 +874,12 @@ export default function EditorPanelHeader({
                             background: 'transparent', color: 'var(--text-primary)',
                           }}
                         >
-                          <Snowflake size={11} style={{ color: '#007AFF', flexShrink: 0 }} />
-                          {rs.ist_revisionsstufe ? `Revisionsstufe ${rs.revisionsstufen_nr}` : rs.label ?? rs.typ}
+                          {rs.eingefroren
+                            ? <Snowflake size={11} style={{ color: '#007AFF', flexShrink: 0 }} />
+                            : <span style={{ width: 11, flexShrink: 0 }} />}
+                          {rs.ist_revisionsstufe
+                            ? `Revisionsstufe ${rs.revisionsstufen_nr}`
+                            : `${typLabels[rs.typ] ?? rs.typ} V${rs.version_nummer}`}
                           {rs.label ? ` (${rs.label})` : ''}
                         </button>
                       ))}
