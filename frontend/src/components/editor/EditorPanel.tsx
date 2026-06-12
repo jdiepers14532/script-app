@@ -672,7 +672,9 @@ export default function EditorPanel({
   useEffect(() => {
     if (!diffWerkId || !selectedWerkId) { setDiffResult(null); return }
     setDiffLoading(true)
-    api.getWerkstufeDiff(selectedWerkId, diffWerkId)
+    // Richtung: Vergleichsfassung = Original (base), aktuell geöffnete Fassung = überarbeitet (other).
+    // So zeigt der Diff, was in der aktuellen Fassung geändert wurde.
+    api.getWerkstufeDiff(diffWerkId, selectedWerkId)
       .then(data => setDiffResult(data.diff ?? []))
       .catch(() => setDiffResult([]))
       .finally(() => setDiffLoading(false))
@@ -685,7 +687,7 @@ export default function EditorPanel({
       return
     }
     setDiffDetailLoading(true)
-    api.getWerkstufeDiffDetail(selectedWerkId, diffWerkId, currentSzene.scene_identity_id)
+    api.getWerkstufeDiffDetail(diffWerkId, selectedWerkId, currentSzene.scene_identity_id)
       .then(setDiffDetailData)
       .catch(() => setDiffDetailData(null))
       .finally(() => setDiffDetailLoading(false))
@@ -1225,11 +1227,11 @@ export default function EditorPanel({
           <DiffView
             data={diffDetailData}
             loading={diffDetailLoading}
-            baseWerkLabel={selectedWerk?.label ?? selectedWerk?.typ ?? 'Aktuelle Fassung'}
-            otherWerkLabel={(() => {
+            baseWerkLabel={(() => {
               const cw = werkstufen.find(w => w.id === diffWerkId)
               return cw?.ist_revisionsstufe ? `Rev. ${cw.revisionsstufen_nr}` : (cw?.label ?? cw?.typ ?? 'Vergleichsfassung')
             })()}
+            otherWerkLabel={selectedWerk?.label ?? selectedWerk?.typ ?? 'Aktuelle Fassung'}
           />
         ) : (
           <Suspense fallback={null}>
