@@ -484,7 +484,7 @@ function SzenenFassungenTab() {
           ))}
         </div>
 
-        <div style={{ display: 'flex', gap: 16, fontSize: 11, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 16, fontSize: 11, flexWrap: 'wrap', marginBottom: 20 }}>
           {[
             { color: '#fef3c7', border: '#f59e0b', label: 'Geändert', desc: 'Felder unterscheiden sich' },
             { color: '#d1fae5', border: '#10b981', label: 'Neu', desc: 'Nur in rechter Werkstufe' },
@@ -497,6 +497,51 @@ function SzenenFassungenTab() {
             </div>
           ))}
         </div>
+
+        {/* ── 6a. Aufruf im Editor ── */}
+        <InfoBox title="So rufst du den Vergleich im Editor auf" color={C.blue}>
+          In der Editor-Kopfzeile (rechts) öffnet der Button <strong>„Vergleichen"</strong> das Menü
+          „Vergleichen mit …" — zur Auswahl stehen <strong>alle anderen Fassungen</strong> der Folge.
+          Eingefrorene Fassungen und Revisionsstufen sind mit einer Schneeflocke markiert und stehen
+          oben (stabile Referenzpunkte); auch der Vergleich mit live editierbaren Fassungen ist möglich
+          (Momentaufnahme). „Vergleich beenden" schaltet zurück in den Editor.
+          <div style={{ marginTop: 8 }}>
+            <strong>Richtung (Word-Semantik):</strong> Die ausgewählte Vergleichsfassung ist das{' '}
+            <em>Original</em>, die aktuell geöffnete Fassung die <em>überarbeitete Version</em>.
+            Grün = in der aktuellen Fassung eingefügt, rot durchgestrichen = gegenüber dem Original
+            entfernt. Zwei Darstellungen: <strong>Redline</strong> (Änderungen im Lesefluss) und{' '}
+            <strong>Parallel</strong> (Original links, aktuelle Fassung rechts, synchron gescrollt).
+          </div>
+        </InfoBox>
+
+        {/* ── 6b. Redline in der Leseansicht ── */}
+        <InfoBox title="Redline-Vergleich in der Leseansicht" color={C.green}>
+          Auch die <strong>Leseansicht</strong> (Lese-Modus) kann vergleichen: Neben „Fassung lesen"
+          die gewünschte Fassung unter <strong>„Vergleichen mit:"</strong> wählen — die ganze Folge wird
+          dann als durchgehendes Änderungsdokument im Drucklayout gerendert. Eingefügter Text grün,
+          gestrichener Text rot durchgestrichen; entfallene Szenen und Absätze erscheinen an ihrer
+          alten Position. Farbige Randstreifen markieren geänderte (gelb), neue (grün), gestrichene
+          (rot) und verschobene (orange) Absätze.
+          <div style={{ marginTop: 8, color: C.muted }}>
+            Hinweis: Im Vergleichsmodus ist der Anmerkungs-Layer deaktiviert, weil der Wort-Diff die
+            Textanker der Anmerkungen verändert. „Vergleich beenden" stellt ihn wieder her.
+          </div>
+        </InfoBox>
+
+        {/* ── 6c. KI-Zusammenfassung ── */}
+        <InfoBox title="KI-Zusammenfassung der Änderungen" color={C.purple}>
+          Im Diff-Modus des Editors fasst der Button <strong>„KI-Zusammenfassung"</strong> (im blauen
+          Banner) die Änderungen auf <strong>dramaturgischer Ebene</strong> zusammen: Was hat sich
+          erzählerisch geändert (Handlung, Szenenfolge, Tempo), was bedeutet das für die{' '}
+          <strong>Führung der Figuren</strong> (Haltung, Motivation, Beziehungsdynamik), und welche
+          Konsequenzen können sich für spätere Szenen/Folgen ergeben? Rein redaktionelle Änderungen
+          werden nur kurz erwähnt.
+          <div style={{ marginTop: 8, color: C.muted }}>
+            Die KI erhält nur die geänderten, neuen und gestrichenen Szenen (alter + neuer Text).
+            Funktion <code>diff_summary</code> in den Admin-KI-Einstellungen: Provider/Modell wählbar,
+            Prompt editierbar. Bei sehr großen Änderungsmengen wird gekürzt — das Modal weist darauf hin.
+          </div>
+        </InfoBox>
       </Section>
 
       {/* ══════════════════════════════════════════════════════════════════════════ */}
@@ -580,6 +625,9 @@ function SzenenFassungenTab() {
               { m: 'PATCH',  p: '/api/werkstufen/:werkId/szenen/reorder',  d: 'Szenen-Reihenfolge aendern' },
               { m: 'POST',   p: '/api/werkstufen/:werkId/szenen/renumber', d: 'Sequentiell umnummerieren' },
               { m: 'GET',    p: '/api/werkstufen/:a/szenen/diff/:b',       d: 'Werkstufen-Vergleich (Diff)' },
+              { m: 'GET',    p: '/api/werkstufen/:a/diff-detail/:b',       d: 'Block-/Wort-Diff einer Szene (a=Original, b=überarbeitet)' },
+              { m: 'GET',    p: '/api/export/preview?…&compareWerkstufId=', d: 'Redline-Leseansicht (mode=read)' },
+              { m: 'POST',   p: '/api/ki/diff-summary',                    d: 'KI-Zusammenfassung der Änderungen (diff_summary)' },
               { m: 'GET',    p: '/api/dokument-szenen/:id',                d: 'Einzelne Szene laden' },
               { m: 'PUT',    p: '/api/dokument-szenen/:id',                d: 'Szenenkopf + Content aktualisieren' },
               { m: 'DELETE', p: '/api/dokument-szenen/:id',                d: 'Soft-Delete (gelöscht=true)' },

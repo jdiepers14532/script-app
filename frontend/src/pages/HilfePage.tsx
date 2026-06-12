@@ -72,7 +72,7 @@ const NAV_ITEMS = [
   { id: 'kommentare',           label: 'Kommentare',                icon: '💬',
     keywords: 'kommentar kommentieren messenger antwort annotation badge ungelesen' },
   { id: 'szenen-fassungen',     label: 'Szenen & Fassungen',        icon: '🔀',
-    keywords: 'fassung version werkstufe stage status drehbuch vorbereitung dreh schnitt kopieren' },
+    keywords: 'fassung version werkstufe stage status drehbuch vorbereitung dreh schnitt kopieren vergleich vergleichen diff redline änderungen verfolgen revision word leseansicht lesemodus ki zusammenfassung dramaturgie figuren' },
   { id: 'rechtschreibung',      label: 'Rechtschreibung',           icon: '✍️',
     keywords: 'rechtschreibung spellcheck sprache deutsch englisch duden korrektur unterstrichen rot' },
   { id: 'import-komparsen',     label: 'Import & Komparsen',        icon: '🎬',
