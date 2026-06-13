@@ -28,7 +28,7 @@ async function charsByScene(werkstufeId: string): Promise<Map<string, Set<string
  */
 export async function emitBreakdownWebhook(opts: {
   werkstufeId: string
-  folgeId: string
+  folgeId: number | string          // folgen.id ist integer in der script-DB
   produktionId: string | null
   folgeNummer: number | string | null
 }): Promise<void> {
@@ -108,7 +108,7 @@ export async function emitBreakdownWebhook(opts: {
     }
 
     const payload = {
-      episode_id: opts.folgeId,
+      episode_id: String(opts.folgeId),   // breakdown-Schema: episode_id ist TEXT
       staffel_id: opts.produktionId ?? 'default',
       werkstufe_id: opts.werkstufeId,
       event: 'published',
