@@ -150,8 +150,9 @@ app.use('/api/locks', contractLocksRouter) // POST /contract-update
 // das sonst /mail-status abfangen würde.
 app.use('/api/internal', verteilerInternalRouter) // mail-status (X-Mail-Service-Secret)
 app.use('/api/internal', commentWebhookRouter)
-app.use('/api/internal', taetigkeitenInternalRouter)
+// VOR taetigkeitenInternalRouter (dessen router-globales Secret-Gate würde /breakdown/* mit 401 abfangen)
 app.use('/api/internal', breakdownInternalRouter) // breakdown/szenen + breakdown/vorschau-html (X-Breakdown-Secret)
+app.use('/api/internal', taetigkeitenInternalRouter)
 app.use('/api', exportsRouter)            // werkstufe/:id/export/* routes
 app.use('/api/stages', stagesCommentRouter)
 app.use('/api/szenen', szenenCommentRouter)
