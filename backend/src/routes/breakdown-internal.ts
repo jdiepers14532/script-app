@@ -16,6 +16,28 @@ import { assemblePreviewHtml } from '../utils/pdfAssembler'
 
 export const breakdownInternalRouter = Router()
 
+// Tiptap-Dokument (dokument_szenen.content) → Klartext, getrimmt. Rein lesend, fehlertolerant.
+// Sammelt alle text-Nodes, trennt Absätze mit \n; deckelt die Länge (LLM-Kosten/Kontext, Phase 6a).
+const TEXT_MAX = 2500
+function flattenTiptap(content: any): string | null {
+  if (!content) return null
+  const parts: string[] = []
+  const walk = (node: any) => {
+    if (!node || typeof node !== 'object') return
+    if (typeof node.text === 'string') parts.push(node.text)
+    if (Array.isArray(node.content)) {
+      node.content.forEach(walk)
+      if (node.type === 'absatz' || node.type === 'paragraph') parts.push('\n')
+    }
+  }
+  try {
+    if (Array.isArray(content)) content.forEach(walk)
+    else walk(content)
+  } catch { return null }
+  const txt = parts.join('').replace(/\n{2,}/g, '\n').trim()
+  return txt ? txt.slice(0, TEXT_MAX) : null
+}
+
 const BREAKDOWN_INTERNAL_SECRET = process.env.BREAKDOWN_INTERNAL_SECRET || ''
 
 // Per-Route-Secret (nicht router-global): /api/internal teilt sich mehrere Router.
@@ -33,11 +55,12 @@ breakdownInternalRouter.get('/breakdown/szenen', checkBreakdownSecret, async (re
   if (!werkstufeId) return res.status(400).json({ error: 'werkstufe_id erforderlich' })
 
   try {
-    // Kopffelder pro Szene (dokument_szenen, B2/31), nach Szenen-Position sortiert.
+    // Kopffelder + Szenen-Volltext (content) pro Szene, nach Szenen-Position sortiert.
+    // content ist Tiptap-JSON; wird unten zu Klartext geflacht (breakdown-KI-Extraktion, Phase 6a).
     const szenenRes = await pool.query(
       `SELECT ds.scene_identity_id, ds.sort_order AS position,
               ds.scene_nummer, ds.scene_nummer_suffix,
-              ds.ort_name, ds.int_ext, ds.tageszeit, ds.spieltag, ds.zusammenfassung
+              ds.ort_name, ds.int_ext, ds.tageszeit, ds.spieltag, ds.zusammenfassung, ds.content
        FROM dokument_szenen ds
        WHERE ds.werkstufe_id = $1
        ORDER BY ds.sort_order`,
@@ -84,6 +107,7 @@ breakdownInternalRouter.get('/breakdown/szenen', checkBreakdownSecret, async (re
       tageszeit: s.tageszeit,
       spieltag: s.spieltag,
       zusammenfassung: s.zusammenfassung,
+      text: flattenTiptap(s.content),   // Szenen-Volltext (Klartext, getrimmt) für breakdown-KI
       characters: besetzungBySzene.get(s.scene_identity_id) || [],
     }))
 
