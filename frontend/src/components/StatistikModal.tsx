@@ -380,6 +380,7 @@ export default function StatistikModal({ onClose, folgen, bloecke, sections, ini
             report={report}
             sections={visibleSections}
             hideDetails={hideDetails}
+            breakdownFolgeId={mode === 'folge' ? selectedFolgeId : null}
             onSceneClick={onNavigateToScene ? handleSceneClick : undefined}
             onShowInteraction={(e, pairs) => setInteractionTooltip({ x: e.clientX, y: e.clientY, pairs })}
           />
@@ -419,11 +420,12 @@ interface ReportContentProps {
   report: any
   sections: StatModalSection[]
   hideDetails: boolean
+  breakdownFolgeId?: number | null
   onSceneClick?: (ref: string) => void
   onShowInteraction: (e: React.MouseEvent, pairs: { name: string; count: number }[]) => void
 }
 
-function ReportContent({ report, sections, hideDetails, onSceneClick, onShowInteraction }: ReportContentProps) {
+function ReportContent({ report, sections, hideDetails, breakdownFolgeId, onSceneClick, onShowInteraction }: ReportContentProps) {
   return (
     <div style={{ fontSize: 13 }}>
       {sections.map(sec => {
@@ -439,7 +441,7 @@ function ReportContent({ report, sections, hideDetails, onSceneClick, onShowInte
           case 'drehorte':
             return <DrehorteSection key={sec.id} report={report} />
           case 'breakdown':
-            return <BreakdownSection key={sec.id} />
+            return <BreakdownSection key={sec.id} folgeId={breakdownFolgeId} />
           default:
             return null
         }
@@ -451,14 +453,43 @@ function ReportContent({ report, sections, hideDetails, onSceneClick, onShowInte
 // ── Sections ──────────────────────────────────────────────────────────────────
 
 // Breakdown-Aggregate aus der breakdown-app (Proxy-Route /api/statistik/breakdown/folge/:id).
-// Phase 3: Platzhalter — der breakdown-seitige Endpoint ist ein Stub, echte Werte ab Phase 6.
-function BreakdownSection() {
+// Phase 6b: echte Werte. Zweck: Kostüm-Kostenlast einer Fassung VOR der Auswertung sichtbar.
+function BreakdownSection({ folgeId }: { folgeId?: number | null }) {
+  const [data, setData] = useState<any>(null)
+  const [state, setState] = useState<'laden' | 'ok' | 'fehler' | 'leer'>('laden')
+
+  useEffect(() => {
+    if (!folgeId) { setState('leer'); setData(null); return }
+    let abbruch = false
+    setState('laden')
+    api.get(`/statistik/breakdown/folge/${folgeId}`)
+      .then((d: any) => { if (!abbruch) { setData(d); setState('ok') } })
+      .catch(() => { if (!abbruch) setState('fehler') })
+    return () => { abbruch = true }
+  }, [folgeId])
+
+  if (state === 'leer') return (
+    <Section title="Breakdown">
+      <div style={{ color: 'var(--text-secondary)', fontSize: 12, padding: '6px 0' }}>Nur im Folgen-Modus verfügbar.</div>
+    </Section>
+  )
+  if (state === 'laden') return <Section title="Breakdown"><div style={{ color: 'var(--text-secondary)', fontSize: 12, padding: '6px 0' }}>Lädt…</div></Section>
+  if (state === 'fehler' || !data) return (
+    <Section title="Breakdown">
+      <div style={{ color: 'var(--text-secondary)', fontSize: 12, padding: '6px 0' }}>breakdown-app nicht erreichbar.</div>
+    </Section>
+  )
+
+  const ap = data.arbeit_privat_verhaeltnis || { arbeit: 0, privat: 0 }
   return (
-    <Section>
-      <div style={{ color: 'var(--text-secondary)', fontSize: 12, padding: '8px 0' }}>
-        Breakdown-Auswertung (Tagesoutfits, Wechsel, Doppel-Bedarfe, offene Vermerke pro Abteilung)
-        wird ab Phase 6 aus der breakdown-app geladen.
-      </div>
+    <Section title="Breakdown (Kostüm-Kostenlast)">
+      <div style={listRow}><span style={countBadge}>{data.tagesoutfits_pro_figur?.length ?? 0}x</span><span>Figuren mit Tagesoutfits (Arbeit {ap.arbeit} · Privat {ap.privat})</span></div>
+      <div style={listRow}><span style={countBadge}>{data.vermutete_wechsel ?? 0}x</span><span>Vermutete Kostümwechsel</span></div>
+      <div style={listRow}><span style={countBadge}>{data.doppel_bedarfe ?? 0}x</span><span>Doppel-Bedarfe</span></div>
+      <div style={listRow}><span style={countBadge}>{data.offene_vorschlaege ?? 0}x</span><span>Offene KI-Vorschläge</span></div>
+      {(data.offene_vermerke_pro_abteilung || []).map((v: any, i: number) => (
+        <div key={i} style={listRow}><span style={countBadge}>{v.anzahl}x</span><span>Offene Vermerke · {v.name || v.kuerzel || '—'}</span></div>
+      ))}
     </Section>
   )
 }
