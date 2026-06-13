@@ -5,6 +5,27 @@ import { authMiddleware } from '../auth'
 export const statistikRouter = Router()
 statistikRouter.use(authMiddleware)
 
+// ── 3.4 Breakdown-Statistik-Proxy ────────────────────────────────────────────
+// Cookie-authentifiziert (StatistikModal); ruft die breakdown-app Secret-zu-Secret.
+// breakdown-seitiger Endpoint ist aktuell ein Stub (echte Aggregate ab Phase 6).
+statistikRouter.get('/breakdown/folge/:folge_id', async (req, res) => {
+  const BREAKDOWN_URL = process.env.BREAKDOWN_URL
+  const secret = process.env.BREAKDOWN_INTERNAL_SECRET
+  if (!BREAKDOWN_URL || !secret) {
+    return res.status(503).json({ error: 'breakdown-app nicht konfiguriert' })
+  }
+  try {
+    const upstream = await fetch(
+      `${BREAKDOWN_URL}/api/internal/statistik/folge/${encodeURIComponent(req.params.folge_id)}`,
+      { headers: { 'X-Breakdown-Secret': secret } }
+    )
+    if (!upstream.ok) return res.status(upstream.status).json({ error: 'breakdown-Statistik nicht verfuegbar' })
+    res.json(await upstream.json())
+  } catch (err: any) {
+    res.status(502).json({ error: 'breakdown-app nicht erreichbar' })
+  }
+})
+
 // ── Statistik-Config ─────────────────────────────────────────────────────────
 
 interface StatistikConfig {

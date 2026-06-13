@@ -15,6 +15,7 @@ import { pool, query, queryOne } from '../db'
 import { authMiddleware } from '../auth'
 import { assemblePdf } from '../utils/pdfAssembler'
 import { resolveProfilExportOptions } from '../lib/pdfProfilResolver'
+import { emitBreakdownWebhook } from '../lib/breakdownEmitter'
 import {
   generateToken, portalLink, tokenAblauf,
   resolveKontaktEmail, resolveBesetzung, deriveAnzeigeStatus,
@@ -708,7 +709,7 @@ veroeffentlichenRouter.post('/:id/veroeffentlichen', async (req, res) => {
     await client.query('BEGIN')
 
     const wsRes = await client.query(
-      `SELECT w.id, w.typ, w.label, w.version_nummer, f.produktion_id, f.folge_nummer, f.folgen_titel,
+      `SELECT w.id, w.typ, w.label, w.version_nummer, w.folge_id, f.produktion_id, f.folge_nummer, f.folgen_titel,
               p.titel AS produktion_titel
        FROM werkstufen w JOIN folgen f ON f.id = w.folge_id
        LEFT JOIN produktionen p ON p.id = f.produktion_id
@@ -791,6 +792,12 @@ veroeffentlichenRouter.post('/:id/veroeffentlichen', async (req, res) => {
     }
 
     await client.query('COMMIT')
+
+    // breakdown-app benachrichtigen (fire-and-forget, nach erfolgreichem Publish) — Phase 3 / 3.2
+    emitBreakdownWebhook({
+      werkstufeId: ws.id, folgeId: ws.folge_id,
+      produktionId: ws.produktion_id, folgeNummer: ws.folge_nummer,
+    }).catch(() => {})
 
     // Mailversand (Link-first) über zentrale auth send-mail; queued -> sent.
     // Fehler werden gesammelt zurückgegeben (kein stilles Verschlucken), Zeile bleibt 'queued'.

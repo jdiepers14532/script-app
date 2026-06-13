@@ -85,6 +85,7 @@ import {
 } from './routes/verteiler'
 import { verteilerPortalRouter } from './routes/verteiler-portal'
 import { verteilerInternalRouter } from './routes/verteiler-internal'
+import { breakdownInternalRouter } from './routes/breakdown-internal'
 
 // Load .env from project root or backend dir
 dotenv.config({ path: path.join(__dirname, '..', '..', '.env') })
@@ -150,6 +151,7 @@ app.use('/api/locks', contractLocksRouter) // POST /contract-update
 app.use('/api/internal', verteilerInternalRouter) // mail-status (X-Mail-Service-Secret)
 app.use('/api/internal', commentWebhookRouter)
 app.use('/api/internal', taetigkeitenInternalRouter)
+app.use('/api/internal', breakdownInternalRouter) // breakdown/szenen + breakdown/vorschau-html (X-Breakdown-Secret)
 app.use('/api', exportsRouter)            // werkstufe/:id/export/* routes
 app.use('/api/stages', stagesCommentRouter)
 app.use('/api/szenen', szenenCommentRouter)

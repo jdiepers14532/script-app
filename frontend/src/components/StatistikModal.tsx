@@ -19,6 +19,8 @@ export const DEFAULT_SECTIONS: StatModalSection[] = [
   { id: 'rollen',           label: 'Rollen',             visible: true },
   { id: 'motive',           label: 'Motive',             visible: true },
   { id: 'drehorte',         label: 'Drehorte',           visible: true },
+  // Breakdown-Aggregate aus der breakdown-app (Proxy). Default aus — echte Werte ab Phase 6.
+  { id: 'breakdown',        label: 'Breakdown',          visible: false },
 ]
 
 export interface StatistikExportConfig {
@@ -436,6 +438,8 @@ function ReportContent({ report, sections, hideDetails, onSceneClick, onShowInte
             return <MotiveSection key={sec.id} report={report} hideDetails={hideDetails} onSceneClick={onSceneClick} />
           case 'drehorte':
             return <DrehorteSection key={sec.id} report={report} />
+          case 'breakdown':
+            return <BreakdownSection key={sec.id} />
           default:
             return null
         }
@@ -445,6 +449,19 @@ function ReportContent({ report, sections, hideDetails, onSceneClick, onShowInte
 }
 
 // ── Sections ──────────────────────────────────────────────────────────────────
+
+// Breakdown-Aggregate aus der breakdown-app (Proxy-Route /api/statistik/breakdown/folge/:id).
+// Phase 3: Platzhalter — der breakdown-seitige Endpoint ist ein Stub, echte Werte ab Phase 6.
+function BreakdownSection() {
+  return (
+    <Section>
+      <div style={{ color: 'var(--text-secondary)', fontSize: 12, padding: '8px 0' }}>
+        Breakdown-Auswertung (Tagesoutfits, Wechsel, Doppel-Bedarfe, offene Vermerke pro Abteilung)
+        wird ab Phase 6 aus der breakdown-app geladen.
+      </div>
+    </Section>
+  )
+}
 
 function UebersichtSection({ report }: { report: any }) {
   const { t } = useTerminologie()
